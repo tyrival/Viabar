@@ -29,6 +29,24 @@ enum ViabarColor {
     static let info = Color(hex: "#2BB7FD")
 }
 
+// MARK: - 项目可选主题色
+
+extension ViabarColor {
+    /// 新建项目时可选的背景色
+    static let palette: [(hex: String, name: String)] = [
+        ("#4CC1FF", "浅蓝"),
+        ("#7BCF00", "翠绿"),
+        ("#FF4B41", "赤红"),
+        ("#FFBF00", "琥珀"),
+        ("#F62447", "玫红"),
+        ("#FF8B0B", "橘橙"),
+        ("#FFCF29", "明黄"),
+        ("#A5CF1E", "嫩绿"),
+        ("#04B8A8", "青绿"),
+        ("#2BB7FD", "天蓝"),
+    ]
+}
+
 // MARK: - Hex String Convenience
 
 extension ViabarColor {

@@ -18,8 +18,6 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Dashboard Placeholder (Phase 2: DashboardView)
-
 struct DashboardPlaceholderView: View {
     var body: some View {
         VStack(spacing: 16) {

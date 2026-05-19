@@ -17,11 +17,10 @@ struct SidebarView: View {
     @Query(sort: \ArchiveFolder.orderIndex) private var allFolders: [ArchiveFolder]
     @Binding var selection: SidebarSelection?
 
+    @State private var showNewProjectSheet: Bool = false
     @State private var isArchiveExpanded: Bool = false
     @State private var archivePickerProject: Project?
     @State private var expandedFolderIds: Set<UUID> = []
-
-    @FocusState private var isSidebarFocused: Bool
 
     private var projectService: ProjectService? {
         container.projectService
@@ -39,21 +38,31 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
+            // 顶部新建按钮——极简图标行，非完整菜单项
+            HStack {
+                Button {
+                    showNewProjectSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.body)
+                }
+                .buttonStyle(.borderless)
+                .help("新建项目")
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .listRowSeparator(.hidden)
+
             overviewSection
             projectsSection
             archiveSection
         }
         .listStyle(.sidebar)
-        .focusable()
-        .focused($isSidebarFocused)
-        .navigationSplitViewColumnWidth(min: 220, ideal: 260)
-        .onChange(of: selection) { _, new in
-            if case .project(let p) = new {
-                print("[SidebarView] selection changed → project: \(p.title)")
-            } else {
-                print("[SidebarView] selection changed → \(String(describing: new))")
-            }
+        .sheet(isPresented: $showNewProjectSheet) {
+            NewProjectView()
         }
+        .navigationSplitViewColumnWidth(min: 220, ideal: 260)
         .archiveFolderPicker(
             isPresented: Binding(
                 get: { archivePickerProject != nil },
@@ -91,14 +100,12 @@ struct SidebarView: View {
                     icon: "tray",
                     message: "暂无项目",
                     action: "新建项目",
-                    onAction: addProject
+                    onAction: { showNewProjectSheet = true }
                 )
             } else {
                 ForEach(activeProjects) { project in
                     ActiveProjectRow(
                         project: project,
-                        isSelected: selection == .project(project),
-                        isSidebarFocused: isSidebarFocused,
                         onArchive: { archivePickerProject = project },
                         onSelect: {
                             print("[SidebarView] selection → \(project.title)")
@@ -115,7 +122,11 @@ struct SidebarView: View {
                 }
             }
         } header: {
-            sectionHeader(title: "项目", onAdd: addProject)
+            HStack {
+                Text("项目")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -187,35 +198,12 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: - Helpers
-
-    private func sectionHeader(title: String, onAdd: @escaping () -> Void) -> some View {
-        HStack {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button(action: onAdd) {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(.blue)
-                    .font(.title3)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func addProject() {
-        let idx = activeProjects.count
-        projectService?.createProject(title: "新项目", orderIndex: idx)
-    }
 }
 
 // MARK: - ActiveProjectRow
 
 struct ActiveProjectRow: View {
     let project: Project
-    let isSelected: Bool
-    let isSidebarFocused: Bool
     let onArchive: () -> Void
     let onSelect: () -> Void
 
@@ -225,18 +213,11 @@ struct ActiveProjectRow: View {
         container.projectService
     }
 
-    /// 填充色：
-    /// - 100% → success
-    /// - 左边栏聚焦 + 选中 → info
-    /// - 其他 → 项目自定义 primary
+    /// 填充色：100% → success，否则 → 项目自定义主题色
     private var accentColor: Color {
-        if project.progress >= 1.0 {
-            return ViabarColor.success
-        }
-        if isSelected && isSidebarFocused {
-            return ViabarColor.info
-        }
-        return Color(hex: project.accentColor)
+        project.progress >= 1.0
+            ? ViabarColor.success
+            : Color(hex: project.accentColor)
     }
 
     /// 公共内容行，供双层渲染复用
@@ -259,11 +240,9 @@ struct ActiveProjectRow: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            // 轨道底色 —— 聚焦选中时透明，让系统深蓝底色透出
+            // 轨道底色
             RoundedRectangle(cornerRadius: 5)
-                .fill(isSelected && isSidebarFocused
-                    ? AnyShapeStyle(.clear)
-                    : AnyShapeStyle(.quaternary.opacity(0.45)))
+                .fill(.quaternary.opacity(0.45))
 
             // 进度填充
             GeometryReader { geo in
