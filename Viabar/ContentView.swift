@@ -6,16 +6,21 @@ struct ContentView: View {
     @State private var isMemoDrawerVisible: Bool = true
 
     private let memoDrawerWidth: CGFloat = 360
+    private let memoToggleButtonSize: CGFloat = 44
+    private let memoToggleInset: CGFloat = 6
+
+    private var memoToggleRowHeight: CGFloat {
+        memoToggleButtonSize + memoToggleInset * 2
+    }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
+        ZStack(alignment: .topTrailing) {
             NavigationSplitView {
                 SidebarView(selection: $selection)
             } detail: {
                 detailContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .toolbarBackground(.hidden, for: .automatic)
-                    .toolbar(.hidden, for: .windowToolbar)
                     .navigationTitle("")
             }
 
@@ -23,12 +28,9 @@ struct ContentView: View {
                 memoDrawer(project: project)
                     .transition(.move(edge: .trailing))
             }
-        }
-        .overlay(alignment: .topTrailing) {
+
             if selectedProject != nil {
-                memoToggleButton
-                    .padding(.top, 16)
-                    .padding(.trailing, 18)
+                memoToggleLayer
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isMemoDrawerVisible)
@@ -58,12 +60,32 @@ struct ContentView: View {
     private func memoDrawer(project: Project) -> some View {
         HStack(spacing: 0) {
             Divider()
-            MemoTimelineView(project: project)
-                .frame(width: memoDrawerWidth)
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: memoToggleRowHeight)
+                Divider()
+
+                MemoTimelineView(project: project)
+            }
+            .frame(width: memoDrawerWidth)
         }
         .frame(maxHeight: .infinity)
         .background(.background)
         .ignoresSafeArea(.container, edges: [.top, .bottom])
+    }
+
+    private var memoToggleLayer: some View {
+        VStack {
+            HStack {
+                Spacer()
+                memoToggleButton
+                    .padding(.top, memoToggleInset)
+                    .padding(.trailing, memoToggleInset)
+            }
+            Spacer()
+        }
+        .ignoresSafeArea(.container, edges: [.top, .bottom])
+        .zIndex(2)
     }
 
     private var memoToggleButton: some View {
@@ -72,12 +94,15 @@ struct ContentView: View {
                 isMemoDrawerVisible.toggle()
             }
         } label: {
-            Image(systemName: isMemoDrawerVisible ? "sidebar.trailing" : "sidebar.leading")
+            Image(systemName: "sidebar.right")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
+                .frame(width: memoToggleButtonSize, height: memoToggleButtonSize)
                 .background(.regularMaterial, in: Circle())
                 .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
         }
         .buttonStyle(.plain)
         .help(isMemoDrawerVisible ? "收起备忘录" : "展开备忘录")
