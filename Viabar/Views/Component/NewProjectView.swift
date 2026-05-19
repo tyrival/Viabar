@@ -21,7 +21,6 @@ struct NewProjectView: View {
             HStack {
                 Text("新建项目").font(.title3).bold()
                 Spacer()
-                Button("取消") { dismiss() }.buttonStyle(.borderless)
             }
             .padding()
 

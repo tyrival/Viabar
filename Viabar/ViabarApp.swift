@@ -63,6 +63,7 @@ struct ViabarApp: App {
             ContentView()
                 .environment(serviceContainer)
         }
+        .windowStyle(.hiddenTitleBar)
         .modelContainer(sharedModelContainer)
     }
 }

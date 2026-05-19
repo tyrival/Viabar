@@ -7,6 +7,7 @@ import SwiftData
 /// 顶部常驻切换开关：显示/隐藏已完成。
 struct MilestoneListView: View {
     let project: Project
+    var showsHeader: Bool = true
 
     @Environment(ServiceContainer.self) private var container
     @State private var newMilestoneTitle: String = ""
@@ -30,8 +31,10 @@ struct MilestoneListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
+            if showsHeader {
+                header
+                Divider()
+            }
             if visibleMilestones.isEmpty {
                 emptyContent
             } else {
