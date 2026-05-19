@@ -38,22 +38,6 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            // 顶部新建按钮——极简图标行，非完整菜单项
-            HStack {
-                Button {
-                    showNewProjectSheet = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.body)
-                }
-                .buttonStyle(.borderless)
-                .help("新建项目")
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2)
-            .listRowSeparator(.hidden)
-
             overviewSection
             projectsSection
             archiveSection
@@ -126,6 +110,17 @@ struct SidebarView: View {
                 Text("项目")
                     .font(.headline)
                     .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    showNewProjectSheet = true
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 12)
+                .help("新建项目")
             }
         }
     }

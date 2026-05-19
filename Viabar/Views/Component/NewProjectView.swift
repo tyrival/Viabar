@@ -27,15 +27,13 @@ struct NewProjectView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    nameField
-                    templateSection
-                    colorPicker
-                    symbolPicker
-                }
-                .padding()
+            VStack(alignment: .leading, spacing: 20) {
+                nameField
+                templateSection
+                iconAndColorRow
+                symbolGridScroll
             }
+            .padding()
 
             Divider()
 
@@ -48,7 +46,7 @@ struct NewProjectView: View {
             }
             .padding()
         }
-        .frame(width: 520, height: 560)
+        .frame(width: 520, height: 620)
     }
 
     // MARK: - Name
@@ -79,71 +77,74 @@ struct NewProjectView: View {
         }
     }
 
-    // MARK: - Color Picker
+    // MARK: - Icon & Color Row
 
-    private var colorPicker: some View {
+    private var iconAndColorRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("主题色").font(.headline)
-            HStack(spacing: 10) {
-                ForEach(ViabarColor.palette, id: \.hex) { item in
-                    ColorCircle(
-                        hex: item.hex,
-                        name: item.name,
-                        isSelected: selectedColorHex == item.hex,
-                        onSelect: { selectedColorHex = item.hex }
-                    )
+            Text("图标 & 主题色").font(.headline)
+            HStack(spacing: 16) {
+                // 当前选中图标
+                Image(systemName: selectedSymbol)
+                    .font(.title)
+                    .frame(width: 40, height: 40)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+
+                // 颜色圆形
+                HStack(spacing: 10) {
+                    ForEach(ViabarColor.palette, id: \.hex) { item in
+                        ColorCircle(
+                            hex: item.hex,
+                            name: item.name,
+                            isSelected: selectedColorHex == item.hex,
+                            onSelect: { selectedColorHex = item.hex }
+                        )
+                    }
                 }
             }
         }
     }
 
-    // MARK: - Symbol Picker
+    // MARK: - Symbol Grid Scroll
 
-    private var symbolPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("图标").font(.headline)
-
-            // 当前选中预览
-            Image(systemName: selectedSymbol)
-                .font(.title)
-                .frame(width: 40, height: 40)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-
-            // 符号网格
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 10)
-
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 4) {
-                    ForEach(commonSymbols, id: \.self) { symbol in
-                        Button {
-                            selectedSymbol = symbol
-                        } label: {
-                            Image(systemName: symbol)
-                                .font(.body)
-                                .frame(width: 36, height: 36)
-                        }
-                        .buttonStyle(.plain)
-                        .background(
-                            selectedSymbol == symbol
-                                ? Color.blue.opacity(0.15)
-                                : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 6)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(
-                                    selectedSymbol == symbol ? Color.blue : Color.clear,
-                                    lineWidth: 1.5
-                                )
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                }
-                .padding(4)
-            }
-            .frame(height: 200)
-            .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
+    private var symbolGridScroll: some View {
+        ScrollView {
+            symbolGridContent
         }
+        .frame(height: 240)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var symbolGridContent: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 10)
+
+        return LazyVGrid(columns: columns, spacing: 4) {
+            ForEach(commonSymbols, id: \.self) { symbol in
+                Button {
+                    selectedSymbol = symbol
+                } label: {
+                    Image(systemName: symbol)
+                        .font(.body)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    selectedSymbol == symbol
+                        ? Color.blue.opacity(0.15)
+                        : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 6)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(
+                            selectedSymbol == symbol ? Color.blue : Color.clear,
+                            lineWidth: 1.5
+                        )
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+        .padding(4)
+        .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Create
@@ -237,7 +238,7 @@ private let commonSymbols: [String] = [
     "calendar", "calendar.badge.clock", "hourglass.bottomhalf.filled",
     // 其他常用
     "globe", "network", "wifi", "antenna.radiowaves.left.and.right",
-    "bell.fill", "tag.fill", "ticket.fill", "key.fill",
+    "bell.fill", "ticket.fill", "key.fill",
     "lock.fill", "lock.open.fill", "hand.thumbsup.fill", "hand.thumbsdown.fill",
     "eye.slash.fill", "hand.raised.fill", "exclamationmark.triangle.fill",
     "info.circle.fill", "questionmark.circle.fill", "plus.circle.fill",
