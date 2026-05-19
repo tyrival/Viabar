@@ -1,59 +1,43 @@
-//
-//  ContentView.swift
-//  Viabar
-//
-//  Created by 周晨煜 on 5/19/26.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var selection: SidebarSelection? = .overview
 
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
+            SidebarView(selection: $selection)
         } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            switch selection {
+            case .overview, .none:
+                DashboardPlaceholderView()
+            case .project(let project):
+                MainSplitView(project: project)
             }
+        }
+    }
+}
+
+// MARK: - Dashboard Placeholder (Phase 2: DashboardView)
+
+struct DashboardPlaceholderView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "square.grid.2x2")
+                .font(.system(size: 40))
+                .foregroundStyle(.tertiary)
+            Text("总览")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("Dashboard 将在 Phase 2 中实现")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .environment(ServiceContainer())
+        .modelContainer(for: Project.self, inMemory: true)
 }
