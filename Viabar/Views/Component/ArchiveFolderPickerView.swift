@@ -255,8 +255,8 @@ struct ArchiveFolderPickerModifier: ViewModifier {
                 ArchiveFolderPickerView(
                     project: project,
                     onConfirm: { folder in
-                        isPresented = false
                         onConfirm(folder)
+                        isPresented = false
                     },
                     onCancel: { isPresented = false }
                 )

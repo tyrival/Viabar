@@ -6,9 +6,18 @@ struct NewProjectView: View {
     @Environment(ServiceContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
 
+    let editingProject: Project?
+
     @State private var projectName: String = ""
     @State private var selectedColorHex: String = ViabarColor.palette[0].hex
     @State private var selectedSymbol: String = commonSymbols[0]
+
+    init(editingProject: Project? = nil) {
+        self.editingProject = editingProject
+        _projectName = State(initialValue: editingProject?.title ?? "")
+        _selectedColorHex = State(initialValue: editingProject?.accentColor ?? ViabarColor.palette[0].hex)
+        _selectedSymbol = State(initialValue: editingProject?.sfSymbolName ?? commonSymbols[0])
+    }
 
     private var projectService: ProjectService? {
         container.projectService
@@ -19,7 +28,7 @@ struct NewProjectView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("新建项目").font(.title3).bold()
+                Text(editingProject == nil ? "新建项目" : "编辑项目").font(.title3).bold()
                 Spacer()
             }
             .padding()
@@ -39,7 +48,7 @@ struct NewProjectView: View {
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
-                Button("创建") { createProject() }
+                Button(editingProject == nil ? "创建" : "保存") { commitProject() }
                     .buttonStyle(.borderedProminent)
                     .disabled(projectName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -148,10 +157,12 @@ struct NewProjectView: View {
 
     // MARK: - Create
 
-    private func createProject() {
+    private func commitProject() {
         let name = projectName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, let svc = projectService else { return }
-        let project = svc.createProject(title: name)
+
+        let project = editingProject ?? svc.createProject(title: name)
+        project.title = name
         project.accentColor = selectedColorHex
         project.sfSymbolName = selectedSymbol
         svc.updateProject(project)

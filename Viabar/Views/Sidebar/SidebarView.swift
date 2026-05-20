@@ -187,12 +187,30 @@ struct SidebarView: View {
 
     private var overviewSection: some View {
         Section {
-            Label {
-                Text("总览")
-            } icon: {
-                Image(systemName: "square.grid.2x2")
-                    .foregroundStyle(.blue)
+            Button {
+                selection = .overview
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.title3)
+                    Text("总览")
+                        .font(.body)
+                    Spacer()
+                }
+                .foregroundStyle(selection == .overview ? .white : .secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .frame(height: 38)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    if selection == .overview {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(ViabarColor.primary)
+                    }
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .tag(SidebarSelection.overview)
         }
     }
