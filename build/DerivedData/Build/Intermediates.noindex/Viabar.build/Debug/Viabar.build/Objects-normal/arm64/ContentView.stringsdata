@@ -1,0 +1,120 @@
+{
+  "source": "/Users/tyrival/workspace/Viabar/Viabar/ContentView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "删除项目？",
+        "location": {
+          "startingColumn": 13,
+          "startingLine": 60
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 39
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "",
+        "key": "取消",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 75
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 79
+        }
+      },
+      {
+        "comment": "",
+        "key": "“%@”将被永久删除，无法恢复。",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 79
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 107,
+          "startingLine": 79
+        }
+      },
+      {
+        "comment": "",
+        "key": "收起备忘录",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 181
+        }
+      },
+      {
+        "comment": "",
+        "key": "展开备忘录",
+        "location": {
+          "startingColumn": 57,
+          "startingLine": 181
+        }
+      },
+      {
+        "comment": "",
+        "key": "显示已完成里程碑",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 248
+        }
+      },
+      {
+        "comment": "",
+        "key": "隐藏已完成里程碑",
+        "location": {
+          "startingColumn": 68,
+          "startingLine": 248
+        }
+      },
+      {
+        "comment": "",
+        "key": "编辑",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 489
+        }
+      },
+      {
+        "comment": "",
+        "key": "归档",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 494
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 500
+        }
+      }
+    ]
+  },
+  "version": 1
+}

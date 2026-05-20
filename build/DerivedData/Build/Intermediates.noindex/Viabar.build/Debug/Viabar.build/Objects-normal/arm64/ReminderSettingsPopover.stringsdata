@@ -1,0 +1,48 @@
+{
+  "source": "/Users/tyrival/workspace/Viabar/Viabar/Views/Component/ReminderSettingsPopover.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 16
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 25
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 34
+        }
+      },
+      {
+        "comment": "",
+        "key": "通知提醒",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 54
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除提醒",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 67
+        }
+      }
+    ]
+  },
+  "version": 1
+}

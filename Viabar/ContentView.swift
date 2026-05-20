@@ -272,9 +272,9 @@ struct OverviewDashboardView: View {
     let onArchiveProject: (Project) -> Void
     let onDeleteProject: (Project) -> Void
 
-    private let cardMinimumWidth: CGFloat = 320
-    private let cardSpacing: CGFloat = 14
-    private let contentPadding: CGFloat = 18
+    private let cardMinimumWidth: CGFloat = 280
+    private let cardSpacing: CGFloat = 12
+    private let contentPadding: CGFloat = 16
 
     private var visibleProjects: [Project] {
         projects
@@ -322,7 +322,13 @@ struct OverviewProjectCard: View {
     let onArchive: () -> Void
     let onDelete: () -> Void
 
-    private let progressStepCount = 30
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let cardHorizontalPadding: CGFloat = 18
+    private let headerHeight: CGFloat = 42
+    private let iconFrameSize: CGFloat = 24
+    private let progressStepCount = 22
+    private let progressDotSize: CGFloat = 8
 
     private var accentColor: Color {
         project.progress >= 1.0
@@ -351,109 +357,147 @@ struct OverviewProjectCard: View {
         "\(Int((project.progress * 100).rounded()))%"
     }
 
+    private var cardBackground: Color {
+        colorScheme == .dark ? Color.white.opacity(0.05) : Color(nsColor: .controlBackgroundColor)
+    }
+
+    private var cardShadowColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.16)
+    }
+
+    private var reminderTextColor: Color {
+        colorScheme == .dark ? Color.gray.opacity(0.78) : Color.gray.opacity(0.88)
+    }
+
+    private var progressTintColor: Color {
+        progressColor(at: project.progress)
+    }
+
+    private func progressColor(at value: Double) -> Color {
+        let progress = max(0, min(1, value))
+        let start = (red: 0x2B, green: 0xB7, blue: 0xFD)
+        let end = (red: 0x09, green: 0xCC, blue: 0x9B)
+        let red = Double(start.red) + (Double(end.red) - Double(start.red)) * progress
+        let green = Double(start.green) + (Double(end.green) - Double(start.green)) * progress
+        let blue = Double(start.blue) + (Double(end.blue) - Double(start.blue)) * progress
+        return Color(
+            red: red / 255,
+            green: green / 255,
+            blue: blue / 255
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Image(systemName: project.sfSymbolName)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.white)
-                    .frame(width: 30, height: 30)
+                    .frame(width: iconFrameSize, height: iconFrameSize)
 
                 Text(project.title)
-                    .font(.title3.weight(.bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, cardHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: headerHeight, maxHeight: headerHeight, alignment: .center)
             .background(accentColor)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let milestone = topMilestone {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 4) {
                         Image(systemName: "star.circle.fill")
                             .font(.title3)
                             .foregroundStyle(.yellow)
-                            .frame(width: 24, alignment: .center)
+                            .frame(width: iconFrameSize, height: iconFrameSize, alignment: .center)
 
                         Text(milestone.title)
-                            .font(.headline)
+                            .font(.title3)
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                     }
                 } else {
                     HStack { Spacer() }
-                        .frame(height: 24)
+                        .frame(height: iconFrameSize)
                 }
 
                 if let reminderDate {
-                    HStack(spacing: 10) {
-                        Image(systemName: "calendar")
-                            .font(.callout.weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 24, height: 24)
-                            .background(RoundedRectangle(cornerRadius: 5).fill(.red.opacity(0.88)))
+                    HStack(spacing: 4) {
+                        Image(systemName: "alarm")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.red.opacity(0.72))
+                            .frame(width: iconFrameSize, height: 18, alignment: .center)
 
                         Text(reminderDate.formattedOverviewReminder)
                             .font(.callout)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(reminderTextColor)
                     }
+                    .frame(height: 18)
                 } else {
                     HStack { Spacer() }
-                        .frame(height: 24)
+                        .frame(height: 18)
                 }
 
                 HStack(alignment: .center, spacing: 10) {
-                    HStack(spacing: 3) {
-                        ForEach(0..<progressStepCount, id: \.self) { index in
-                            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(index < filledStepCount ? ViabarColor.success : Color.gray.opacity(0.22))
-                                .frame(width: 4, height: 20)
+                    GeometryReader { proxy in
+                        let stepCount = max(progressStepCount - 1, 1)
+                        let availableWidth = max(0, proxy.size.width - progressDotSize)
+                        let stepSpacing = availableWidth / CGFloat(stepCount)
+
+                        ZStack(alignment: .leading) {
+                            ForEach(0..<progressStepCount, id: \.self) { index in
+                                let colorProgress = Double(index) / Double(stepCount)
+                                Circle()
+                                    .fill(index < filledStepCount ? progressColor(at: colorProgress) : Color.gray.opacity(0.22))
+                                    .frame(width: progressDotSize, height: progressDotSize)
+                                    .offset(x: CGFloat(index) * stepSpacing)
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: progressDotSize)
 
                     Text(progressPercentText)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(ViabarColor.success)
+                        .font(.title3)
+                        .foregroundStyle(progressTintColor)
                         .monospacedDigit()
                         .lineLimit(1)
                 }
-                .padding(.top, 2)
             }
-            .padding(16)
+            .padding(.horizontal, cardHorizontalPadding)
+            .padding(.top, 18)
+            .padding(.bottom, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color.white)
+            .background(cardBackground)
         }
-        .frame(height: 170)
+        .frame(height: 142)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(cardBackground)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.14), radius: 12, y: 5)
+        .shadow(color: cardShadowColor, radius: 14, y: 6)
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture(perform: onSelect)
         .contextMenu {
             Button {
                 onEdit()
             } label: {
-                Label("编辑项目…", systemImage: "pencil")
+                Label("编辑", systemImage: "pencil")
             }
             Button {
                 onArchive()
             } label: {
-                Label("归档…", systemImage: "archivebox")
+                Label("归档", systemImage: "archivebox")
             }
             Divider()
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Label("删除项目", systemImage: "trash")
+                Label("删除", systemImage: "trash")
             }
         }
     }

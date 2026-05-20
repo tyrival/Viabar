@@ -98,6 +98,7 @@ struct SidebarView: View {
     @Binding var selection: SidebarSelection?
 
     @State private var showNewProjectSheet: Bool = false
+    @State private var editingProject: Project?
     @State private var isArchiveExpanded: Bool = false
     @State private var archivePickerProject: Project?
     @State private var expandedFolderIds: Set<UUID> = []
@@ -134,6 +135,9 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .sheet(isPresented: $showNewProjectSheet) {
             NewProjectView()
+        }
+        .sheet(item: $editingProject) { project in
+            NewProjectView(editingProject: project)
         }
         .alert(
             folderNamePrompt?.title ?? "",
@@ -230,6 +234,7 @@ struct SidebarView: View {
                 ForEach(activeProjects) { project in
                     ActiveProjectRow(
                         project: project,
+                        onEdit: { editingProject = project },
                         onArchive: { archivePickerProject = project },
                         onDelete: { showDeleteProjectConfirmation(project) },
                         onSelect: {
@@ -446,6 +451,7 @@ struct SidebarView: View {
 
 struct ActiveProjectRow: View {
     let project: Project
+    let onEdit: () -> Void
     let onArchive: () -> Void
     let onDelete: () -> Void
     let onSelect: () -> Void
@@ -517,14 +523,17 @@ struct ActiveProjectRow: View {
             onSelect()
         }
         .contextMenu {
+            Button { onEdit() } label: {
+                Label("编辑", systemImage: "pencil")
+            }
             Button { onArchive() } label: {
-                Label("归档…", systemImage: "archivebox")
+                Label("归档", systemImage: "archivebox")
             }
             Divider()
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Label("删除项目", systemImage: "trash")
+                Label("删除", systemImage: "trash")
             }
         }
     }

@@ -1,0 +1,80 @@
+{
+  "source": "/Users/tyrival/workspace/Viabar/Viabar/Views/MainPanel/MilestoneListView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "里程碑",
+        "location": {
+          "startingColumn": 19,
+          "startingLine": 53
+        }
+      },
+      {
+        "comment": "",
+        "key": "隐藏已完成",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 62
+        }
+      },
+      {
+        "comment": "",
+        "key": "暂无里程碑",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 101
+        }
+      },
+      {
+        "comment": "",
+        "key": "在下方输入框中添加第一个里程碑",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "新增里程碑…",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 116
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/%lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 181
+        }
+      },
+      {
+        "comment": "",
+        "key": "添加子任务",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 197
+        }
+      },
+      {
+        "comment": "",
+        "key": "新子任务…",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 218
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 279
+        }
+      }
+    ]
+  },
+  "version": 1
+}

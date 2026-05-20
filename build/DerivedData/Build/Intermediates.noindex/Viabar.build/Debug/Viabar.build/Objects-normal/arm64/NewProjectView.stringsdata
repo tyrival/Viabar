@@ -1,0 +1,104 @@
+{
+  "source": "/Users/tyrival/workspace/Viabar/Viabar/Views/Component/NewProjectView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "新建",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 34
+        }
+      },
+      {
+        "comment": "",
+        "key": "编辑",
+        "location": {
+          "startingColumn": 57,
+          "startingLine": 34
+        }
+      },
+      {
+        "comment": "",
+        "key": "取消",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 53
+        }
+      },
+      {
+        "comment": "",
+        "key": "创建",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 54
+        }
+      },
+      {
+        "comment": "",
+        "key": "保存",
+        "location": {
+          "startingColumn": 59,
+          "startingLine": 54
+        }
+      },
+      {
+        "comment": "",
+        "key": "项目名称",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 67
+        }
+      },
+      {
+        "comment": "",
+        "key": "输入项目名称…",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 69
+        }
+      },
+      {
+        "comment": "",
+        "key": "添加项目提醒",
+        "location": {
+          "startingColumn": 48,
+          "startingLine": 81
+        }
+      },
+      {
+        "comment": "",
+        "key": "编辑项目提醒",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 81
+        }
+      },
+      {
+        "comment": "",
+        "key": "模板",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 93
+        }
+      },
+      {
+        "comment": "",
+        "key": "暂无可选模板，后续版本将支持",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 97
+        }
+      },
+      {
+        "comment": "",
+        "key": "图标 & 主题色",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 111
+        }
+      }
+    ]
+  },
+  "version": 1
+}

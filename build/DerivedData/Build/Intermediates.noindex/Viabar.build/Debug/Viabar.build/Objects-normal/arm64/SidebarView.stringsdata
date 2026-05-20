@@ -1,0 +1,168 @@
+{
+  "source": "/Users/tyrival/workspace/Viabar/Viabar/Views/Sidebar/SidebarView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "文件夹名",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 149
+        }
+      },
+      {
+        "comment": "",
+        "key": "取消",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 153
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 166
+        }
+      },
+      {
+        "comment": "",
+        "key": "取消",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 169
+        }
+      },
+      {
+        "comment": "",
+        "key": "总览",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 200
+        }
+      },
+      {
+        "comment": "",
+        "key": "项目",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 278
+        }
+      },
+      {
+        "comment": "",
+        "key": "新建项目",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 291
+        }
+      },
+      {
+        "comment": "",
+        "key": "新建文件夹",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 331
+        }
+      },
+      {
+        "comment": "",
+        "key": "归档",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 309
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 481
+        }
+      },
+      {
+        "comment": "",
+        "key": "编辑",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 527
+        }
+      },
+      {
+        "comment": "",
+        "key": "归档",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 530
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 536
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 884
+        }
+      },
+      {
+        "comment": "",
+        "key": "新建子文件夹",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 932
+        }
+      },
+      {
+        "comment": "",
+        "key": "重命名",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 937
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除文件夹",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 945
+        }
+      },
+      {
+        "comment": "",
+        "key": "取消归档",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 1054
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除项目",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 1061
+        }
+      },
+      {
+        "comment": "",
+        "key": "Detail",
+        "location": {
+          "startingColumn": 1,
+          "startingLine": 1384
+        }
+      }
+    ]
+  },
+  "version": 1
+}

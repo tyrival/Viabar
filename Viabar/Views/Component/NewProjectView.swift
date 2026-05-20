@@ -11,12 +11,15 @@ struct NewProjectView: View {
     @State private var projectName: String = ""
     @State private var selectedColorHex: String = ViabarColor.palette[0].hex
     @State private var selectedSymbol: String = commonSymbols[0]
+    @State private var projectReminder: Reminder?
+    @State private var showingReminderPopover = false
 
     init(editingProject: Project? = nil) {
         self.editingProject = editingProject
         _projectName = State(initialValue: editingProject?.title ?? "")
         _selectedColorHex = State(initialValue: editingProject?.accentColor ?? ViabarColor.palette[0].hex)
         _selectedSymbol = State(initialValue: editingProject?.sfSymbolName ?? commonSymbols[0])
+        _projectReminder = State(initialValue: Self.copyReminder(editingProject?.reminder))
     }
 
     private var projectService: ProjectService? {
@@ -28,7 +31,7 @@ struct NewProjectView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(editingProject == nil ? "新建项目" : "编辑项目").font(.title3).bold()
+                Text(editingProject == nil ? "新建" : "编辑").font(.title3).bold()
                 Spacer()
             }
             .padding()
@@ -62,8 +65,24 @@ struct NewProjectView: View {
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("项目名称").font(.headline)
-            TextField("输入项目名称…", text: $projectName)
-                .textFieldStyle(.roundedBorder)
+            HStack(spacing: 8) {
+                TextField("输入项目名称…", text: $projectName)
+                    .textFieldStyle(.roundedBorder)
+
+                Button {
+                    showingReminderPopover.toggle()
+                } label: {
+                    Image(systemName: projectReminder == nil ? "alarm" : "alarm.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 26, height: 26)
+                        .foregroundStyle(projectReminder == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
+                }
+                .buttonStyle(.borderless)
+                .help(projectReminder == nil ? "添加项目提醒" : "编辑项目提醒")
+                .popover(isPresented: $showingReminderPopover, arrowEdge: .leading) {
+                    ReminderSettingsPopover(reminder: $projectReminder)
+                }
+            }
         }
     }
 
@@ -165,8 +184,19 @@ struct NewProjectView: View {
         project.title = name
         project.accentColor = selectedColorHex
         project.sfSymbolName = selectedSymbol
+        project.reminder = Self.copyReminder(projectReminder)
         svc.updateProject(project)
         dismiss()
+    }
+
+    private static func copyReminder(_ reminder: Reminder?) -> Reminder? {
+        guard let reminder else { return nil }
+        return Reminder(
+            type: reminder.type,
+            fireTime: reminder.fireTime,
+            fireTimestamp: reminder.fireTimestamp,
+            repeatIntervalDays: reminder.repeatIntervalDays
+        )
     }
 }
 
