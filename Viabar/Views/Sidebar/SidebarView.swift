@@ -21,6 +21,8 @@ struct SidebarView: View {
     @State private var isArchiveExpanded: Bool = false
     @State private var archivePickerProject: Project?
     @State private var expandedFolderIds: Set<UUID> = []
+    @State private var draggingActiveProjectId: UUID?
+    @State private var activeProjectDropTarget: ActiveProjectDropTarget?
 
     private var projectService: ProjectService? {
         container.projectService
@@ -97,9 +99,31 @@ struct SidebarView: View {
                         }
                     )
                     .tag(SidebarSelection.project(project))
-                    .onDrag {
-                        NSItemProvider(object: project.projectId.uuidString as NSString)
+                    .overlay(alignment: .top) {
+                        if activeProjectDropTarget == ActiveProjectDropTarget(projectId: project.projectId, placement: .before) {
+                            ActiveProjectDropIndicator()
+                        }
                     }
+                    .overlay(alignment: .bottom) {
+                        if activeProjectDropTarget == ActiveProjectDropTarget(projectId: project.projectId, placement: .after) {
+                            ActiveProjectDropIndicator()
+                        }
+                    }
+                    .onDrag {
+                        draggingActiveProjectId = project.projectId
+                        let provider = NSItemProvider(object: project.projectId.uuidString as NSString)
+                        return provider
+                    }
+                    .onDrop(
+                        of: [.plainText],
+                        delegate: ActiveProjectReorderDropDelegate(
+                            targetProject: project,
+                            activeProjects: activeProjects,
+                            service: projectService,
+                            draggingProjectId: $draggingActiveProjectId,
+                            dropTarget: $activeProjectDropTarget
+                        )
+                    )
                 }
                 .onMove { offsets, target in
                     projectService?.reorderActiveProjects(fromOffsets: offsets, toOffset: target)
@@ -183,6 +207,8 @@ struct SidebarView: View {
                     selection: $selection,
                     level: 0,
                     expandedFolderIds: $expandedFolderIds,
+                    draggingActiveProjectId: $draggingActiveProjectId,
+                    activeProjectDropTarget: $activeProjectDropTarget,
                     allProjects: allProjects,
                     service: projectService
                 )
@@ -281,6 +307,130 @@ struct ActiveProjectRow: View {
 
 }
 
+// MARK: - Active Project Reorder
+
+struct ActiveProjectDropTarget: Equatable {
+    let projectId: UUID
+    let placement: ActiveProjectDropPlacement
+}
+
+enum ActiveProjectDropPlacement: Equatable {
+    case before
+    case after
+}
+
+struct ActiveProjectDropIndicator: View {
+    var body: some View {
+        Rectangle()
+            .fill(.blue)
+            .frame(height: 2)
+            .padding(.horizontal, 8)
+            .shadow(color: .blue.opacity(0.45), radius: 2)
+            .allowsHitTesting(false)
+    }
+}
+
+struct ActiveProjectReorderDropDelegate: DropDelegate {
+    let targetProject: Project
+    let activeProjects: [Project]
+    weak var service: ProjectService?
+    @Binding var draggingProjectId: UUID?
+    @Binding var dropTarget: ActiveProjectDropTarget?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard info.hasItemsConforming(to: [.plainText]) else { return false }
+        guard let draggingProjectId else { return false }
+        return draggingProjectId != targetProject.projectId
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateDropTarget(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateDropTarget(info: info)
+        guard draggingProjectId != nil else { return nil }
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTarget?.projectId == targetProject.projectId {
+            dropTarget = nil
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard draggingProjectId != nil else {
+            resetDragState()
+            return false
+        }
+
+        guard let service else {
+            resetDragState()
+            return false
+        }
+
+        loadProjectId(from: info) { draggedId in
+            guard let draggedId,
+                  let sourceIndex = activeProjects.firstIndex(where: { $0.projectId == draggedId }),
+                  let targetIndex = activeProjects.firstIndex(where: { $0.projectId == targetProject.projectId }),
+                  sourceIndex != targetIndex
+            else {
+                resetDragState()
+                return
+            }
+
+            let placement = dropTarget?.placement ?? placement(for: info)
+            let destination = targetIndex + (placement == .after ? 1 : 0)
+
+            guard sourceIndex != destination else {
+                resetDragState()
+                return
+            }
+
+            service.reorderActiveProjects(fromOffsets: IndexSet(integer: sourceIndex), toOffset: destination)
+            resetDragState()
+        }
+
+        return true
+    }
+
+    private func updateDropTarget(info: DropInfo) {
+        guard let draggingProjectId, draggingProjectId != targetProject.projectId else {
+            dropTarget = nil
+            return
+        }
+
+        dropTarget = ActiveProjectDropTarget(
+            projectId: targetProject.projectId,
+            placement: placement(for: info)
+        )
+    }
+
+    private func placement(for info: DropInfo) -> ActiveProjectDropPlacement {
+        info.location.y < 19 ? .before : .after
+    }
+
+    private func loadProjectId(from info: DropInfo, completion: @escaping (UUID?) -> Void) {
+        guard let provider = info.itemProviders(for: [.plainText]).first else {
+            completion(draggingProjectId)
+            return
+        }
+
+        provider.loadObject(ofClass: NSString.self) { item, _ in
+            let uuid = (item as? String).flatMap(UUID.init(uuidString:))
+            DispatchQueue.main.async {
+                completion(uuid ?? draggingProjectId)
+            }
+        }
+    }
+
+    private func resetDragState() {
+        draggingProjectId = nil
+        dropTarget = nil
+    }
+}
+
 // MARK: - RecursiveFolderRow
 
 /// 递归文件夹行 —— 支持无限嵌套级连目录树。
@@ -290,6 +440,8 @@ struct RecursiveFolderRow: View {
     @Binding var selection: SidebarSelection?
     let level: Int
     @Binding var expandedFolderIds: Set<UUID>
+    @Binding var draggingActiveProjectId: UUID?
+    @Binding var activeProjectDropTarget: ActiveProjectDropTarget?
     let allProjects: [Project]
     weak var service: ProjectService?
 
@@ -324,7 +476,9 @@ struct RecursiveFolderRow: View {
                 }
             },
             service: service,
-            allProjects: allProjects
+            allProjects: allProjects,
+            draggingActiveProjectId: $draggingActiveProjectId,
+            activeProjectDropTarget: $activeProjectDropTarget
         )
 
         if isExpanded {
@@ -335,6 +489,8 @@ struct RecursiveFolderRow: View {
                     selection: $selection,
                     level: level + 1,
                     expandedFolderIds: $expandedFolderIds,
+                    draggingActiveProjectId: $draggingActiveProjectId,
+                    activeProjectDropTarget: $activeProjectDropTarget,
                     allProjects: allProjects,
                     service: service
                 )
@@ -380,6 +536,8 @@ struct FolderHeaderRow: View {
     let onTap: () -> Void
     weak var service: ProjectService?
     let allProjects: [Project]
+    @Binding var draggingActiveProjectId: UUID?
+    @Binding var activeProjectDropTarget: ActiveProjectDropTarget?
 
     private var sortedProjects: [Project] {
         folder.projects.sorted { $0.orderIndex < $1.orderIndex }
@@ -419,7 +577,9 @@ struct FolderHeaderRow: View {
             delegate: FolderDropDelegate(
                 folder: folder,
                 service: service,
-                allProjects: allProjects
+                allProjects: allProjects,
+                draggingActiveProjectId: $draggingActiveProjectId,
+                activeProjectDropTarget: $activeProjectDropTarget
             )
         )
         .contextMenu {
@@ -483,12 +643,16 @@ struct FolderDropDelegate: DropDelegate {
     let folder: ArchiveFolder
     weak var service: ProjectService?
     let allProjects: [Project]
+    @Binding var draggingActiveProjectId: UUID?
+    @Binding var activeProjectDropTarget: ActiveProjectDropTarget?
 
     func validateDrop(info: DropInfo) -> Bool {
         info.hasItemsConforming(to: [.plainText])
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        resetActiveProjectDragState()
+
         guard let svc = service else { return false }
 
         let providers = info.itemProviders(for: [.plainText])
@@ -510,6 +674,11 @@ struct FolderDropDelegate: DropDelegate {
             }
         }
         return true
+    }
+
+    private func resetActiveProjectDragState() {
+        draggingActiveProjectId = nil
+        activeProjectDropTarget = nil
     }
 }
 

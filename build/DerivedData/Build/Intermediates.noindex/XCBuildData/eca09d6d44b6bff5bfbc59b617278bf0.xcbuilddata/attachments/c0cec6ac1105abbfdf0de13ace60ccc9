@@ -1,0 +1,159 @@
+{
+  "" : {
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Viabar-primary.dia",
+    "emit-module-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Viabar-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Viabar-primary-emit-module.dia",
+    "pch" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Viabar-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Viabar-primary.swiftdeps"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/ContentView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Models/Project.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Project~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Services/ProjectService.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProjectService~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Services/SyncService.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SyncService~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/System/ViabarColor.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarColor~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/ViabarApp.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ViabarApp~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/Component/ArchiveFolderPickerView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ArchiveFolderPickerView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/Component/Color+Hex.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/Color+Hex~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/Component/NewProjectView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/NewProjectView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/Component/ProgressBarView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/ProgressBarView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/MainPanel/MainSplitView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MainSplitView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/MainPanel/MemoTimelineView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MemoTimelineView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/MainPanel/MilestoneListView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/MilestoneListView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/Viabar/Views/Sidebar/SidebarView.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/SidebarView~partial.swiftmodule"
+  },
+  "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/tyrival/workspace/Viabar/build/DerivedData/Build/Intermediates.noindex/Viabar.build/Debug/Viabar.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  }
+}
