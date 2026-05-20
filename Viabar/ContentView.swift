@@ -1,19 +1,26 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct ContentView: View {
     @State private var selection: SidebarSelection? = .overview
     @State private var isMemoDrawerVisible: Bool = true
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
+    @State private var hoveredToolbarButton: ToolbarButtonKind?
 
     @Environment(ServiceContainer.self) private var container
 
     private let memoDrawerWidth: CGFloat = 360
-    private let memoToggleButtonSize: CGFloat = 44
-    private let memoToggleInset: CGFloat = 6
+    private let toolbarButtonSize: CGFloat = 36
+    private let toolbarButtonIconSize: CGFloat = 16
+    private let toolbarEdgeInset: CGFloat = 8
+    private let toolbarGradientHeight: CGFloat = 72
 
     private var memoToggleRowHeight: CGFloat {
-        memoToggleButtonSize + memoToggleInset * 2
+        toolbarButtonSize + toolbarEdgeInset * 2
+    }
+
+    private var collapsedHideCompletedTrailing: CGFloat {
+        toolbarButtonSize + toolbarEdgeInset * 2
     }
 
     var body: some View {
@@ -48,7 +55,7 @@ struct ContentView: View {
         switch selection {
         case .overview, .none:
             DashboardPlaceholderView()
-        case .project(let project):
+        case let .project(project):
             MainSplitView(
                 project: project,
                 reservesMemoDrawer: isMemoDrawerVisible,
@@ -58,7 +65,7 @@ struct ContentView: View {
     }
 
     private var selectedProject: Project? {
-        if case .project(let project) = selection {
+        if case let .project(project) = selection {
             return project
         }
         return nil
@@ -94,8 +101,8 @@ struct ContentView: View {
             HStack {
                 Spacer()
                 memoToggleButton
-                    .padding(.top, memoToggleInset)
-                    .padding(.trailing, memoToggleInset)
+                    .padding(.top, toolbarEdgeInset)
+                    .padding(.trailing, toolbarEdgeInset)
             }
             Spacer()
         }
@@ -110,17 +117,18 @@ struct ContentView: View {
             }
         } label: {
             Image(systemName: "sidebar.right")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: toolbarButtonIconSize, weight: .medium))
                 .foregroundStyle(.secondary)
-                .frame(width: memoToggleButtonSize, height: memoToggleButtonSize)
-                .background(.regularMaterial, in: Circle())
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                .frame(width: toolbarButtonSize, height: toolbarButtonSize)
+                .background(toolbarButtonBackground(isHovered: hoveredToolbarButton == .memoDrawer))
+                .contentShape(Circle())
                 .transaction { transaction in
                     transaction.animation = nil
                 }
         }
         .buttonStyle(.plain)
         .help(isMemoDrawerVisible ? "收起备忘录" : "展开备忘录")
+        .onHover { hoveredToolbarButton = $0 ? .memoDrawer : nil }
     }
 
     private func mainToolbarLayer(project: Project) -> some View {
@@ -141,17 +149,17 @@ struct ContentView: View {
                         }
                         .lineLimit(1)
                         .frame(maxWidth: 360, alignment: .leading)
-                            .padding(.leading, 180)
+                        .padding(.leading, 180)
                     }
 
                     Spacer()
 
                     hideCompletedButton(project: project)
-                        .padding(.trailing, isMemoDrawerVisible ? memoDrawerWidth + 6 : 56)
+                        .padding(.trailing, isMemoDrawerVisible ? memoDrawerWidth + toolbarEdgeInset : collapsedHideCompletedTrailing)
                 }
-                .padding(.top, 6)
+                .padding(.top, toolbarEdgeInset)
             }
-            .frame(height: 80)
+            .frame(height: toolbarGradientHeight)
 
             Spacer()
         }
@@ -163,8 +171,8 @@ struct ContentView: View {
         LinearGradient(
             stops: [
                 .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.96), location: 0),
-                .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.72), location: 0.52),
-                .init(color: Color(nsColor: .windowBackgroundColor).opacity(0), location: 1)
+                .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.82), location: 0.52),
+                .init(color: Color(nsColor: .windowBackgroundColor).opacity(0), location: 1),
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -179,15 +187,31 @@ struct ContentView: View {
             projectService?.updateProject(project)
         } label: {
             Image(systemName: project.hideCompleted ? "eye.slash" : "eye")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(project.hideCompleted ? .blue : .secondary)
-                .frame(width: 44, height: 44)
-                .background(.regularMaterial, in: Circle())
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                .font(.system(size: toolbarButtonIconSize, weight: .medium))
+                .foregroundStyle(project.hideCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.blue))
+                .frame(width: toolbarButtonSize, height: toolbarButtonSize)
+                .background(toolbarButtonBackground(isHovered: hoveredToolbarButton == .hideCompleted))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .help(project.hideCompleted ? "显示已完成里程碑" : "隐藏已完成里程碑")
+        .onHover { hoveredToolbarButton = $0 ? .hideCompleted : nil }
     }
+
+    private func toolbarButtonBackground(isHovered: Bool) -> some View {
+        Circle()
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay {
+                Circle()
+                    .fill(.primary.opacity(isHovered ? 0.06 : 0))
+            }
+            .shadow(color: .black.opacity(0.12), radius: 14, y: 4)
+    }
+}
+
+private enum ToolbarButtonKind: Equatable {
+    case memoDrawer
+    case hideCompleted
 }
 
 struct DashboardPlaceholderView: View {
