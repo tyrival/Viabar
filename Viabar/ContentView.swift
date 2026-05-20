@@ -396,7 +396,7 @@ struct OverviewProjectCard: View {
                     .frame(width: iconFrameSize, height: iconFrameSize)
 
                 Text(project.title)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 

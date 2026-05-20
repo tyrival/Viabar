@@ -12,6 +12,8 @@ struct MilestoneListView: View {
     @Environment(ServiceContainer.self) private var container
     @State private var newMilestoneTitle: String = ""
     @State private var expandingSubtaskFor: UUID?
+    @State private var selectedMilestoneID: UUID?
+    @State private var selectedSubTaskID: UUID?
 
     private var projectService: ProjectService? {
         container.projectService
@@ -30,17 +32,19 @@ struct MilestoneListView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showsHeader {
-                header
-                Divider()
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                if showsHeader {
+                    header
+                    Divider()
+                }
+                if visibleMilestones.isEmpty {
+                    emptyContent
+                } else {
+                    milestoneList
+                }
             }
-            if visibleMilestones.isEmpty {
-                emptyContent
-            } else {
-                milestoneList
-            }
-            Divider()
+
             addMilestoneBar
         }
         .background(.background)
@@ -76,16 +80,27 @@ struct MilestoneListView: View {
                 ForEach(visibleMilestones) { milestone in
                     MilestoneRowView(
                         milestone: milestone,
+                        isSelected: selectedMilestoneID == milestone.milestoneId,
                         isExpandingSubtask: Binding(
                             get: { expandingSubtaskFor == milestone.milestoneId },
                             set: {
                                 expandingSubtaskFor = $0 ? milestone.milestoneId : nil
                             }
-                        )
+                        ),
+                        selectedSubTaskID: $selectedSubTaskID,
+                        onSelect: {
+                            selectedMilestoneID = milestone.milestoneId
+                            selectedSubTaskID = nil
+                        },
+                        onSelectSubTask: { subTaskID in
+                            selectedMilestoneID = nil
+                            selectedSubTaskID = subTaskID
+                        }
                     )
                 }
             }
             .padding(.vertical, 8)
+            .padding(.bottom, 96)
         }
         .scrollClipDisabled(false)
     }
@@ -107,31 +122,48 @@ struct MilestoneListView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .padding(.bottom, 96)
     }
 
     // MARK: - Add Milestone Bar
 
     private var addMilestoneBar: some View {
-        HStack(spacing: 8) {
-            TextField("新增里程碑…", text: $newMilestoneTitle)
-                .textFieldStyle(.plain)
-                .onSubmit { commitNewMilestone() }
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [
+                    Color(nsColor: .windowBackgroundColor).opacity(0),
+                    Color(nsColor: .windowBackgroundColor).opacity(0.86)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 34)
 
-            Button(action: commitNewMilestone) {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(newMilestoneTitle.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.blue))
-                    .font(.title3)
-            }
-            .buttonStyle(.plain)
-            .disabled(newMilestoneTitle.isEmpty)
+            TextField("新增里程碑…", text: $newMilestoneTitle, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(3)
+                .submitLabel(.done)
+                .onSubmit { commitNewMilestone() }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(minHeight: 68, maxHeight: 68, alignment: .topLeading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 
     private func commitNewMilestone() {
-        guard !newMilestoneTitle.isEmpty else { return }
-        projectService?.addMilestone(to: project, title: newMilestoneTitle)
+        let title = newMilestoneTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        projectService?.addMilestone(to: project, title: title)
         newMilestoneTitle = ""
     }
 }
@@ -140,10 +172,19 @@ struct MilestoneListView: View {
 
 struct MilestoneRowView: View {
     let milestone: Milestone
+    let isSelected: Bool
     @Binding var isExpandingSubtask: Bool
+    @Binding var selectedSubTaskID: UUID?
+    let onSelect: () -> Void
+    let onSelectSubTask: (UUID) -> Void
 
     @Environment(ServiceContainer.self) private var container
     @State private var newSubTaskTitle: String = ""
+    @State private var editingTitle = false
+    @State private var titleDraft: String = ""
+    @State private var showingReminderPopover = false
+    @FocusState private var isTitleFocused: Bool
+    @FocusState private var isNewSubTaskFocused: Bool
 
     private var projectService: ProjectService? {
         container.projectService
@@ -155,91 +196,240 @@ struct MilestoneRowView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 里程碑主行
-            HStack(spacing: 10) {
-                // 完成状态按钮
-                Button {
-                    projectService?.toggleMilestoneComplete(milestone)
-                } label: {
-                    Image(systemName: milestone.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(milestone.isCompleted ? ViabarColor.success : .secondary)
-                        .font(.title3)
-                }
-                .buttonStyle(.plain)
-
-                // 标题
-                Text(milestone.title)
-                    .font(.body)
-                    .strikethrough(milestone.isCompleted)
-                    .foregroundStyle(milestone.isCompleted ? .secondary : .primary)
-
-                Spacer()
-
-                // 子任务计数
-                if !milestone.subtasks.isEmpty {
-                    Text("\(completedSubTaskCount)/\(milestone.subtasks.count)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                // 展开添加子任务
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isExpandingSubtask.toggle()
-                    }
-                } label: {
-                    Image(systemName: isExpandingSubtask ? "plus.circle.fill" : "plus.circle")
-                        .foregroundStyle(.blue)
-                        .font(.title3)
-                }
-                .buttonStyle(.plain)
-                .help("添加子任务")
+        HStack(alignment: .top, spacing: 10) {
+            Button {
+                projectService?.toggleMilestoneComplete(milestone)
+            } label: {
+                Image(systemName: milestone.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(milestone.isCompleted ? ViabarColor.success : .secondary)
+                    .font(.title3)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 10)
+            .buttonStyle(.plain)
+            .padding(.top, 1)
 
-            // 子任务列表
-            if !milestone.subtasks.isEmpty || isExpandingSubtask {
-                VStack(spacing: 0) {
-                    ForEach(
-                        milestone.subtasks.sorted { $0.orderIndex < $1.orderIndex }
-                    ) { subtask in
-                        SubTaskRowView(subTask: subtask)
-                    }
+            VStack(spacing: 0) {
+                milestoneContentRow
 
-                    // 添加子任务输入框
-                    if isExpandingSubtask {
-                        HStack(spacing: 8) {
-                            Image(systemName: "circle.dotted")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-
-                            TextField("新子任务…", text: $newSubTaskTitle)
-                                .textFieldStyle(.plain)
-                                .onSubmit { commitNewSubTask() }
-
-                            Button(action: commitNewSubTask) {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundStyle(newSubTaskTitle.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.blue))
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(newSubTaskTitle.isEmpty)
-                        }
-                        .padding(.horizontal, 40)
-                        .padding(.vertical, 6)
-                    }
+                if !milestone.subtasks.isEmpty || isExpandingSubtask {
+                    subtaskList
                 }
-                .padding(.leading, 28)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .onChange(of: isExpandingSubtask) { _, expanded in
+            if expanded {
+                isNewSubTaskFocused = true
+            } else {
+                newSubTaskTitle = ""
+                isNewSubTaskFocused = false
             }
         }
     }
 
+    private var milestoneContentRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            editableTitle
+
+            milestoneTrailingControls
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect()
+            startEditing()
+        }
+        .contextMenu {
+            Button {
+                onSelect()
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isExpandingSubtask = true
+                }
+            } label: {
+                Label("新子任务", systemImage: "list.bullet.indent")
+            }
+            Button {
+                onSelect()
+                startEditing()
+            } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+            Divider()
+            Button(role: .destructive) {
+                projectService?.deleteMilestone(milestone)
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+        }
+    }
+
+    private var milestoneTrailingControls: some View {
+        HStack(alignment: .top, spacing: 10) {
+            if !milestone.subtasks.isEmpty {
+                Text("\(completedSubTaskCount)/\(milestone.subtasks.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                    .fixedSize(horizontal: true, vertical: true)
+            }
+
+            if isSelected {
+                Button {
+                    onSelect()
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isExpandingSubtask.toggle()
+                    }
+                } label: {
+                    Image(systemName: "list.bullet.indent")
+                        .foregroundStyle(.secondary)
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+                .help("添加子任务")
+                .fixedSize()
+            }
+
+            if isSelected || milestone.reminder != nil {
+                Button {
+                    onSelect()
+                    showingReminderPopover.toggle()
+                } label: {
+                    Image(systemName: milestone.reminder == nil ? "alarm" : "alarm.fill")
+                        .foregroundStyle(milestone.reminder == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+                .help("设置提醒")
+                .popover(isPresented: $showingReminderPopover, arrowEdge: .trailing) {
+                    ReminderSettingsPopover(reminder: Binding(
+                        get: { milestone.reminder },
+                        set: {
+                            milestone.reminder = $0
+                            projectService?.save()
+                        }
+                    ))
+                }
+                .fixedSize()
+            }
+        }
+        .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private var subtaskList: some View {
+        VStack(spacing: 0) {
+            ForEach(
+                milestone.subtasks.sorted { $0.orderIndex < $1.orderIndex },
+                id: \.taskId
+            ) { subtask in
+                SubTaskRowView(
+                    subTask: subtask,
+                    isSelected: selectedSubTaskID == subtask.taskId,
+                    onNewSubtask: {
+                        onSelect()
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isExpandingSubtask = true
+                        }
+                    },
+                    onSelect: {
+                        onSelectSubTask(subtask.taskId)
+                    }
+                )
+            }
+
+            if isExpandingSubtask {
+                HStack(spacing: 8) {
+                    Image(systemName: "circle.dotted")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+
+                    TextField("新子任务…", text: $newSubTaskTitle)
+                        .textFieldStyle(.plain)
+                        .focused($isNewSubTaskFocused)
+                        .onSubmit { commitNewSubTask() }
+                        .onAppear { isNewSubTaskFocused = true }
+                        .onChange(of: isNewSubTaskFocused) { _, focused in
+                            guard !focused else { return }
+                            commitOrCloseSubTaskComposer()
+                        }
+
+                    Button(action: commitNewSubTask) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(newSubTaskTitle.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(newSubTaskTitle.isEmpty)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+            }
+        }
+        .padding(.top, 4)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     private func commitNewSubTask() {
-        guard !newSubTaskTitle.isEmpty else { return }
-        projectService?.addSubTask(to: milestone, title: newSubTaskTitle)
+        let title = newSubTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        projectService?.addSubTask(to: milestone, title: title)
         newSubTaskTitle = ""
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isExpandingSubtask = false
+        }
+    }
+
+    private func commitOrCloseSubTaskComposer() {
+        let title = newSubTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty {
+            projectService?.addSubTask(to: milestone, title: title)
+            newSubTaskTitle = ""
+        }
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isExpandingSubtask = false
+        }
+    }
+
+    private var editableTitle: some View {
+        Group {
+            if editingTitle {
+                TextField("里程碑", text: $titleDraft, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(nil)
+                    .font(.body)
+                    .focused($isTitleFocused)
+                    .onSubmit { commitTitleEdit() }
+                    .onAppear { isTitleFocused = true }
+                    .onChange(of: isTitleFocused) { _, focused in
+                        guard !focused else { return }
+                        commitTitleEdit()
+                    }
+            } else {
+                Text(milestone.title)
+                    .font(.body)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .strikethrough(milestone.isCompleted)
+                    .foregroundStyle(milestone.isCompleted ? .secondary : .primary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .layoutPriority(1)
+    }
+
+    private func startEditing() {
+        titleDraft = milestone.title
+        editingTitle = true
+        isTitleFocused = true
+    }
+
+    private func commitTitleEdit() {
+        let title = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty {
+            milestone.title = title
+            projectService?.save()
+        }
+        editingTitle = false
     }
 }
 
@@ -247,15 +437,22 @@ struct MilestoneRowView: View {
 
 struct SubTaskRowView: View {
     let subTask: SubTask
+    let isSelected: Bool
+    let onNewSubtask: () -> Void
+    let onSelect: () -> Void
 
     @Environment(ServiceContainer.self) private var container
+    @State private var editingTitle = false
+    @State private var titleDraft: String = ""
+    @State private var showingReminderPopover = false
+    @FocusState private var isTitleFocused: Bool
 
     private var projectService: ProjectService? {
         container.projectService
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             Button {
                 projectService?.toggleSubTaskComplete(subTask)
             } label: {
@@ -264,22 +461,101 @@ struct SubTaskRowView: View {
                     .font(.caption)
             }
             .buttonStyle(.plain)
+            .padding(.top, 2)
 
-            Text(subTask.title)
-                .font(.callout)
-                .strikethrough(subTask.isCompleted)
-                .foregroundStyle(subTask.isCompleted ? .secondary : .primary)
+            editableTitle
 
-            Spacer()
+            if isSelected || subTask.reminder != nil {
+                Button {
+                    onSelect()
+                    showingReminderPopover.toggle()
+                } label: {
+                    Image(systemName: subTask.reminder == nil ? "alarm" : "alarm.fill")
+                        .font(.callout)
+                        .foregroundStyle(subTask.reminder == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
+                }
+                .buttonStyle(.plain)
+                .help("设置提醒")
+                .popover(isPresented: $showingReminderPopover, arrowEdge: .trailing) {
+                    ReminderSettingsPopover(reminder: Binding(
+                        get: { subTask.reminder },
+                        set: {
+                            subTask.reminder = $0
+                            projectService?.save()
+                        }
+                    ))
+                }
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect()
+            startEditing()
+        }
         .contextMenu {
-            Button("删除") {
+            Button {
+                onSelect()
+                onNewSubtask()
+            } label: {
+                Label("新子任务", systemImage: "list.bullet.indent")
+            }
+            Button {
+                onSelect()
+                startEditing()
+            } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+            Divider()
+            Button(role: .destructive) {
                 projectService?.deleteSubTask(subTask)
+            } label: {
+                Label("删除", systemImage: "trash")
             }
         }
+    }
+
+    private var editableTitle: some View {
+        Group {
+            if editingTitle {
+                TextField("子任务", text: $titleDraft, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(nil)
+                    .font(.callout)
+                    .focused($isTitleFocused)
+                    .onSubmit { commitTitleEdit() }
+                    .onAppear { isTitleFocused = true }
+                    .onChange(of: isTitleFocused) { _, focused in
+                        guard !focused else { return }
+                        commitTitleEdit()
+                    }
+            } else {
+                Text(subTask.title)
+                    .font(.callout)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .strikethrough(subTask.isCompleted)
+                    .foregroundStyle(subTask.isCompleted ? .secondary : .primary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+    }
+
+    private func startEditing() {
+        titleDraft = subTask.title
+        editingTitle = true
+        isTitleFocused = true
+    }
+
+    private func commitTitleEdit() {
+        let title = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty {
+            subTask.title = title
+            projectService?.save()
+        }
+        editingTitle = false
     }
 }
 

@@ -7,7 +7,7 @@
         "key": "里程碑",
         "location": {
           "startingColumn": 19,
-          "startingLine": 53
+          "startingLine": 57
         }
       },
       {
@@ -15,7 +15,7 @@
         "key": "隐藏已完成",
         "location": {
           "startingColumn": 22,
-          "startingLine": 62
+          "startingLine": 66
         }
       },
       {
@@ -23,7 +23,7 @@
         "key": "暂无里程碑",
         "location": {
           "startingColumn": 18,
-          "startingLine": 101
+          "startingLine": 116
         }
       },
       {
@@ -31,7 +31,7 @@
         "key": "在下方输入框中添加第一个里程碑",
         "location": {
           "startingColumn": 18,
-          "startingLine": 104
+          "startingLine": 119
         }
       },
       {
@@ -39,15 +39,39 @@
         "key": "新增里程碑…",
         "location": {
           "startingColumn": 23,
-          "startingLine": 116
+          "startingLine": 142
+        }
+      },
+      {
+        "comment": "",
+        "key": "新子任务",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 249
+        }
+      },
+      {
+        "comment": "",
+        "key": "编辑",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 255
+        }
+      },
+      {
+        "comment": "",
+        "key": "删除",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 261
         }
       },
       {
         "comment": "",
         "key": "%lld/%lld",
         "location": {
-          "startingColumn": 26,
-          "startingLine": 181
+          "startingColumn": 22,
+          "startingLine": 269
         }
       },
       {
@@ -55,23 +79,71 @@
         "key": "添加子任务",
         "location": {
           "startingColumn": 23,
-          "startingLine": 197
+          "startingLine": 288
+        }
+      },
+      {
+        "comment": "",
+        "key": "设置提醒",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 302
         }
       },
       {
         "comment": "",
         "key": "新子任务…",
         "location": {
-          "startingColumn": 39,
-          "startingLine": 218
+          "startingColumn": 31,
+          "startingLine": 345
+        }
+      },
+      {
+        "comment": "",
+        "key": "里程碑",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 395
+        }
+      },
+      {
+        "comment": "",
+        "key": "设置提醒",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 478
+        }
+      },
+      {
+        "comment": "",
+        "key": "新子任务",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 502
+        }
+      },
+      {
+        "comment": "",
+        "key": "编辑",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 508
         }
       },
       {
         "comment": "",
         "key": "删除",
         "location": {
-          "startingColumn": 20,
-          "startingLine": 279
+          "startingColumn": 23,
+          "startingLine": 514
+        }
+      },
+      {
+        "comment": "",
+        "key": "子任务",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 522
         }
       }
     ]

@@ -178,6 +178,9 @@ final class SubTask {
     var isCompleted: Bool
     var orderIndex: Int
 
+    @Relationship(deleteRule: .cascade)
+    var reminder: Reminder?
+
     var milestone: Milestone?
 
     init(title: String, orderIndex: Int = 0, isCompleted: Bool = false) {
