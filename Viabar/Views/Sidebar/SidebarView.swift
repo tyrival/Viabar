@@ -57,6 +57,38 @@ enum FolderNamePrompt: Identifiable {
     }
 }
 
+enum DeleteConfirmation: Identifiable {
+    case project(Project)
+    case nonEmptyFolder(ArchiveFolder)
+
+    var id: String {
+        switch self {
+        case .project(let project):
+            return "project-\(project.projectId.uuidString)"
+        case .nonEmptyFolder(let folder):
+            return "folder-\(folder.folderId.uuidString)"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .project:
+            return "删除项目？"
+        case .nonEmptyFolder:
+            return "删除文件夹？"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .project(let project):
+            return "“\(project.title)”将被永久删除，无法恢复。"
+        case .nonEmptyFolder(let folder):
+            return "“\(folder.name)”不是空文件夹，删除后其中的项目和子文件夹均不可恢复。"
+        }
+    }
+}
+
 // MARK: - SidebarView
 
 struct SidebarView: View {
@@ -77,6 +109,7 @@ struct SidebarView: View {
     @State private var archiveProjectDropTarget: ArchiveProjectDropTarget?
     @State private var folderNamePrompt: FolderNamePrompt?
     @State private var folderNameDraft: String = ""
+    @State private var deleteConfirmation: DeleteConfirmation?
 
     private var projectService: ProjectService? {
         container.projectService
@@ -118,6 +151,22 @@ struct SidebarView: View {
             }
         } message: {
             Text(folderNamePrompt?.message ?? "")
+        }
+        .alert(
+            deleteConfirmation?.title ?? "",
+            isPresented: Binding(
+                get: { deleteConfirmation != nil },
+                set: { if !$0 { deleteConfirmation = nil } }
+            )
+        ) {
+            Button("删除", role: .destructive) {
+                commitDeleteConfirmation()
+            }
+            Button("取消", role: .cancel) {
+                deleteConfirmation = nil
+            }
+        } message: {
+            Text(deleteConfirmation?.message ?? "")
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 260)
         .archiveFolderPicker(
@@ -164,6 +213,7 @@ struct SidebarView: View {
                     ActiveProjectRow(
                         project: project,
                         onArchive: { archivePickerProject = project },
+                        onDelete: { showDeleteProjectConfirmation(project) },
                         onSelect: {
                             print("[SidebarView] selection → \(project.title)")
                             selection = .project(project)
@@ -287,7 +337,8 @@ struct SidebarView: View {
                     service: projectService,
                     onCreateSubfolder: showCreateSubfolderPrompt,
                     onRenameFolder: showRenameFolderPrompt,
-                    onDeleteFolder: { projectService?.deleteArchiveFolder($0) }
+                    onDeleteFolder: requestDeleteFolder,
+                    onDeleteProject: showDeleteProjectConfirmation
                 )
             }
             .onMove { offsets, target in
@@ -343,6 +394,34 @@ struct SidebarView: View {
         dismissFolderNamePrompt()
     }
 
+    private func showDeleteProjectConfirmation(_ project: Project) {
+        deleteConfirmation = .project(project)
+    }
+
+    private func requestDeleteFolder(_ folder: ArchiveFolder) {
+        if folder.children.isEmpty && folder.projects.isEmpty {
+            projectService?.deleteArchiveFolder(folder)
+        } else {
+            deleteConfirmation = .nonEmptyFolder(folder)
+        }
+    }
+
+    private func commitDeleteConfirmation() {
+        guard let confirmation = deleteConfirmation else { return }
+
+        switch confirmation {
+        case .project(let project):
+            if selection == .project(project) {
+                selection = .overview
+            }
+            projectService?.deleteProject(project)
+        case .nonEmptyFolder(let folder):
+            projectService?.deleteArchiveFolder(folder)
+        }
+
+        deleteConfirmation = nil
+    }
+
 }
 
 // MARK: - ActiveProjectRow
@@ -350,6 +429,7 @@ struct SidebarView: View {
 struct ActiveProjectRow: View {
     let project: Project
     let onArchive: () -> Void
+    let onDelete: () -> Void
     let onSelect: () -> Void
 
     @Environment(ServiceContainer.self) private var container
@@ -423,8 +503,10 @@ struct ActiveProjectRow: View {
                 Label("归档…", systemImage: "archivebox")
             }
             Divider()
-            Button("删除项目", role: .destructive) {
-                projectService?.deleteProject(project)
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("删除项目", systemImage: "trash")
             }
         }
     }
@@ -607,6 +689,7 @@ struct RecursiveFolderRow: View {
     let onCreateSubfolder: (ArchiveFolder) -> Void
     let onRenameFolder: (ArchiveFolder) -> Void
     let onDeleteFolder: (ArchiveFolder) -> Void
+    let onDeleteProject: (Project) -> Void
 
     private var isExpanded: Bool {
         expandedFolderIds.contains(folder.folderId)
@@ -671,7 +754,8 @@ struct RecursiveFolderRow: View {
                     service: service,
                     onCreateSubfolder: onCreateSubfolder,
                     onRenameFolder: onRenameFolder,
-                    onDeleteFolder: onDeleteFolder
+                    onDeleteFolder: onDeleteFolder,
+                    onDeleteProject: onDeleteProject
                 )
             }
 
@@ -686,7 +770,8 @@ struct RecursiveFolderRow: View {
                         indentPerLevel: indentPerLevel,
                         isSelected: selection == .project(project),
                         dropTarget: archiveProjectDropTarget,
-                        onDragStart: { draggingActiveProjectId = project.projectId }
+                        onDragStart: { draggingActiveProjectId = project.projectId },
+                        onDelete: { onDeleteProject(project) }
                     ) {
                         selection = .project(project)
                     }
@@ -846,6 +931,7 @@ struct ArchivedProjectSelectableRow: View {
     let isSelected: Bool
     let dropTarget: ArchiveProjectDropTarget?
     let onDragStart: () -> Void
+    let onDelete: () -> Void
     let onSelect: () -> Void
 
     @Environment(ServiceContainer.self) private var container
@@ -942,8 +1028,10 @@ struct ArchivedProjectSelectableRow: View {
                 projectService?.unarchiveProject(project)
             }
             Divider()
-            Button("删除项目", role: .destructive) {
-                projectService?.deleteProject(project)
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("删除项目", systemImage: "trash")
             }
         }
     }

@@ -223,11 +223,7 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func deleteArchiveFolder(_ folder: ArchiveFolder) {
-        // 文件夹内的项目移入父文件夹（或根级），子文件夹级联删除
-        let destination = folder.parent
-        for project in folder.projects {
-            project.archiveFolder = destination
-        }
+        deleteArchiveFolderContents(folder)
         modelContext.delete(folder)
         save()
     }
@@ -312,6 +308,18 @@ final class ProjectService: ProjectServiceProtocol {
         )
         let folders = (try? modelContext.fetch(descriptor)) ?? []
         return folders.filter { $0.parent?.folderId == parent?.folderId }
+    }
+
+    private func deleteArchiveFolderContents(_ folder: ArchiveFolder) {
+        let childFolders = folders(in: folder)
+        for child in childFolders {
+            deleteArchiveFolderContents(child)
+            modelContext.delete(child)
+        }
+
+        for project in folder.projects {
+            modelContext.delete(project)
+        }
     }
 }
 
