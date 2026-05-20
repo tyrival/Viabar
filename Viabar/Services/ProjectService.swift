@@ -51,6 +51,8 @@ protocol ProjectServiceProtocol: AnyObject {
     func createArchiveFolder(name: String, parent: ArchiveFolder?) -> ArchiveFolder
     func deleteArchiveFolder(_ folder: ArchiveFolder)
     func moveProjectToFolder(_ project: Project, folder: ArchiveFolder)
+    func moveFolder(_ folder: ArchiveFolder, to parent: ArchiveFolder?)
+    func reorderFolders(in parent: ArchiveFolder?, fromOffsets: IndexSet, toOffset: Int)
     func fetchRootFolders() -> [ArchiveFolder]
     func allActiveProjects() -> [Project]
 
@@ -213,7 +215,7 @@ final class ProjectService: ProjectServiceProtocol {
 
     @discardableResult
     func createArchiveFolder(name: String, parent: ArchiveFolder? = nil) -> ArchiveFolder {
-        let siblings = parent?.children ?? fetchRootFolders()
+        let siblings = folders(in: parent)
         let folder = ArchiveFolder(name: name, orderIndex: siblings.count, parent: parent)
         modelContext.insert(folder)
         save()
@@ -233,6 +235,15 @@ final class ProjectService: ProjectServiceProtocol {
     func moveProjectToFolder(_ project: Project, folder: ArchiveFolder) {
         project.archiveFolder = folder
         project.isArchived = true
+        save()
+    }
+
+    func moveFolder(_ folder: ArchiveFolder, to parent: ArchiveFolder?) {
+        guard folder.parent?.folderId != parent?.folderId else { return }
+
+        let siblings = folders(in: parent)
+        folder.parent = parent
+        folder.orderIndex = siblings.count
         save()
     }
 
@@ -271,7 +282,11 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func reorderFolders(fromOffsets: IndexSet, toOffset: Int) {
-        var items = fetchRootFolders()
+        reorderFolders(in: nil, fromOffsets: fromOffsets, toOffset: toOffset)
+    }
+
+    func reorderFolders(in parent: ArchiveFolder?, fromOffsets: IndexSet, toOffset: Int) {
+        var items = folders(in: parent)
         items.move(fromOffsets: fromOffsets, toOffset: toOffset)
         for (i, item) in items.enumerated() {
             item.orderIndex = i
@@ -289,6 +304,14 @@ final class ProjectService: ProjectServiceProtocol {
             // TODO: Phase 2 — 统一错误处理与用户提示
             print("[ProjectService] save failed: \(error.localizedDescription)")
         }
+    }
+
+    private func folders(in parent: ArchiveFolder?) -> [ArchiveFolder] {
+        let descriptor = FetchDescriptor<ArchiveFolder>(
+            sortBy: [SortDescriptor(\.orderIndex)]
+        )
+        let folders = (try? modelContext.fetch(descriptor)) ?? []
+        return folders.filter { $0.parent?.folderId == parent?.folderId }
     }
 }
 
