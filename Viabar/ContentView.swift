@@ -460,7 +460,7 @@ struct OverviewProjectCard: View {
                     .frame(height: progressDotSize)
 
                     Text(progressPercentText)
-                        .font(.title3)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(progressTintColor)
                         .monospacedDigit()
                         .lineLimit(1)
