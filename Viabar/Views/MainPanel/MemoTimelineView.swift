@@ -12,9 +12,11 @@ struct MemoTimelineView: View {
 
     @Environment(ServiceContainer.self) private var container
     @State private var newMemoContent: String = ""
+    @State private var scrollToBottomTrigger = 0
     @FocusState private var isInputFocused: Bool
 
     private let bottomAnchorID = "memo-bottom-anchor"
+    private let inputOverlayHeight: CGFloat = 104
 
     private var projectService: ProjectService? {
         container.projectService
@@ -66,18 +68,17 @@ struct MemoTimelineView: View {
                     }
 
                     Color.clear
-                        .frame(height: 1)
+                        .frame(height: inputOverlayHeight)
                         .id(bottomAnchorID)
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 4)
-                .padding(.bottom, 104)
             }
             .scrollClipDisabled(false)
             .onAppear {
                 scrollToBottom(proxy)
             }
-            .onChange(of: visibleMemos.map(\.memoId)) { _, _ in
+            .onChange(of: scrollToBottomTrigger) { _, _ in
                 scrollToBottom(proxy)
             }
         }
@@ -160,10 +161,11 @@ struct MemoTimelineView: View {
         projectService?.addMemo(to: project, content: trimmed)
         newMemoContent = ""
         isInputFocused = true
+        scrollToBottomTrigger += 1
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        DispatchQueue.main.async {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
             withAnimation(.easeInOut(duration: 0.18)) {
                 proxy.scrollTo(bottomAnchorID, anchor: .bottom)
             }

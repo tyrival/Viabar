@@ -292,7 +292,7 @@ struct SidebarView: View {
         } header: {
             HStack {
                 Text("项目")
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
@@ -324,7 +324,7 @@ struct SidebarView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text("归档")
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
                 .contentShape(Rectangle())

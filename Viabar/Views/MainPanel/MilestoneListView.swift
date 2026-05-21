@@ -21,6 +21,7 @@ struct MilestoneListView: View {
     @State private var expandingSubtaskFor: UUID?
     @State private var selectedMilestoneID: UUID?
     @State private var selectedSubTaskID: UUID?
+    @State private var scrollToBottomTrigger = 0
 
     private var projectService: ProjectService? {
         container.projectService
@@ -118,6 +119,7 @@ struct MilestoneListView: View {
                 onToggleSubTask: toggleSubTask(id:),
                 onUpdateSubTaskTitle: updateSubTaskTitle(id:title:),
                 onDeleteSubTask: deleteSubTask(id:),
+                scrollToBottomTrigger: scrollToBottomTrigger,
                 subTaskReminderBinding: subTaskReminderBinding(id:)
             )
         } else {
@@ -228,6 +230,7 @@ struct MilestoneListView: View {
         guard !title.isEmpty else { return }
         projectService?.addMilestone(to: project, title: title)
         newMilestoneTitle = ""
+        scrollToBottomTrigger += 1
     }
 
     private func toggleMilestone(id: UUID) {
@@ -359,58 +362,74 @@ private struct SafeMilestoneListView: View {
     let onToggleSubTask: (UUID) -> Void
     let onUpdateSubTaskTitle: (UUID, String) -> Void
     let onDeleteSubTask: (UUID) -> Void
+    let scrollToBottomTrigger: Int
     let subTaskReminderBinding: (UUID) -> Binding<Reminder?>
 
     @State private var addingSubTaskFor: UUID?
+    private let bottomAnchorID = "milestone-bottom-anchor"
 
     var body: some View {
-        List {
-            ForEach(snapshots) { snapshot in
-                SafeMilestoneRowView(
-                    snapshot: snapshot,
-                    onToggleMilestone: onToggleMilestone,
-                    onUpdateMilestoneTitle: onUpdateMilestoneTitle,
-                    onDeleteMilestone: onDeleteMilestone,
-                    reminder: reminderBinding(snapshot.id),
-                    onBeginAddSubTask: {
-                        addingSubTaskFor = snapshot.id
-                    }
-                )
-                .safeListRow()
-
-                ForEach(snapshot.subtasks) { subtask in
-                    SafeSubTaskRowView(
-                        subtask: subtask,
-                        leadingIndent: subTaskLeadingIndent,
-                        reminder: subTaskReminderBinding(subtask.id),
-                        onToggle: onToggleSubTask,
-                        onUpdateTitle: onUpdateSubTaskTitle,
-                        onDelete: onDeleteSubTask
-                    )
-                    .safeListRow()
-                }
-
-                if addingSubTaskFor == snapshot.id {
-                    SafeSubTaskComposerView(
-                        milestoneID: snapshot.id,
-                        leadingIndent: subTaskLeadingIndent,
-                        onAddSubTask: onAddSubTask,
-                        onClose: {
-                            addingSubTaskFor = nil
+        ScrollViewReader { proxy in
+            List {
+                ForEach(snapshots) { snapshot in
+                    SafeMilestoneRowView(
+                        snapshot: snapshot,
+                        onToggleMilestone: onToggleMilestone,
+                        onUpdateMilestoneTitle: onUpdateMilestoneTitle,
+                        onDeleteMilestone: onDeleteMilestone,
+                        reminder: reminderBinding(snapshot.id),
+                        onBeginAddSubTask: {
+                            addingSubTaskFor = snapshot.id
                         }
                     )
                     .safeListRow()
-                }
-            }
 
-            Color.clear
-                .frame(height: 96)
-                .safeListRow()
+                    ForEach(snapshot.subtasks) { subtask in
+                        SafeSubTaskRowView(
+                            subtask: subtask,
+                            leadingIndent: subTaskLeadingIndent,
+                            reminder: subTaskReminderBinding(subtask.id),
+                            onToggle: onToggleSubTask,
+                            onUpdateTitle: onUpdateSubTaskTitle,
+                            onDelete: onDeleteSubTask
+                        )
+                        .safeListRow()
+                    }
+
+                    if addingSubTaskFor == snapshot.id {
+                        SafeSubTaskComposerView(
+                            milestoneID: snapshot.id,
+                            leadingIndent: subTaskLeadingIndent,
+                            onAddSubTask: onAddSubTask,
+                            onClose: {
+                                addingSubTaskFor = nil
+                            }
+                        )
+                        .safeListRow()
+                    }
+                }
+
+                Color.clear
+                    .frame(height: 96)
+                    .id(bottomAnchorID)
+                    .safeListRow()
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .tint(Color(nsColor: .tertiaryLabelColor))
+            .accentColor(Color(nsColor: .tertiaryLabelColor))
+            .onChange(of: scrollToBottomTrigger) { _, _ in
+                scrollToBottom(proxy)
+            }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .tint(Color(nsColor: .tertiaryLabelColor))
-        .accentColor(Color(nsColor: .tertiaryLabelColor))
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+            }
+        }
     }
 }
 
