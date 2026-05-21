@@ -246,7 +246,7 @@ struct MilestoneRowView: View {
                     isExpandingSubtask = true
                 }
             } label: {
-                Label("新子任务", systemImage: "list.bullet.indent")
+                Label("新子任务", systemImage: "list.bullet.below.rectangle")
             }
             Button {
                 onSelect()
@@ -280,7 +280,7 @@ struct MilestoneRowView: View {
                         isExpandingSubtask.toggle()
                     }
                 } label: {
-                    Image(systemName: "list.bullet.indent")
+                    Image(systemName: "list.bullet.below.rectangle")
                         .foregroundStyle(.secondary)
                         .font(.title3)
                 }
@@ -499,7 +499,7 @@ struct SubTaskRowView: View {
                 onSelect()
                 onNewSubtask()
             } label: {
-                Label("新子任务", systemImage: "list.bullet.indent")
+                Label("新子任务", systemImage: "list.bullet.below.rectangle")
             }
             Button {
                 onSelect()

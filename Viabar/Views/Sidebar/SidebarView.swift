@@ -193,6 +193,15 @@ struct SidebarView: View {
     private var overviewSection: some View {
         Section {
             let isOverviewSelected = selection == .overview
+            let overviewProgressBarHeight = isOverviewSelected
+                ? ActiveProjectRowMetrics.selectedProgressBarHeight
+                : ActiveProjectRowMetrics.defaultProgressBarHeight
+            let overviewRowHeight = isOverviewSelected
+                ? ActiveProjectRowMetrics.selectedRowHeight
+                : ActiveProjectRowMetrics.defaultRowHeight
+            let overviewHorizontalInset = isOverviewSelected
+                ? ActiveProjectRowMetrics.selectedHorizontalInset
+                : ActiveProjectRowMetrics.defaultHorizontalInset
 
             Button {
                 selection = .overview
@@ -200,7 +209,7 @@ struct SidebarView: View {
                 ZStack {
                     Capsule(style: .continuous)
                         .fill(isOverviewSelected ? ViabarColor.primary : ActiveProjectRowMetrics.progressTrackColor)
-                        .frame(height: ActiveProjectRowMetrics.defaultProgressBarHeight)
+                        .frame(height: overviewProgressBarHeight)
 
                     HStack(spacing: 10) {
                         Image(systemName: "square.grid.2x2")
@@ -213,8 +222,11 @@ struct SidebarView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                 }
-                .frame(height: ActiveProjectRowMetrics.defaultRowHeight)
+                .frame(height: overviewRowHeight)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, overviewHorizontalInset)
+                .padding(.vertical, isOverviewSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
+                .offset(y: isOverviewSelected ? ActiveProjectRowMetrics.selectedLift : 0)
                 .contentShape(Capsule(style: .continuous))
                 .animation(ActiveProjectRowMetrics.selectionAnimation, value: isOverviewSelected)
             }
@@ -482,7 +494,7 @@ private enum ActiveProjectRowMetrics {
     static let selectedShadowInset: CGFloat = 5
     static let selectedShadowBleed: CGFloat = 2
     static let selectedLift: CGFloat = 0
-    static let projectTitleFont = Font.callout.weight(.semibold)
+    static let projectTitleFont = Font.callout
     static let shadowAnimationDuration: Double = 0.15
     static let shadowAnimation = Animation.easeInOut(duration: shadowAnimationDuration)
     static let selectionAnimation = Animation.easeInOut(duration: shadowAnimationDuration)
@@ -521,9 +533,9 @@ struct ActiveProjectRow: View {
         isSelected ? ActiveProjectRowMetrics.selectedHorizontalInset : ActiveProjectRowMetrics.defaultHorizontalInset
     }
 
-    private func shadowCapsule(opacity: Double, radius: CGFloat, yOffset: CGFloat, inset: CGFloat = 0) -> some View {
+    private func shadowCapsule(color: Color = .black, opacity: Double, radius: CGFloat, yOffset: CGFloat, inset: CGFloat = 0) -> some View {
         Capsule(style: .continuous)
-            .fill(.black.opacity(opacity))
+            .fill(color.opacity(opacity))
             .frame(height: progressBarHeight)
             .padding(.horizontal, inset)
             .offset(y: yOffset)
