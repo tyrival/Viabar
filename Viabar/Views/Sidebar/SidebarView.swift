@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import AppKit
 
 // MARK: - Sidebar Selection
 
@@ -450,17 +451,35 @@ struct SidebarView: View {
 
 private enum ActiveProjectRowMetrics {
     static let defaultProgressBarHeight: CGFloat = 32
-    static let selectedProgressBarHeight: CGFloat = 36
+    static let selectedProgressBarHeight: CGFloat = 32
     static let defaultRowHeight: CGFloat = 32
-    static let selectedRowHeight: CGFloat = 36
+    static let selectedRowHeight: CGFloat = 32
     static let defaultHorizontalInset: CGFloat = 2
     static let selectedHorizontalInset: CGFloat = 0
-    static let progressTrackColor = Color(red: 0.90, green: 0.90, blue: 0.90)
-    static let selectedShadowOpacity: Double = 0.15
-    static let selectedShadowRadius: CGFloat = 2.5
-    static let selectedShadowYOffset: CGFloat = 0
-    static let selectedShadowSpread: CGFloat = 3
-    static let selectedShadowBleed: CGFloat = 2
+    static let progressTrackColor = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 0.22, alpha: 1)
+            : NSColor(calibratedWhite: 0.92, alpha: 1)
+    })
+    static let progressPercentColor = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 0.68, alpha: 1)
+            : NSColor(calibratedWhite: 0.42, alpha: 1)
+    })
+    static let defaultShadowOpacity: Double = 0.035
+    static let defaultShadowRadius: CGFloat = 2
+    static let defaultShadowYOffset: CGFloat = 1
+    static let selectedFarShadowOpacity: Double = 0.07
+    static let selectedFarShadowRadius: CGFloat = 4
+    static let selectedFarShadowYOffset: CGFloat = 6
+    static let selectedNearShadowOpacity: Double = 0.04
+    static let selectedNearShadowRadius: CGFloat = 2
+    static let selectedNearShadowYOffset: CGFloat = 3
+    static let selectedShadowInset: CGFloat = 5
+    static let selectedShadowBleed: CGFloat = 4
+    static let selectedLift: CGFloat = -2
     static let selectionAnimation = Animation.spring(response: 0.22, dampingFraction: 0.88)
 }
 
@@ -497,21 +516,34 @@ struct ActiveProjectRow: View {
         isSelected ? ActiveProjectRowMetrics.selectedHorizontalInset : ActiveProjectRowMetrics.defaultHorizontalInset
     }
 
+    private func shadowCapsule(opacity: Double, radius: CGFloat, yOffset: CGFloat, inset: CGFloat = 0) -> some View {
+        Capsule(style: .continuous)
+            .fill(.black.opacity(opacity))
+            .frame(height: progressBarHeight)
+            .padding(.horizontal, inset)
+            .offset(y: yOffset)
+            .blur(radius: radius)
+            .allowsHitTesting(false)
+    }
+
     /// 公共内容行，供双层渲染复用
-    private func rowContent(color: Color, usesProjectIconColor: Bool = false) -> some View {
-        HStack(spacing: 10) {
+    private func rowContent(color: Color, usesProjectIconColor: Bool = false, usesMutedPercentColor: Bool = false) -> some View {
+        let percentColor = usesMutedPercentColor ? ActiveProjectRowMetrics.progressPercentColor : color
+
+        return HStack(spacing: 10) {
             Image(systemName: project.sfSymbolName)
                 .font(.title3)
                 .foregroundStyle(usesProjectIconColor ? accentColor : color)
             Text(project.title)
-                .font(.body)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(color)
                 .lineLimit(1)
             Spacer(minLength: 8)
             Text("\(Int(project.progress * 100))%")
                 .font(.caption)
                 .monospacedDigit()
+                .foregroundStyle(percentColor)
         }
-        .foregroundColor(color)
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
     }
@@ -519,13 +551,24 @@ struct ActiveProjectRow: View {
     var body: some View {
         ZStack(alignment: .center) {
             if isSelected {
-                Capsule(style: .continuous)
-                    .stroke(.black.opacity(ActiveProjectRowMetrics.selectedShadowOpacity), lineWidth: ActiveProjectRowMetrics.selectedShadowSpread)
-                    .frame(height: progressBarHeight + ActiveProjectRowMetrics.selectedShadowSpread)
-                    .padding(.horizontal, -ActiveProjectRowMetrics.selectedShadowSpread / 2)
-                    .offset(y: ActiveProjectRowMetrics.selectedShadowYOffset)
-                    .blur(radius: ActiveProjectRowMetrics.selectedShadowRadius)
-                    .allowsHitTesting(false)
+                shadowCapsule(
+                    opacity: ActiveProjectRowMetrics.selectedFarShadowOpacity,
+                    radius: ActiveProjectRowMetrics.selectedFarShadowRadius,
+                    yOffset: ActiveProjectRowMetrics.selectedFarShadowYOffset,
+                    inset: ActiveProjectRowMetrics.selectedShadowInset
+                )
+                shadowCapsule(
+                    opacity: ActiveProjectRowMetrics.selectedNearShadowOpacity,
+                    radius: ActiveProjectRowMetrics.selectedNearShadowRadius,
+                    yOffset: ActiveProjectRowMetrics.selectedNearShadowYOffset,
+                    inset: ActiveProjectRowMetrics.selectedShadowInset
+                )
+            } else {
+                shadowCapsule(
+                    opacity: ActiveProjectRowMetrics.defaultShadowOpacity,
+                    radius: ActiveProjectRowMetrics.defaultShadowRadius,
+                    yOffset: ActiveProjectRowMetrics.defaultShadowYOffset
+                )
             }
 
             // 轨道底色
@@ -545,7 +588,7 @@ struct ActiveProjectRow: View {
             }
 
             // 深色文字层
-            rowContent(color: .primary, usesProjectIconColor: true)
+            rowContent(color: .primary, usesProjectIconColor: true, usesMutedPercentColor: true)
 
             // 白色文字层
             GeometryReader { geo in
@@ -563,6 +606,7 @@ struct ActiveProjectRow: View {
         .frame(height: rowHeight)
         .padding(.horizontal, horizontalInset)
         .padding(.vertical, isSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
+        .offset(y: isSelected ? ActiveProjectRowMetrics.selectedLift : 0)
         .animation(ActiveProjectRowMetrics.selectionAnimation, value: isSelected)
         .onTapGesture {
             onSelect()
@@ -1430,14 +1474,95 @@ struct EmptyHintView: View {
 
 // MARK: - Preview
 
-#Preview {
-    @Previewable @State var selection: SidebarSelection? = .overview
+private struct SidebarPreviewData {
+    let serviceContainer: ServiceContainer
+    let modelContainer: ModelContainer
+    let selectedProject: Project
 
-    NavigationSplitView {
-        SidebarView(selection: $selection)
-    } detail: {
-        Text("Detail")
+    @MainActor
+    static func make() -> SidebarPreviewData {
+        let schema = Schema([
+            Project.self,
+            Milestone.self,
+            SubTask.self,
+            Memo.self,
+            Reminder.self,
+            ArchiveFolder.self
+        ])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let modelContainer = try! ModelContainer(for: schema, configurations: [configuration])
+        let serviceContainer = ServiceContainer()
+        let projectService = ProjectService(modelContext: modelContainer.mainContext, container: serviceContainer)
+        serviceContainer.register(projectService)
+
+        let version = makeProject(title: "版本", accentColor: ViabarColor.primaryHex, symbol: "bookmark.fill", completed: 1, total: 6, order: 0, context: modelContainer.mainContext)
+        _ = makeProject(title: "5553", accentColor: "#4CC3FF", symbol: "circle.dashed", completed: 0, total: 4, order: 1, context: modelContainer.mainContext)
+        _ = makeProject(title: "发给", accentColor: "#5BD10E", symbol: "circle.dashed", completed: 0, total: 3, order: 2, context: modelContainer.mainContext)
+        _ = makeProject(title: "22", accentColor: "#60C4F8", symbol: "circle.dashed", completed: 1, total: 3, order: 3, context: modelContainer.mainContext)
+        _ = makeProject(title: "123", accentColor: "#60C4F8", symbol: "circle.dashed", completed: 1, total: 5, order: 4, context: modelContainer.mainContext)
+        _ = makeProject(title: "呜呜呜", accentColor: "#48D0A8", symbol: "circle.dashed", completed: 4, total: 4, order: 5, context: modelContainer.mainContext)
+
+        try? modelContainer.mainContext.save()
+
+        return SidebarPreviewData(
+            serviceContainer: serviceContainer,
+            modelContainer: modelContainer,
+            selectedProject: version
+        )
     }
-    .environment(ServiceContainer())
-    .modelContainer(for: Project.self, inMemory: true)
+
+    @MainActor
+    private static func makeProject(
+        title: String,
+        accentColor: String,
+        symbol: String,
+        completed: Int,
+        total: Int,
+        order: Int,
+        context: ModelContext
+    ) -> Project {
+        let project = Project(title: title, orderIndex: order)
+        project.accentColor = accentColor
+        project.sfSymbolName = symbol
+        context.insert(project)
+
+        for index in 0..<total {
+            let milestone = Milestone(title: "任务 \(index + 1)", orderIndex: index, isCompleted: index < completed)
+            milestone.project = project
+            context.insert(milestone)
+        }
+
+        return project
+    }
+}
+
+private struct SidebarPreviewHost: View {
+    let data: SidebarPreviewData
+    @State private var selection: SidebarSelection?
+
+    init() {
+        let data = SidebarPreviewData.make()
+        self.data = data
+        _selection = State(initialValue: .project(data.selectedProject))
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            SidebarView(selection: $selection)
+        } detail: {
+            Text("Detail")
+        }
+        .environment(data.serviceContainer)
+        .modelContainer(data.modelContainer)
+    }
+}
+
+#Preview("Sidebar Light") {
+    SidebarPreviewHost()
+        .preferredColorScheme(.light)
+}
+
+#Preview("Sidebar Dark") {
+    SidebarPreviewHost()
+        .preferredColorScheme(.dark)
 }
