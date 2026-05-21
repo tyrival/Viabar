@@ -208,13 +208,15 @@ final class Memo {
     @Attribute(.unique) var memoId: UUID
     var content: String
     var createdAt: Date
+    var orderIndex: Int = 0
 
     var project: Project?
 
-    init(content: String, createdAt: Date = Date()) {
+    init(content: String, createdAt: Date = Date(), orderIndex: Int = 0) {
         self.memoId = UUID()
         self.content = content
         self.createdAt = createdAt
+        self.orderIndex = orderIndex
     }
 }
 

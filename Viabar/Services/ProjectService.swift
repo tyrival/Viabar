@@ -40,6 +40,7 @@ protocol ProjectServiceProtocol: AnyObject {
     // Memo
     func addMemo(to project: Project, content: String) -> Memo
     func deleteMemo(_ memo: Memo)
+    func reorderMemos(in project: Project, movingID: UUID, targetID: UUID?, placement: ReorderPlacement)
 
     // Batch
     func toggleMilestoneComplete(_ milestone: Milestone)
@@ -58,10 +59,18 @@ protocol ProjectServiceProtocol: AnyObject {
 
     // Reorder
     func reorderActiveProjects(fromOffsets: IndexSet, toOffset: Int)
+    func reorderMilestones(in project: Project, movingID: UUID, targetID: UUID?, placement: ReorderPlacement)
+    func moveSubTask(_ subTaskID: UUID, to targetMilestoneID: UUID, targetSubTaskID: UUID?, placement: ReorderPlacement)
     func reorderFolderProjects(_ folder: ArchiveFolder, fromOffsets: IndexSet, toOffset: Int)
     func reorderFolders(fromOffsets: IndexSet, toOffset: Int)
 
     func save()
+}
+
+enum ReorderPlacement: Equatable {
+    case before
+    case after
+    case end
 }
 
 // MARK: - ProjectService
@@ -188,7 +197,8 @@ final class ProjectService: ProjectServiceProtocol {
 
     @discardableResult
     func addMemo(to project: Project, content: String) -> Memo {
-        let memo = Memo(content: content)
+        normalizeMemoOrder(in: project)
+        let memo = Memo(content: content, orderIndex: project.memos.count)
         memo.project = project
         project.memos.append(memo)
         save()
@@ -273,6 +283,85 @@ final class ProjectService: ProjectServiceProtocol {
         save()
     }
 
+    func reorderMilestones(in project: Project, movingID: UUID, targetID: UUID?, placement: ReorderPlacement) {
+        var items = project.milestones.sorted { $0.orderIndex < $1.orderIndex }
+        guard let movingIndex = items.firstIndex(where: { $0.milestoneId == movingID }) else { return }
+        let moving = items.remove(at: movingIndex)
+
+        let insertionIndex = insertionIndex(
+            in: items,
+            targetID: targetID,
+            placement: placement,
+            id: \.milestoneId
+        )
+        items.insert(moving, at: insertionIndex)
+        for (index, item) in items.enumerated() {
+            item.orderIndex = index
+        }
+        save()
+    }
+
+    func moveSubTask(_ subTaskID: UUID, to targetMilestoneID: UUID, targetSubTaskID: UUID?, placement: ReorderPlacement) {
+        let milestones = allMilestones()
+        guard let moving = milestones.flatMap(\.subtasks).first(where: { $0.taskId == subTaskID }),
+              let targetMilestone = milestones.first(where: { $0.milestoneId == targetMilestoneID })
+        else { return }
+
+        let sourceMilestone = moving.milestone
+        sourceMilestone?.subtasks.removeAll { $0.taskId == subTaskID }
+        moving.milestone = targetMilestone
+        if !targetMilestone.subtasks.contains(where: { $0.taskId == subTaskID }) {
+            targetMilestone.subtasks.append(moving)
+        }
+
+        var targetItems = targetMilestone.subtasks
+            .filter { $0.taskId != subTaskID }
+            .sorted { $0.orderIndex < $1.orderIndex }
+        let insertionIndex = insertionIndex(
+            in: targetItems,
+            targetID: targetSubTaskID,
+            placement: placement,
+            id: \.taskId
+        )
+        targetItems.insert(moving, at: insertionIndex)
+        for (index, item) in targetItems.enumerated() {
+            item.orderIndex = index
+            item.milestone = targetMilestone
+        }
+        targetMilestone.subtasks = targetItems
+
+        if sourceMilestone?.milestoneId != targetMilestone.milestoneId, let sourceMilestone {
+            normalizeSubTaskOrder(in: sourceMilestone)
+            sourceMilestone.syncCompletionFromSubtasks()
+        }
+        targetMilestone.syncCompletionFromSubtasks()
+        save()
+    }
+
+    func reorderMemos(in project: Project, movingID: UUID, targetID: UUID?, placement: ReorderPlacement) {
+        normalizeMemoOrder(in: project)
+        var items = project.memos.sorted {
+            if $0.orderIndex == $1.orderIndex {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.orderIndex < $1.orderIndex
+        }
+        guard let movingIndex = items.firstIndex(where: { $0.memoId == movingID }) else { return }
+        let moving = items.remove(at: movingIndex)
+
+        let insertionIndex = insertionIndex(
+            in: items,
+            targetID: targetID,
+            placement: placement,
+            id: \.memoId
+        )
+        items.insert(moving, at: insertionIndex)
+        for (index, item) in items.enumerated() {
+            item.orderIndex = index
+        }
+        save()
+    }
+
     func reorderFolderProjects(_ folder: ArchiveFolder, fromOffsets: IndexSet, toOffset: Int) {
         var items = folder.projects.sorted { $0.orderIndex < $1.orderIndex }
         items.move(fromOffsets: fromOffsets, toOffset: toOffset)
@@ -313,6 +402,55 @@ final class ProjectService: ProjectServiceProtocol {
         )
         let folders = (try? modelContext.fetch(descriptor)) ?? []
         return folders.filter { $0.parent?.folderId == parent?.folderId }
+    }
+
+    private func allMilestones() -> [Milestone] {
+        let descriptor = FetchDescriptor<Milestone>(
+            sortBy: [SortDescriptor(\.orderIndex)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func normalizeSubTaskOrder(in milestone: Milestone) {
+        let items = milestone.subtasks.sorted { $0.orderIndex < $1.orderIndex }
+        for (index, item) in items.enumerated() {
+            item.orderIndex = index
+        }
+    }
+
+    private func normalizeMemoOrder(in project: Project) {
+        let items = project.memos.sorted {
+            if $0.orderIndex == $1.orderIndex {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.orderIndex < $1.orderIndex
+        }
+        for (index, item) in items.enumerated() {
+            item.orderIndex = index
+        }
+    }
+
+    private func insertionIndex<Item>(
+        in items: [Item],
+        targetID: UUID?,
+        placement: ReorderPlacement,
+        id: KeyPath<Item, UUID>
+    ) -> Int {
+        guard placement != .end,
+              let targetID,
+              let targetIndex = items.firstIndex(where: { $0[keyPath: id] == targetID })
+        else {
+            return items.count
+        }
+
+        switch placement {
+        case .before:
+            return targetIndex
+        case .after:
+            return targetIndex + 1
+        case .end:
+            return items.count
+        }
     }
 
     private func deleteArchiveFolderContents(_ folder: ArchiveFolder) {
