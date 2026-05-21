@@ -7,11 +7,11 @@ import AppKit
 /// 右栏：按时间顺序展示项目备忘录，并在底部提供常驻输入框。
 struct MemoTimelineView: View {
     let project: Project
+    @Binding var searchDraft: String
+    @Binding var activeSearchQuery: String
 
     @Environment(ServiceContainer.self) private var container
     @State private var newMemoContent: String = ""
-    @State private var searchDraft: String = ""
-    @State private var activeSearchQuery: String = ""
     @FocusState private var isInputFocused: Bool
 
     private let bottomAnchorID = "memo-bottom-anchor"
@@ -42,8 +42,6 @@ struct MemoTimelineView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                searchBar
-
                 if visibleMemos.isEmpty {
                     emptyContent
                 } else {
@@ -54,53 +52,6 @@ struct MemoTimelineView: View {
             inputBar
         }
         .background(MemoTimelineStyle.panelBackground)
-    }
-
-    // MARK: - Search
-
-    private var searchBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            TextField("查询备忘录", text: $searchDraft)
-                .textFieldStyle(.plain)
-                .font(.caption)
-                .submitLabel(.search)
-                .onSubmit { commitSearch() }
-
-            if !searchDraft.isEmpty || hasActiveSearch {
-                Button {
-                    resetSearch()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .help("重置查询")
-            }
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 28)
-        .background {
-            Capsule(style: .continuous)
-                .fill(MemoTimelineStyle.searchFieldBackground)
-        }
-        .overlay {
-            Capsule(style: .continuous)
-                .stroke(MemoTimelineStyle.searchFieldBorder, lineWidth: 1)
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-        .frame(maxWidth: .infinity)
-        .background(MemoTimelineStyle.panelBackground)
-        .overlay(alignment: .bottom) {
-            MemoTimelineStyle.separator
-                .frame(height: 1)
-        }
     }
 
     // MARK: - Memo Timeline
@@ -202,15 +153,6 @@ struct MemoTimelineView: View {
     }
 
     // MARK: - Actions
-
-    private func commitSearch() {
-        activeSearchQuery = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func resetSearch() {
-        searchDraft = ""
-        activeSearchQuery = ""
-    }
 
     private func commitMemo() {
         let trimmed = newMemoContent.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -490,7 +432,11 @@ private struct ShiftReturnMemoEditor: NSViewRepresentable {
         Memo(content: "完成了数据库 schema 设计", createdAt: Date())
     ]
 
-    return MemoTimelineView(project: project)
+    return MemoTimelineView(
+        project: project,
+        searchDraft: .constant(""),
+        activeSearchQuery: .constant("")
+    )
         .frame(width: 400, height: 500)
         .environment(ServiceContainer())
 }

@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var overviewArchiveProject: Project?
     @State private var overviewEditProject: Project?
     @State private var overviewDeleteProject: Project?
+    @State private var memoSearchDraft: String = ""
+    @State private var activeMemoSearchQuery: String = ""
 
     @Environment(ServiceContainer.self) private var container
 
@@ -135,12 +137,22 @@ struct ContentView: View {
         HStack(spacing: 0) {
             Divider()
             VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: memoToggleRowHeight)
-                    .background(memoDrawerPanelBackground)
+                HStack(spacing: 8) {
+                    memoSearchField
+
+                    Spacer(minLength: toolbarButtonSize + toolbarEdgeInset)
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, toolbarEdgeInset)
+                .frame(height: memoToggleRowHeight)
+                .background(memoDrawerPanelBackground)
                 Divider()
 
-                MemoTimelineView(project: project)
+                MemoTimelineView(
+                    project: project,
+                    searchDraft: $memoSearchDraft,
+                    activeSearchQuery: $activeMemoSearchQuery
+                )
             }
             .frame(width: memoDrawerWidth)
         }
@@ -156,6 +168,56 @@ struct ContentView: View {
                 ? NSColor(calibratedWhite: 0.10, alpha: 1)
                 : NSColor(calibratedWhite: 0.94, alpha: 1)
         })
+    }
+
+    private var memoSearchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextField("查询备忘录", text: $memoSearchDraft)
+                .textFieldStyle(.plain)
+                .font(.caption)
+                .submitLabel(.search)
+                .onSubmit { commitMemoSearch() }
+
+            if !memoSearchDraft.isEmpty || hasActiveMemoSearch {
+                Button {
+                    resetMemoSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("重置查询")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: toolbarButtonSize)
+        .frame(maxWidth: .infinity)
+        .background {
+            Capsule(style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        }
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
+        }
+    }
+
+    private var hasActiveMemoSearch: Bool {
+        !activeMemoSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func commitMemoSearch() {
+        activeMemoSearchQuery = memoSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func resetMemoSearch() {
+        memoSearchDraft = ""
+        activeMemoSearchQuery = ""
     }
 
     private var memoToggleLayer: some View {

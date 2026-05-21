@@ -5,6 +5,8 @@ import AppKit
 private let usesMilestoneListSafeMode = true
 private let reminderColumnWidth: CGFloat = 28
 private let reminderInfoColumnWidth: CGFloat = 210
+private let subTaskLeadingIndent: CGFloat = 38
+private let milestoneRowOuterVerticalPadding: CGFloat = 4
 
 // MARK: - MilestoneListView
 
@@ -110,10 +112,12 @@ struct MilestoneListView: View {
                 snapshots: milestoneSnapshots,
                 onToggleMilestone: toggleMilestone(id:),
                 onUpdateMilestoneTitle: updateMilestoneTitle(id:title:),
+                onDeleteMilestone: deleteMilestone(id:),
                 reminderBinding: milestoneReminderBinding(id:),
                 onAddSubTask: addSubTask(milestoneID:title:),
                 onToggleSubTask: toggleSubTask(id:),
                 onUpdateSubTaskTitle: updateSubTaskTitle(id:title:),
+                onDeleteSubTask: deleteSubTask(id:),
                 subTaskReminderBinding: subTaskReminderBinding(id:)
             )
         } else {
@@ -263,6 +267,20 @@ struct MilestoneListView: View {
         }
     }
 
+    private func deleteMilestone(id: UUID) {
+        guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
+        projectService?.deleteMilestone(milestone)
+    }
+
+    private func deleteSubTask(id: UUID) {
+        for milestone in project.milestones {
+            if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                projectService?.deleteSubTask(subtask)
+                return
+            }
+        }
+    }
+
     @discardableResult
     private func addSubTask(milestoneID: UUID, title: String) -> Bool {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -335,11 +353,15 @@ private struct SafeMilestoneListView: View {
     let snapshots: [MilestoneSnapshot]
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
+    let onDeleteMilestone: (UUID) -> Void
     let reminderBinding: (UUID) -> Binding<Reminder?>
     let onAddSubTask: (UUID, String) -> Bool
     let onToggleSubTask: (UUID) -> Void
     let onUpdateSubTaskTitle: (UUID, String) -> Void
+    let onDeleteSubTask: (UUID) -> Void
     let subTaskReminderBinding: (UUID) -> Binding<Reminder?>
+
+    @State private var addingSubTaskFor: UUID?
 
     var body: some View {
         List {
@@ -348,25 +370,57 @@ private struct SafeMilestoneListView: View {
                     snapshot: snapshot,
                     onToggleMilestone: onToggleMilestone,
                     onUpdateMilestoneTitle: onUpdateMilestoneTitle,
+                    onDeleteMilestone: onDeleteMilestone,
                     reminder: reminderBinding(snapshot.id),
-                    onAddSubTask: onAddSubTask,
-                    onToggleSubTask: onToggleSubTask,
-                    onUpdateSubTaskTitle: onUpdateSubTaskTitle,
-                    subTaskReminderBinding: subTaskReminderBinding
+                    onBeginAddSubTask: {
+                        addingSubTaskFor = snapshot.id
+                    }
                 )
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                .safeListRow()
+
+                ForEach(snapshot.subtasks) { subtask in
+                    SafeSubTaskRowView(
+                        subtask: subtask,
+                        leadingIndent: subTaskLeadingIndent,
+                        reminder: subTaskReminderBinding(subtask.id),
+                        onToggle: onToggleSubTask,
+                        onUpdateTitle: onUpdateSubTaskTitle,
+                        onDelete: onDeleteSubTask
+                    )
+                    .safeListRow()
+                }
+
+                if addingSubTaskFor == snapshot.id {
+                    SafeSubTaskComposerView(
+                        milestoneID: snapshot.id,
+                        leadingIndent: subTaskLeadingIndent,
+                        onAddSubTask: onAddSubTask,
+                        onClose: {
+                            addingSubTaskFor = nil
+                        }
+                    )
+                    .safeListRow()
+                }
             }
 
             Color.clear
                 .frame(height: 96)
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                .safeListRow()
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .tint(Color(nsColor: .tertiaryLabelColor))
+        .accentColor(Color(nsColor: .tertiaryLabelColor))
+    }
+}
+
+private extension View {
+    func safeListRow() -> some View {
+        self
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .selectionDisabled(true)
     }
 }
 
@@ -374,79 +428,76 @@ private struct SafeMilestoneRowView: View {
     let snapshot: MilestoneSnapshot
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
+    let onDeleteMilestone: (UUID) -> Void
     @Binding var reminder: Reminder?
-    let onAddSubTask: (UUID, String) -> Bool
-    let onToggleSubTask: (UUID) -> Void
-    let onUpdateSubTaskTitle: (UUID, String) -> Void
-    let subTaskReminderBinding: (UUID) -> Binding<Reminder?>
+    let onBeginAddSubTask: () -> Void
 
     @State private var isEditing = false
     @State private var titleDraft = ""
-    @State private var isAddingSubTask = false
-    @State private var newSubTaskTitle = ""
+    @State private var isRowHovered = false
     @FocusState private var isTitleFocused: Bool
-    @FocusState private var isNewSubTaskFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 10) {
-                Button {
-                    onToggleMilestone(snapshot.id)
-                } label: {
-                    Image(systemName: snapshot.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(snapshot.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary))
-                        .font(.title3)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 1)
-
-                milestoneTitle
-
-                ReminderStatusView(
-                    reminder: $reminder,
-                    isCompleted: snapshot.isCompleted,
-                    isEditing: isEditing,
-                    iconFont: .body,
-                    textFont: .caption
-                )
-            }
-
-            if !snapshot.subtasks.isEmpty || isAddingSubTask {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(snapshot.subtasks) { subtask in
-                        SafeSubTaskRowView(
-                            subtask: subtask,
-                            reminder: subTaskReminderBinding(subtask.id),
-                            onToggle: onToggleSubTask,
-                            onUpdateTitle: onUpdateSubTaskTitle
-                        )
-                    }
-
-                    if isAddingSubTask {
-                        newSubTaskComposer
-                    }
-                }
-                .padding(.leading, 38)
-                .padding(.top, 2)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button {
-                beginAddingSubTask()
-            } label: {
-                Label("新增子任务", systemImage: "list.bullet.below.rectangle")
-            }
-        }
+        milestoneRow
+        .padding(.leading)
+        .padding(.vertical, milestoneRowOuterVerticalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .focusable(false)
         .onChange(of: isTitleFocused) { _, focused in
             guard !focused else { return }
             commitTitleEdit()
         }
-        .onChange(of: isNewSubTaskFocused) { _, focused in
-            guard !focused else { return }
-            commitOrCloseSubTaskComposer()
+    }
+
+    private var milestoneRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button {
+                onToggleMilestone(snapshot.id)
+            } label: {
+                Image(systemName: snapshot.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(snapshot.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary))
+                    .font(.title3)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 1)
+
+            milestoneTitle
+
+            ReminderStatusView(
+                reminder: $reminder,
+                isCompleted: snapshot.isCompleted,
+                isEditing: isEditing,
+                iconFont: .body,
+                textFont: .caption
+            )
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .focusable(false)
+        .onHover { isRowHovered = $0 }
+        .contextMenu {
+            Button {
+                onBeginAddSubTask()
+            } label: {
+                Label("新增子任务", systemImage: "list.bullet.below.rectangle")
+            }
+            Divider()
+            Button {
+                beginTitleEdit()
+            } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                onDeleteMilestone(snapshot.id)
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
         }
     }
 
@@ -478,22 +529,6 @@ private struct SafeMilestoneRowView: View {
         }
     }
 
-    private var newSubTaskComposer: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "circle.dotted")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
-
-            TextField("新子任务…", text: $newSubTaskTitle)
-                .textFieldStyle(.plain)
-                .font(.callout)
-                .focused($isNewSubTaskFocused)
-                .onSubmit { commitNewSubTask(keepsComposerOpen: true) }
-        }
-        .padding(.vertical, 5)
-    }
-
     private func beginTitleEdit() {
         titleDraft = snapshot.title
         isEditing = true
@@ -506,46 +541,81 @@ private struct SafeMilestoneRowView: View {
         isEditing = false
     }
 
-    private func beginAddingSubTask() {
-        isAddingSubTask = true
-        newSubTaskTitle = ""
-        isNewSubTaskFocused = true
-    }
+}
 
-    private func commitNewSubTask(keepsComposerOpen: Bool) {
-        if onAddSubTask(snapshot.id, newSubTaskTitle) {
-            newSubTaskTitle = ""
-            if keepsComposerOpen {
-                isAddingSubTask = true
-                isNewSubTaskFocused = true
-            } else {
-                isAddingSubTask = false
-            }
+private struct SafeSubTaskComposerView: View {
+    let milestoneID: UUID
+    let leadingIndent: CGFloat
+    let onAddSubTask: (UUID, String) -> Bool
+    let onClose: () -> Void
+
+    @State private var title = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Color.clear
+                .frame(width: leadingIndent)
+
+            Image(systemName: "circle.dotted")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 2)
+
+            TextField("新子任务…", text: $title)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .focused($isFocused)
+                .onSubmit { commit(keepsOpen: true) }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            isFocused = true
+        }
+        .onChange(of: isFocused) { _, focused in
+            guard !focused else { return }
+            commit(keepsOpen: false)
         }
     }
 
-    private func commitOrCloseSubTaskComposer() {
-        let hasDraft = !newSubTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if hasDraft {
-            commitNewSubTask(keepsComposerOpen: false)
-        } else {
-            isAddingSubTask = false
+    private func commit(keepsOpen: Bool) {
+        let hasDraft = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard hasDraft else {
+            onClose()
+            return
+        }
+
+        if onAddSubTask(milestoneID, title) {
+            title = ""
+            if keepsOpen {
+                isFocused = true
+            } else {
+                onClose()
+            }
         }
     }
 }
 
 private struct SafeSubTaskRowView: View {
     let subtask: SubTaskSnapshot
+    let leadingIndent: CGFloat
     @Binding var reminder: Reminder?
     let onToggle: (UUID) -> Void
     let onUpdateTitle: (UUID, String) -> Void
+    let onDelete: (UUID) -> Void
 
     @State private var isEditing = false
     @State private var titleDraft = ""
+    @State private var isRowHovered = false
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
+            Color.clear
+                .frame(width: leadingIndent)
+
             Button {
                 onToggle(subtask.id)
             } label: {
@@ -567,8 +637,28 @@ private struct SafeSubTaskRowView: View {
             )
         }
         .padding(.vertical, 5)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
+        }
         .fixedSize(horizontal: false, vertical: true)
-        .contentShape(Rectangle())
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .focusable(false)
+        .onHover { isRowHovered = $0 }
+        .contextMenu {
+            Button {
+                beginTitleEdit()
+            } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                onDelete(subtask.id)
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+        }
         .onChange(of: isTitleFocused) { _, focused in
             guard !focused else { return }
             commitTitleEdit()
@@ -632,7 +722,7 @@ private struct ReminderStatusView: View {
 
     private var alarmColor: AnyShapeStyle {
         guard hasReminder else {
-            return AnyShapeStyle(.secondary)
+            return AnyShapeStyle(.tertiary)
         }
 
         guard !isCompleted else {
@@ -661,6 +751,7 @@ private struct ReminderStatusView: View {
             }
         }
         .frame(width: reminderColumnWidth + reminderInfoColumnWidth + 4, alignment: .trailing)
+        .fixedSize(horizontal: true, vertical: true)
     }
 
     @ViewBuilder
