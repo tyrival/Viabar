@@ -16,7 +16,7 @@ struct ReminderSettingsPopover: View {
                     DatePicker("", selection: $selectedDate, displayedComponents: .date)
                         .labelsHidden()
                         .datePickerStyle(.compact)
-                        .frame(width: 190, alignment: .trailing)
+                        .frame(width: 250, alignment: .trailing)
                 }
 
                 Divider().padding(.leading, 40)
@@ -25,7 +25,7 @@ struct ReminderSettingsPopover: View {
                     DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                         .datePickerStyle(.compact)
-                        .frame(width: 190, alignment: .trailing)
+                        .frame(width: 250, alignment: .trailing)
                 }
             }
             .background(.quaternary.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
@@ -37,12 +37,12 @@ struct ReminderSettingsPopover: View {
                     }
                 }
                 .labelsHidden()
-                .frame(width: 190, alignment: .trailing)
+                .frame(width: 250, alignment: .trailing)
             }
             .background(.quaternary.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
         }
         .padding(16)
-        .frame(width: 360)
+        .frame(width: 440)
         .onAppear(perform: loadReminder)
         .onChange(of: selectedDate) { _, _ in updateReminder() }
         .onChange(of: selectedTime) { _, _ in updateReminder() }

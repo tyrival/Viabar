@@ -1,5 +1,10 @@
 import SwiftUI
 import SwiftData
+import AppKit
+
+private let usesMilestoneListSafeMode = true
+private let reminderColumnWidth: CGFloat = 28
+private let reminderInfoColumnWidth: CGFloat = 210
 
 // MARK: - MilestoneListView
 
@@ -29,6 +34,30 @@ struct MilestoneListView: View {
         }
     }
 
+    private var milestoneSnapshots: [MilestoneSnapshot] {
+        visibleMilestones.map { milestone in
+            let sortedSubtasks = milestone.subtasks.sorted { $0.orderIndex < $1.orderIndex }
+            let visibleSubtasks = project.hideCompleted
+                ? sortedSubtasks.filter { !$0.isCompleted }
+                : sortedSubtasks
+
+            return MilestoneSnapshot(
+                id: milestone.milestoneId,
+                title: milestone.title,
+                isCompleted: milestone.isCompleted,
+                hasReminder: milestone.reminder != nil,
+                subtasks: visibleSubtasks.map {
+                    SubTaskSnapshot(
+                        id: $0.taskId,
+                        title: $0.title,
+                        isCompleted: $0.isCompleted,
+                        hasReminder: $0.reminder != nil
+                    )
+                }
+            )
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -38,7 +67,7 @@ struct MilestoneListView: View {
                     header
                     Divider()
                 }
-                if visibleMilestones.isEmpty {
+                if milestoneSnapshots.isEmpty {
                     emptyContent
                 } else {
                     milestoneList
@@ -74,36 +103,50 @@ struct MilestoneListView: View {
 
     // MARK: - Milestone List
 
+    @ViewBuilder
     private var milestoneList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0, pinnedViews: []) {
-                ForEach(visibleMilestones) { milestone in
-                    MilestoneRowView(
-                        milestone: milestone,
-                        isSelected: selectedMilestoneID == milestone.milestoneId,
-                        hidesCompleted: project.hideCompleted,
-                        isExpandingSubtask: Binding(
-                            get: { expandingSubtaskFor == milestone.milestoneId },
-                            set: {
-                                expandingSubtaskFor = $0 ? milestone.milestoneId : nil
+        if usesMilestoneListSafeMode {
+            SafeMilestoneListView(
+                snapshots: milestoneSnapshots,
+                onToggleMilestone: toggleMilestone(id:),
+                onUpdateMilestoneTitle: updateMilestoneTitle(id:title:),
+                reminderBinding: milestoneReminderBinding(id:),
+                onAddSubTask: addSubTask(milestoneID:title:),
+                onToggleSubTask: toggleSubTask(id:),
+                onUpdateSubTaskTitle: updateSubTaskTitle(id:title:),
+                subTaskReminderBinding: subTaskReminderBinding(id:)
+            )
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 0, pinnedViews: []) {
+                    ForEach(visibleMilestones) { milestone in
+                        MilestoneRowView(
+                            milestone: milestone,
+                            isSelected: selectedMilestoneID == milestone.milestoneId,
+                            hidesCompleted: project.hideCompleted,
+                            isExpandingSubtask: Binding(
+                                get: { expandingSubtaskFor == milestone.milestoneId },
+                                set: {
+                                    expandingSubtaskFor = $0 ? milestone.milestoneId : nil
+                                }
+                            ),
+                            selectedSubTaskID: $selectedSubTaskID,
+                            onSelect: {
+                                selectedMilestoneID = milestone.milestoneId
+                                selectedSubTaskID = nil
+                            },
+                            onSelectSubTask: { subTaskID in
+                                selectedMilestoneID = nil
+                                selectedSubTaskID = subTaskID
                             }
-                        ),
-                        selectedSubTaskID: $selectedSubTaskID,
-                        onSelect: {
-                            selectedMilestoneID = milestone.milestoneId
-                            selectedSubTaskID = nil
-                        },
-                        onSelectSubTask: { subTaskID in
-                            selectedMilestoneID = nil
-                            selectedSubTaskID = subTaskID
-                        }
-                    )
+                        )
+                    }
                 }
+                .padding(.vertical, 8)
+                .padding(.bottom, 96)
             }
-            .padding(.vertical, 8)
-            .padding(.bottom, 96)
+            .scrollClipDisabled(false)
         }
-        .scrollClipDisabled(false)
     }
 
     // MARK: - Empty Content
@@ -183,8 +226,529 @@ struct MilestoneListView: View {
         newMilestoneTitle = ""
     }
 
+    private func toggleMilestone(id: UUID) {
+        guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
+        projectService?.toggleMilestoneComplete(milestone)
+    }
+
+    private func toggleSubTask(id: UUID) {
+        for milestone in project.milestones {
+            if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                projectService?.toggleSubTaskComplete(subtask)
+                return
+            }
+        }
+    }
+
+    private func updateMilestoneTitle(id: UUID, title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let milestone = project.milestones.first(where: { $0.milestoneId == id })
+        else { return }
+
+        milestone.title = trimmed
+        projectService?.save()
+    }
+
+    private func updateSubTaskTitle(id: UUID, title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        for milestone in project.milestones {
+            if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                subtask.title = trimmed
+                projectService?.save()
+                return
+            }
+        }
+    }
+
+    @discardableResult
+    private func addSubTask(milestoneID: UUID, title: String) -> Bool {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let milestone = project.milestones.first(where: { $0.milestoneId == milestoneID })
+        else { return false }
+
+        projectService?.addSubTask(to: milestone, title: trimmed)
+        return true
+    }
+
+    private func milestoneReminderBinding(id: UUID) -> Binding<Reminder?> {
+        Binding(
+            get: {
+                project.milestones.first(where: { $0.milestoneId == id })?.reminder
+            },
+            set: { reminder in
+                guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
+                milestone.reminder = reminder
+                projectService?.save()
+            }
+        )
+    }
+
+    private func subTaskReminderBinding(id: UUID) -> Binding<Reminder?> {
+        Binding(
+            get: {
+                for milestone in project.milestones {
+                    if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                        return subtask.reminder
+                    }
+                }
+                return nil
+            },
+            set: { reminder in
+                for milestone in project.milestones {
+                    if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                        subtask.reminder = reminder
+                        projectService?.save()
+                        return
+                    }
+                }
+            }
+        )
+    }
+
     private var hasMilestoneDraft: Bool {
         !newMilestoneTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+// MARK: - SafeMilestoneListView
+
+private struct MilestoneSnapshot: Identifiable, Equatable {
+    let id: UUID
+    let title: String
+    let isCompleted: Bool
+    let hasReminder: Bool
+    let subtasks: [SubTaskSnapshot]
+}
+
+private struct SubTaskSnapshot: Identifiable, Equatable {
+    let id: UUID
+    let title: String
+    let isCompleted: Bool
+    let hasReminder: Bool
+}
+
+private struct SafeMilestoneListView: View {
+    let snapshots: [MilestoneSnapshot]
+    let onToggleMilestone: (UUID) -> Void
+    let onUpdateMilestoneTitle: (UUID, String) -> Void
+    let reminderBinding: (UUID) -> Binding<Reminder?>
+    let onAddSubTask: (UUID, String) -> Bool
+    let onToggleSubTask: (UUID) -> Void
+    let onUpdateSubTaskTitle: (UUID, String) -> Void
+    let subTaskReminderBinding: (UUID) -> Binding<Reminder?>
+
+    var body: some View {
+        List {
+            ForEach(snapshots) { snapshot in
+                SafeMilestoneRowView(
+                    snapshot: snapshot,
+                    onToggleMilestone: onToggleMilestone,
+                    onUpdateMilestoneTitle: onUpdateMilestoneTitle,
+                    reminder: reminderBinding(snapshot.id),
+                    onAddSubTask: onAddSubTask,
+                    onToggleSubTask: onToggleSubTask,
+                    onUpdateSubTaskTitle: onUpdateSubTaskTitle,
+                    subTaskReminderBinding: subTaskReminderBinding
+                )
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
+
+            Color.clear
+                .frame(height: 96)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+}
+
+private struct SafeMilestoneRowView: View {
+    let snapshot: MilestoneSnapshot
+    let onToggleMilestone: (UUID) -> Void
+    let onUpdateMilestoneTitle: (UUID, String) -> Void
+    @Binding var reminder: Reminder?
+    let onAddSubTask: (UUID, String) -> Bool
+    let onToggleSubTask: (UUID) -> Void
+    let onUpdateSubTaskTitle: (UUID, String) -> Void
+    let subTaskReminderBinding: (UUID) -> Binding<Reminder?>
+
+    @State private var isEditing = false
+    @State private var titleDraft = ""
+    @State private var isAddingSubTask = false
+    @State private var newSubTaskTitle = ""
+    @FocusState private var isTitleFocused: Bool
+    @FocusState private var isNewSubTaskFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 10) {
+                Button {
+                    onToggleMilestone(snapshot.id)
+                } label: {
+                    Image(systemName: snapshot.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(snapshot.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary))
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 1)
+
+                milestoneTitle
+
+                ReminderStatusView(
+                    reminder: $reminder,
+                    isCompleted: snapshot.isCompleted,
+                    isEditing: isEditing,
+                    iconFont: .body,
+                    textFont: .caption
+                )
+            }
+
+            if !snapshot.subtasks.isEmpty || isAddingSubTask {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(snapshot.subtasks) { subtask in
+                        SafeSubTaskRowView(
+                            subtask: subtask,
+                            reminder: subTaskReminderBinding(subtask.id),
+                            onToggle: onToggleSubTask,
+                            onUpdateTitle: onUpdateSubTaskTitle
+                        )
+                    }
+
+                    if isAddingSubTask {
+                        newSubTaskComposer
+                    }
+                }
+                .padding(.leading, 38)
+                .padding(.top, 2)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button {
+                beginAddingSubTask()
+            } label: {
+                Label("新增子任务", systemImage: "list.bullet.below.rectangle")
+            }
+        }
+        .onChange(of: isTitleFocused) { _, focused in
+            guard !focused else { return }
+            commitTitleEdit()
+        }
+        .onChange(of: isNewSubTaskFocused) { _, focused in
+            guard !focused else { return }
+            commitOrCloseSubTaskComposer()
+        }
+    }
+
+    @ViewBuilder
+    private var milestoneTitle: some View {
+        if isEditing {
+            TextField("里程碑", text: $titleDraft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(nil)
+                .font(.body)
+                .focused($isTitleFocused)
+                .onSubmit { commitTitleEdit() }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+        } else {
+            Text(snapshot.title)
+                .font(.body)
+                .strikethrough(snapshot.isCompleted)
+                .foregroundStyle(snapshot.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+                .onTapGesture(count: 2) {
+                    beginTitleEdit()
+                }
+        }
+    }
+
+    private var newSubTaskComposer: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "circle.dotted")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 2)
+
+            TextField("新子任务…", text: $newSubTaskTitle)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .focused($isNewSubTaskFocused)
+                .onSubmit { commitNewSubTask(keepsComposerOpen: true) }
+        }
+        .padding(.vertical, 5)
+    }
+
+    private func beginTitleEdit() {
+        titleDraft = snapshot.title
+        isEditing = true
+        isTitleFocused = true
+    }
+
+    private func commitTitleEdit() {
+        guard isEditing else { return }
+        onUpdateMilestoneTitle(snapshot.id, titleDraft)
+        isEditing = false
+    }
+
+    private func beginAddingSubTask() {
+        isAddingSubTask = true
+        newSubTaskTitle = ""
+        isNewSubTaskFocused = true
+    }
+
+    private func commitNewSubTask(keepsComposerOpen: Bool) {
+        if onAddSubTask(snapshot.id, newSubTaskTitle) {
+            newSubTaskTitle = ""
+            if keepsComposerOpen {
+                isAddingSubTask = true
+                isNewSubTaskFocused = true
+            } else {
+                isAddingSubTask = false
+            }
+        }
+    }
+
+    private func commitOrCloseSubTaskComposer() {
+        let hasDraft = !newSubTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasDraft {
+            commitNewSubTask(keepsComposerOpen: false)
+        } else {
+            isAddingSubTask = false
+        }
+    }
+}
+
+private struct SafeSubTaskRowView: View {
+    let subtask: SubTaskSnapshot
+    @Binding var reminder: Reminder?
+    let onToggle: (UUID) -> Void
+    let onUpdateTitle: (UUID, String) -> Void
+
+    @State private var isEditing = false
+    @State private var titleDraft = ""
+    @FocusState private var isTitleFocused: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Button {
+                onToggle(subtask.id)
+            } label: {
+                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(subtask.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary))
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+
+            subTaskTitle
+
+            ReminderStatusView(
+                reminder: $reminder,
+                isCompleted: subtask.isCompleted,
+                isEditing: isEditing,
+                iconFont: .caption,
+                textFont: .caption2
+            )
+        }
+        .padding(.vertical, 5)
+        .fixedSize(horizontal: false, vertical: true)
+        .contentShape(Rectangle())
+        .onChange(of: isTitleFocused) { _, focused in
+            guard !focused else { return }
+            commitTitleEdit()
+        }
+    }
+
+    @ViewBuilder
+    private var subTaskTitle: some View {
+        if isEditing {
+            TextField("子任务", text: $titleDraft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(nil)
+                .font(.callout)
+                .focused($isTitleFocused)
+                .onSubmit { commitTitleEdit() }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+        } else {
+            Text(subtask.title)
+                .font(.callout)
+                .strikethrough(subtask.isCompleted)
+                .foregroundStyle(subtask.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+                .onTapGesture(count: 2) {
+                    beginTitleEdit()
+                }
+        }
+    }
+
+    private func beginTitleEdit() {
+        titleDraft = subtask.title
+        isEditing = true
+        isTitleFocused = true
+    }
+
+    private func commitTitleEdit() {
+        guard isEditing else { return }
+        onUpdateTitle(subtask.id, titleDraft)
+        isEditing = false
+    }
+}
+
+private struct ReminderStatusView: View {
+    @Binding var reminder: Reminder?
+    let isCompleted: Bool
+    let isEditing: Bool
+    let iconFont: Font
+    let textFont: Font
+
+    @State private var isReminderPopoverPresented = false
+    @State private var isPostponeButtonHovered = false
+
+    private var hasReminder: Bool {
+        reminder != nil
+    }
+
+    private var alarmColor: AnyShapeStyle {
+        guard hasReminder else {
+            return AnyShapeStyle(.secondary)
+        }
+
+        guard !isCompleted else {
+            return AnyShapeStyle(.secondary)
+        }
+
+        return AnyShapeStyle(.orange)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 4) {
+            reminderInfo
+
+            Button {
+                isReminderPopoverPresented = true
+            } label: {
+                Image(systemName: hasReminder ? "alarm.fill" : "alarm")
+                    .font(iconFont)
+                    .foregroundStyle(alarmColor)
+                    .frame(width: reminderColumnWidth)
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .popover(isPresented: $isReminderPopoverPresented, arrowEdge: .trailing) {
+                ReminderSettingsPopover(reminder: $reminder)
+            }
+        }
+        .frame(width: reminderColumnWidth + reminderInfoColumnWidth + 4, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    private var reminderInfo: some View {
+        if let reminder {
+            HStack(spacing: 5) {
+                Spacer(minLength: 0)
+
+                if reminder.isRepeating {
+                    postponeButton(for: reminder)
+                }
+
+                Text(reminder.inlineReminderSummary)
+                    .font(textFont)
+                    .foregroundStyle(summaryColor(for: reminder))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: true)
+            }
+            .frame(width: reminderInfoColumnWidth, alignment: .trailing)
+        } else {
+            Color.clear
+                .frame(width: reminderInfoColumnWidth)
+        }
+    }
+
+    private func summaryColor(for reminder: Reminder) -> AnyShapeStyle {
+        if isCompleted {
+            return AnyShapeStyle(.secondary)
+        }
+
+        if reminder.isInlineReminderOverdue {
+            return AnyShapeStyle(.red)
+        }
+
+        if reminder.isInlineReminderTodayPending {
+            return AnyShapeStyle(.orange)
+        }
+
+        return AnyShapeStyle(.secondary)
+    }
+
+    private func postponeColor(for reminder: Reminder) -> AnyShapeStyle {
+        if isCompleted {
+            return AnyShapeStyle(.secondary)
+        }
+
+        if isPostponeButtonHovered {
+            return AnyShapeStyle(MilestoneListStyle.sendButtonActive)
+        }
+
+        if reminder.isInlineReminderOverdue || reminder.isInlineReminderTodayPending {
+            return AnyShapeStyle(.blue)
+        }
+
+        return AnyShapeStyle(.secondary)
+    }
+
+    private func postponeButton(for reminder: Reminder) -> some View {
+        Button {
+            guard !isCompleted else { return }
+            postponeReminder(reminder)
+        } label: {
+            Image(systemName: "checkmark.arrow.trianglehead.counterclockwise")
+                .font(iconFont)
+                .foregroundStyle(postponeColor(for: reminder))
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("推迟一个循环周期")
+        .onHover { hovering in
+            guard !isCompleted else { return }
+            isPostponeButtonHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
+
+    private func postponeReminder(_ reminder: Reminder) {
+        guard let nextDate = reminder.postponedByOneCycle else { return }
+        self.reminder = Reminder(
+            type: reminder.type,
+            fireTime: reminder.fireTime,
+            fireTimestamp: nextDate,
+            repeatIntervalDays: reminder.repeatIntervalDays
+        )
     }
 }
 
@@ -615,6 +1179,123 @@ private enum MilestoneListStyle {
             : NSColor(calibratedRed: 0.32, green: 0.68, blue: 1.0, alpha: 1)
     })
     static let sendButtonInactive = Color(nsColor: .tertiaryLabelColor)
+}
+
+private extension Reminder {
+    var isRepeating: Bool {
+        type == "repeating"
+    }
+
+    var inlineFireDate: Date? {
+        fireTimestamp ?? nextRepeatingFireDate
+    }
+
+    var inlineReminderSummary: String {
+        let time = formattedInlineReminderTime
+        guard isRepeating else { return time }
+        return "\(time) \(inlineRepeatTitle)"
+    }
+
+    var isInlineReminderOverdue: Bool {
+        guard let date = inlineFireDate else { return false }
+        return date < Date()
+    }
+
+    var isInlineReminderTodayPending: Bool {
+        guard let date = inlineFireDate else { return false }
+        return Calendar.current.isDateInToday(date) && date >= Date()
+    }
+
+    var formattedInlineReminderTime: String {
+        guard let date = inlineFireDate else { return "--" }
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+
+        if calendar.isDateInToday(date) {
+            return "今天 \(formatter.string(from: date))"
+        }
+
+        if calendar.isDateInTomorrow(date) {
+            return "明天 \(formatter.string(from: date))"
+        }
+
+        formatter.dateFormat = "M/d/yy HH:mm"
+        return formatter.string(from: date)
+    }
+
+    var inlineRepeatTitle: String {
+        guard isRepeating else { return "" }
+        switch repeatIntervalDays {
+        case 0: return "每小时"
+        case 1: return "每天"
+        case 2: return "每2天"
+        case 3: return "每3天"
+        case -1: return "工作日"
+        case 7: return "每周"
+        case 14: return "每两周"
+        case 30: return "每月"
+        case 90: return "每3个月"
+        case 180: return "每6个月"
+        case 365: return "每年"
+        default: return "循环"
+        }
+    }
+
+    var postponedByOneCycle: Date? {
+        guard isRepeating, let baseDate = inlineFireDate else { return nil }
+
+        let calendar = Calendar.current
+        switch repeatIntervalDays {
+        case 0:
+            return calendar.date(byAdding: .hour, value: 1, to: baseDate)
+        case -1:
+            return nextWeekday(after: baseDate)
+        case 30:
+            return calendar.date(byAdding: .month, value: 1, to: baseDate)
+        case 90:
+            return calendar.date(byAdding: .month, value: 3, to: baseDate)
+        case 180:
+            return calendar.date(byAdding: .month, value: 6, to: baseDate)
+        case 365:
+            return calendar.date(byAdding: .year, value: 1, to: baseDate)
+        default:
+            return calendar.date(byAdding: .day, value: repeatIntervalDays ?? 1, to: baseDate)
+        }
+    }
+
+    private var nextRepeatingFireDate: Date? {
+        guard let fireTime else { return fireTimestamp }
+
+        let parts = fireTime.split(separator: ":").compactMap { Int($0) }
+        guard parts.count >= 2 else { return fireTimestamp }
+
+        let calendar = Calendar.current
+        let now = Date()
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = parts[0]
+        components.minute = parts[1]
+        components.second = 0
+
+        guard let today = calendar.date(from: components) else { return fireTimestamp }
+        if today >= now {
+            return today
+        }
+
+        return calendar.date(byAdding: .day, value: repeatIntervalDays ?? 1, to: today)
+    }
+
+    private func nextWeekday(after date: Date) -> Date? {
+        var candidate = Calendar.current.date(byAdding: .day, value: 1, to: date)
+        while let current = candidate {
+            let weekday = Calendar.current.component(.weekday, from: current)
+            if weekday != 1 && weekday != 7 {
+                return current
+            }
+            candidate = Calendar.current.date(byAdding: .day, value: 1, to: current)
+        }
+        return nil
+    }
 }
 
 private func formatCompletionTimestamp(_ date: Date) -> String {
