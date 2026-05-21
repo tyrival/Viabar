@@ -142,13 +142,17 @@ final class ProjectService: ProjectServiceProtocol {
     func toggleMilestoneComplete(_ milestone: Milestone) {
         if milestone.subtasks.isEmpty {
             milestone.isCompleted.toggle()
+            milestone.completedAt = milestone.isCompleted ? Date() : nil
         } else {
             // 有子任务时，联动切换全部子任务状态
             let target = !milestone.isCompleted
+            let completedAt = target ? Date() : nil
             for st in milestone.subtasks {
                 st.isCompleted = target
+                st.completedAt = completedAt
             }
             milestone.isCompleted = target
+            milestone.completedAt = completedAt
         }
         save()
     }
@@ -175,6 +179,7 @@ final class ProjectService: ProjectServiceProtocol {
 
     func toggleSubTaskComplete(_ subTask: SubTask) {
         subTask.isCompleted.toggle()
+        subTask.completedAt = subTask.isCompleted ? Date() : nil
         subTask.milestone?.syncCompletionFromSubtasks()
         save()
     }

@@ -112,6 +112,8 @@ struct SidebarView: View {
     @State private var folderNamePrompt: FolderNamePrompt?
     @State private var folderNameDraft: String = ""
     @State private var deleteConfirmation: DeleteConfirmation?
+    @State private var isCreateProjectButtonHovered = false
+    @State private var isCreateArchiveFolderButtonHovered = false
 
     private var projectService: ProjectService? {
         container.projectService
@@ -298,11 +300,12 @@ struct SidebarView: View {
                 } label: {
                     Image(systemName: "plus.circle")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isCreateProjectButtonHovered ? AnyShapeStyle(ViabarColor.primaryLight) : AnyShapeStyle(.secondary))
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 12)
                 .help("新建项目")
+                .onHover { isCreateProjectButtonHovered = $0 }
             }
         }
     }
@@ -338,11 +341,12 @@ struct SidebarView: View {
                 } label: {
                     Image(systemName: "folder.badge.plus")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isCreateArchiveFolderButtonHovered ? AnyShapeStyle(ViabarColor.primaryLight) : AnyShapeStyle(.secondary))
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 12)
                 .help("新建文件夹")
+                .onHover { isCreateArchiveFolderButtonHovered = $0 }
             }
         }
     }

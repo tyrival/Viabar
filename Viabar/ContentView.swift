@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @Query(sort: \Project.orderIndex) private var allProjects: [Project]
@@ -18,7 +19,7 @@ struct ContentView: View {
     private let toolbarButtonSize: CGFloat = 36
     private let toolbarButtonIconSize: CGFloat = 16
     private let toolbarEdgeInset: CGFloat = 8
-    private let toolbarGradientHeight: CGFloat = 72
+    private let toolbarGradientHeight: CGFloat = 44
 
     private var memoToggleRowHeight: CGFloat {
         toolbarButtonSize + toolbarEdgeInset * 2
@@ -136,6 +137,7 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 Color.clear
                     .frame(height: memoToggleRowHeight)
+                    .background(memoDrawerPanelBackground)
                 Divider()
 
                 MemoTimelineView(project: project)
@@ -145,6 +147,15 @@ struct ContentView: View {
         .frame(maxHeight: .infinity)
         .background(.background)
         .ignoresSafeArea(.container, edges: [.top, .bottom])
+    }
+
+    private var memoDrawerPanelBackground: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return isDark
+                ? NSColor(calibratedWhite: 0.10, alpha: 1)
+                : NSColor(calibratedWhite: 0.94, alpha: 1)
+        })
     }
 
     private var memoToggleLayer: some View {
@@ -186,6 +197,7 @@ struct ContentView: View {
         VStack {
             ZStack(alignment: .top) {
                 toolbarGradientMask
+                    .padding(.trailing, isMemoDrawerVisible ? memoDrawerWidth : 0)
 
                 HStack(spacing: 12) {
                     if isSidebarHidden {

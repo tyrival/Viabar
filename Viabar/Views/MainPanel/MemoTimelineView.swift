@@ -1,57 +1,106 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 // MARK: - MemoTimelineView
 
-/// 右栏：流式备忘录时间线 + 常驻极简输入框。
-/// 上部按时间倒序展示所有备忘录，
-/// 下部为常驻输入栏，支持 Cmd+Enter 或点击发送。
+/// 右栏：按时间顺序展示项目备忘录，并在底部提供常驻输入框。
 struct MemoTimelineView: View {
     let project: Project
 
     @Environment(ServiceContainer.self) private var container
     @State private var newMemoContent: String = ""
+    @State private var searchDraft: String = ""
+    @State private var activeSearchQuery: String = ""
     @FocusState private var isInputFocused: Bool
+
+    private let bottomAnchorID = "memo-bottom-anchor"
 
     private var projectService: ProjectService? {
         container.projectService
     }
 
-    /// 按创建时间倒序排列
     private var sortedMemos: [Memo] {
-        project.memos.sorted { $0.createdAt > $1.createdAt }
+        project.memos.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private var visibleMemos: [Memo] {
+        let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return sortedMemos }
+
+        return sortedMemos.filter {
+            $0.content.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var hasActiveSearch: Bool {
+        !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            if sortedMemos.isEmpty {
-                emptyContent
-            } else {
-                memoTimeline
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                searchBar
+
+                if visibleMemos.isEmpty {
+                    emptyContent
+                } else {
+                    memoTimeline
+                }
             }
-            Divider()
+
             inputBar
         }
-        .background(.background)
+        .background(MemoTimelineStyle.panelBackground)
     }
 
-    // MARK: - Header
+    // MARK: - Search
 
-    private var header: some View {
-        HStack {
-            Label("备忘录", systemImage: "note.text")
-                .font(.headline)
-            Spacer()
-            Text("\(sortedMemos.count) 条记录")
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
+
+            TextField("查询备忘录", text: $searchDraft)
+                .textFieldStyle(.plain)
+                .font(.caption)
+                .submitLabel(.search)
+                .onSubmit { commitSearch() }
+
+            if !searchDraft.isEmpty || hasActiveSearch {
+                Button {
+                    resetSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("重置查询")
+            }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .background {
+            Capsule(style: .continuous)
+                .fill(MemoTimelineStyle.searchFieldBackground)
+        }
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(MemoTimelineStyle.searchFieldBorder, lineWidth: 1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .background(MemoTimelineStyle.panelBackground)
+        .overlay(alignment: .bottom) {
+            MemoTimelineStyle.separator
+                .frame(height: 1)
+        }
     }
 
     // MARK: - Memo Timeline
@@ -59,43 +108,28 @@ struct MemoTimelineView: View {
     private var memoTimeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(sortedMemos) { memo in
+                LazyVStack(spacing: 8) {
+                    ForEach(visibleMemos) { memo in
                         MemoCardView(memo: memo)
                             .id(memo.memoId)
-
-                        // 时间分隔线（同日相邻 memo 之间不重复显示日期）
-                        if let idx = sortedMemos.firstIndex(where: { $0.memoId == memo.memoId }),
-                           idx < sortedMemos.count - 1 {
-                            let next = sortedMemos[idx + 1]
-                            if !Calendar.current.isDate(memo.createdAt, inSameDayAs: next.createdAt) {
-                                dateSeparator(memo.createdAt)
-                            }
-                        }
                     }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id(bottomAnchorID)
                 }
-                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+                .padding(.bottom, 104)
             }
             .scrollClipDisabled(false)
             .onAppear {
-                if let first = sortedMemos.first {
-                    proxy.scrollTo(first.memoId, anchor: .top)
-                }
+                scrollToBottom(proxy)
+            }
+            .onChange(of: visibleMemos.map(\.memoId)) { _, _ in
+                scrollToBottom(proxy)
             }
         }
-    }
-
-    private func dateSeparator(_ date: Date) -> some View {
-        HStack {
-            VStack { Divider() }
-            Text(formatDate(date))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 8)
-            VStack { Divider() }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Empty Content
@@ -103,71 +137,99 @@ struct MemoTimelineView: View {
     private var emptyContent: some View {
         VStack(spacing: 10) {
             Spacer()
-            Image(systemName: "note.text.badge.plus")
+            Image(systemName: hasActiveSearch ? "magnifyingglass" : "note.text.badge.plus")
                 .font(.title)
                 .foregroundStyle(.tertiary)
-            Text("暂无备忘录")
+            Text(hasActiveSearch ? "没有匹配的备忘录" : "暂无备忘录")
                 .font(.callout)
                 .foregroundStyle(.tertiary)
-            Text("在下方输入框中记录项目上下文")
+            Text(hasActiveSearch ? "重置查询后可查看全部记录" : "在下方输入框中记录项目上下文")
                 .font(.caption)
                 .foregroundStyle(.quaternary)
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .padding(.bottom, 104)
     }
 
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("输入备忘内容…", text: $newMemoContent, axis: .vertical)
-                .textFieldStyle(.plain)
-                .focused($isInputFocused)
-                .lineLimit(1...4)
-                .onSubmit {
-                    commitMemo()
-                }
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottomTrailing) {
+                ShiftReturnMemoEditor(
+                    text: $newMemoContent,
+                    isFocused: Binding(
+                        get: { isInputFocused },
+                        set: { isInputFocused = $0 }
+                    ),
+                    onCommit: commitMemo
+                )
+                .padding(.leading, 12)
+                .padding(.trailing, 40)
+                .padding(.vertical, 10)
+                .frame(minHeight: 68, maxHeight: 68, alignment: .topLeading)
 
-            Button(action: commitMemo) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .foregroundStyle(newMemoContent.trimmingCharacters(in: .whitespaces).isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.blue))
-                    .font(.title3)
+                Button(action: commitMemo) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.callout)
+                        .foregroundStyle(hasMemoDraft ? MemoTimelineStyle.sendButtonActive : MemoTimelineStyle.sendButtonInactive)
+                }
+                .buttonStyle(.plain)
+                .disabled(!hasMemoDraft)
+                .help("添加备忘录")
+                .padding(.trailing, 12)
+                .padding(.bottom, 10)
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(newMemoContent.trimmingCharacters(in: .whitespaces).isEmpty)
-            .help("发送 (⌘↵)")
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(MemoTimelineStyle.inputBackground)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(MemoTimelineStyle.inputBorder, lineWidth: 1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+        .background(MemoTimelineStyle.inputPanelBackground)
+        .overlay(alignment: .top) {
+            MemoTimelineStyle.separator
+                .frame(height: 1)
+        }
     }
 
     // MARK: - Actions
 
+    private func commitSearch() {
+        activeSearchQuery = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func resetSearch() {
+        searchDraft = ""
+        activeSearchQuery = ""
+    }
+
     private func commitMemo() {
-        let trimmed = newMemoContent.trimmingCharacters(in: .whitespaces)
+        let trimmed = newMemoContent.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         projectService?.addMemo(to: project, content: trimmed)
         newMemoContent = ""
         isInputFocused = true
     }
 
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        let calendar = Calendar.current
-
-        if calendar.isDateInToday(date) {
-            return "今天"
-        } else if calendar.isDateInYesterday(date) {
-            return "昨天"
-        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) {
-            formatter.dateFormat = "EEEE"
-            return formatter.string(from: date)
-        } else {
-            formatter.dateFormat = "yyyy 年 M 月 d 日"
-            return formatter.string(from: date)
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+            }
         }
+    }
+
+    private var hasMemoDraft: Bool {
+        !newMemoContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -177,32 +239,75 @@ struct MemoCardView: View {
     let memo: Memo
 
     @Environment(ServiceContainer.self) private var container
+    @State private var showsCopiedTag = false
+    @State private var isCopyButtonHovered = false
 
     private var projectService: ProjectService? {
         container.projectService
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(formatTime(memo.createdAt))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Text(formatTimestamp(memo.createdAt))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                Spacer()
+
+                Spacer(minLength: 8)
+
+                if showsCopiedTag {
+                    Text("已复制")
+                        .font(.caption2)
+                        .foregroundStyle(MemoTimelineStyle.copiedTagForeground)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background {
+                            Capsule(style: .continuous)
+                                .fill(MemoTimelineStyle.copiedTagBackground)
+                        }
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+
+                Button {
+                    copyMemoContent()
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.caption)
+                        .foregroundStyle(isCopyButtonHovered ? AnyShapeStyle(MemoTimelineStyle.sendButtonActive) : AnyShapeStyle(.tertiary))
+                }
+                .buttonStyle(.plain)
+                .help("复制备忘录")
+                .onHover { hovering in
+                    isCopyButtonHovered = hovering
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
             }
 
             Text(memo.content)
                 .font(.callout)
                 .foregroundStyle(.primary)
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
+        .background(MemoTimelineStyle.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(MemoTimelineStyle.cardBorder, lineWidth: 1)
+        )
         .contentShape(Rectangle())
         .contextMenu {
             Button("复制") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(memo.content, forType: .string)
+                copyMemoContent()
             }
             Divider()
             Button("删除", role: .destructive) {
@@ -211,10 +316,167 @@ struct MemoCardView: View {
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
+    private func formatTimestamp(_ date: Date) -> String {
+        let calendar = Calendar.current
         let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
+
+        if calendar.isDateInToday(date) {
+            formatter.dateFormat = "HH:mm"
+            return "今天 \(formatter.string(from: date))"
+        }
+
+        if calendar.isDateInYesterday(date) {
+            formatter.dateFormat = "HH:mm"
+            return "昨天 \(formatter.string(from: date))"
+        }
+
+        formatter.dateFormat = "yyyy年M月d日 HH:mm"
         return formatter.string(from: date)
+    }
+
+    private func copyMemoContent() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(memo.content, forType: .string)
+
+        withAnimation(.easeInOut(duration: 0.12)) {
+            showsCopiedTag = true
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showsCopiedTag = false
+            }
+        }
+    }
+}
+
+// MARK: - Style
+
+private enum MemoTimelineStyle {
+    static let panelBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 0.10, alpha: 1)
+            : NSColor(calibratedWhite: 0.94, alpha: 1)
+    })
+
+    static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 0.16, alpha: 1)
+            : NSColor.white
+    })
+
+    static let cardBorder = Color(nsColor: NSColor.separatorColor).opacity(0.35)
+    static let searchFieldBackground = Color(nsColor: .controlBackgroundColor)
+    static let searchFieldBorder = Color(nsColor: .separatorColor).opacity(0.45)
+    static let inputPanelBackground = panelBackground
+    static let inputBackground = Color(nsColor: .controlBackgroundColor)
+    static let inputBorder = Color(nsColor: .separatorColor).opacity(0.55)
+    static let separator = Color(nsColor: .separatorColor).opacity(0.5)
+    static let copiedTagForeground = Color(nsColor: NSColor.systemGreen)
+    static let copiedTagBackground = Color(nsColor: NSColor.systemGreen).opacity(0.14)
+    static let sendButtonActive = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedRed: 0.46, green: 0.72, blue: 1.0, alpha: 1)
+            : NSColor(calibratedRed: 0.32, green: 0.68, blue: 1.0, alpha: 1)
+    })
+    static let sendButtonInactive = Color(nsColor: .tertiaryLabelColor)
+}
+
+// MARK: - ShiftReturnMemoEditor
+
+private struct ShiftReturnMemoEditor: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    let onCommit: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, isFocused: $isFocused, onCommit: onCommit)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.borderType = .noBorder
+
+        let textView = MemoTextView()
+        textView.delegate = context.coordinator
+        textView.onCommit = onCommit
+        textView.isRichText = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        textView.textColor = .labelColor
+        textView.textContainerInset = NSSize(width: 0, height: 0)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        textView.autoresizingMask = [.width]
+
+        scrollView.documentView = textView
+        context.coordinator.textView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? MemoTextView else { return }
+
+        if textView.string != text {
+            textView.string = text
+        }
+
+        textView.onCommit = onCommit
+
+        if isFocused, textView.window?.firstResponder !== textView {
+            textView.window?.makeFirstResponder(textView)
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        @Binding var text: String
+        @Binding var isFocused: Bool
+        weak var textView: MemoTextView?
+        let onCommit: () -> Void
+
+        init(text: Binding<String>, isFocused: Binding<Bool>, onCommit: @escaping () -> Void) {
+            _text = text
+            _isFocused = isFocused
+            self.onCommit = onCommit
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text = textView.string
+        }
+
+        func textDidBeginEditing(_ notification: Notification) {
+            isFocused = true
+        }
+
+        func textDidEndEditing(_ notification: Notification) {
+            isFocused = false
+        }
+    }
+
+    final class MemoTextView: NSTextView {
+        var onCommit: (() -> Void)?
+
+        override func keyDown(with event: NSEvent) {
+            let isReturn = event.keyCode == 36 || event.keyCode == 76
+            let usesShift = event.modifierFlags.contains(.shift)
+
+            if isReturn, !usesShift {
+                onCommit?()
+                return
+            }
+
+            super.keyDown(with: event)
+        }
     }
 }
 
@@ -223,9 +485,9 @@ struct MemoCardView: View {
 #Preview {
     let project = Project(title: "示例项目")
     project.memos = [
-        Memo(content: "完成了数据库 schema 设计", createdAt: Date()),
-        Memo(content: "对接了 CloudKit 同步方案，需要注意冲突解决策略", createdAt: Date().addingTimeInterval(-3600)),
         Memo(content: "项目初始化", createdAt: Date().addingTimeInterval(-86400)),
+        Memo(content: "对接了 CloudKit 同步方案，需要注意冲突解决策略", createdAt: Date().addingTimeInterval(-3600)),
+        Memo(content: "完成了数据库 schema 设计", createdAt: Date())
     ]
 
     return MemoTimelineView(project: project)

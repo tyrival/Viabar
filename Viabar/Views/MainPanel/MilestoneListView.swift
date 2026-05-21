@@ -81,6 +81,7 @@ struct MilestoneListView: View {
                     MilestoneRowView(
                         milestone: milestone,
                         isSelected: selectedMilestoneID == milestone.milestoneId,
+                        hidesCompleted: project.hideCompleted,
                         isExpandingSubtask: Binding(
                             get: { expandingSubtaskFor == milestone.milestoneId },
                             set: {
@@ -129,35 +130,50 @@ struct MilestoneListView: View {
 
     private var addMilestoneBar: some View {
         VStack(spacing: 0) {
+            ZStack(alignment: .bottomTrailing) {
+                TextField("", text: $newMilestoneTitle, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(3)
+                    .submitLabel(.done)
+                    .onSubmit { commitNewMilestone() }
+                    .padding(.leading, 12)
+                    .padding(.trailing, 40)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 68, maxHeight: 68, alignment: .topLeading)
+
+                Button(action: commitNewMilestone) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.callout)
+                        .foregroundStyle(hasMilestoneDraft ? MilestoneListStyle.sendButtonActive : MilestoneListStyle.sendButtonInactive)
+                }
+                .buttonStyle(.plain)
+                .disabled(!hasMilestoneDraft)
+                .help("添加里程碑")
+                .padding(.trailing, 12)
+                .padding(.bottom, 10)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .background(
             LinearGradient(
                 colors: [
                     Color(nsColor: .windowBackgroundColor).opacity(0),
-                    Color(nsColor: .windowBackgroundColor).opacity(0.86)
+                    Color(nsColor: .windowBackgroundColor).opacity(0.9)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 34)
-
-            TextField("新增里程碑…", text: $newMilestoneTitle, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(3)
-                .submitLabel(.done)
-                .onSubmit { commitNewMilestone() }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(minHeight: 68, maxHeight: 68, alignment: .topLeading)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-        }
+        )
     }
 
     private func commitNewMilestone() {
@@ -166,6 +182,10 @@ struct MilestoneListView: View {
         projectService?.addMilestone(to: project, title: title)
         newMilestoneTitle = ""
     }
+
+    private var hasMilestoneDraft: Bool {
+        !newMilestoneTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
 
 // MARK: - MilestoneRowView
@@ -173,6 +193,7 @@ struct MilestoneListView: View {
 struct MilestoneRowView: View {
     let milestone: Milestone
     let isSelected: Bool
+    let hidesCompleted: Bool
     @Binding var isExpandingSubtask: Bool
     @Binding var selectedSubTaskID: UUID?
     let onSelect: () -> Void
@@ -183,6 +204,7 @@ struct MilestoneRowView: View {
     @State private var editingTitle = false
     @State private var titleDraft: String = ""
     @State private var showingReminderPopover = false
+    @State private var isHovering = false
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNewSubTaskFocused: Bool
 
@@ -193,6 +215,12 @@ struct MilestoneRowView: View {
     /// 已完成的 subtask 数量
     private var completedSubTaskCount: Int {
         milestone.subtasks.filter(\.isCompleted).count
+    }
+
+    private var visibleSubtasks: [SubTask] {
+        let sorted = milestone.subtasks.sorted { $0.orderIndex < $1.orderIndex }
+        guard hidesCompleted else { return sorted }
+        return sorted.filter { !$0.isCompleted }
     }
 
     var body: some View {
@@ -225,6 +253,7 @@ struct MilestoneRowView: View {
                 isNewSubTaskFocused = false
             }
         }
+        .onHover { isHovering = $0 }
     }
 
     private var milestoneContentRow: some View {
@@ -318,7 +347,7 @@ struct MilestoneRowView: View {
     private var subtaskList: some View {
         VStack(spacing: 0) {
             ForEach(
-                milestone.subtasks.sorted { $0.orderIndex < $1.orderIndex },
+                visibleSubtasks,
                 id: \.taskId
             ) { subtask in
                 SubTaskRowView(
@@ -404,12 +433,21 @@ struct MilestoneRowView: View {
                         commitTitleEdit()
                     }
             } else {
-                Text(milestone.title)
-                    .font(.body)
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .strikethrough(milestone.isCompleted)
-                    .foregroundStyle(milestone.isCompleted ? .secondary : .primary)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(milestone.title)
+                        .font(.body)
+                        .strikethrough(milestone.isCompleted)
+                        .foregroundStyle(milestone.isCompleted ? .secondary : .primary)
+
+                    if isHovering, milestone.isCompleted, let completedAt = milestone.completedAt {
+                        Text("（\(formatCompletionTimestamp(completedAt))）")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .fixedSize(horizontal: true, vertical: true)
+                    }
+                }
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -431,6 +469,7 @@ struct MilestoneRowView: View {
         }
         editingTitle = false
     }
+
 }
 
 // MARK: - SubTaskRowView
@@ -445,6 +484,7 @@ struct SubTaskRowView: View {
     @State private var editingTitle = false
     @State private var titleDraft: String = ""
     @State private var showingReminderPopover = false
+    @State private var isHovering = false
     @FocusState private var isTitleFocused: Bool
 
     private var projectService: ProjectService? {
@@ -494,6 +534,7 @@ struct SubTaskRowView: View {
             onSelect()
             startEditing()
         }
+        .onHover { isHovering = $0 }
         .contextMenu {
             Button {
                 onSelect()
@@ -531,7 +572,7 @@ struct SubTaskRowView: View {
                         commitTitleEdit()
                     }
             } else {
-                Text(subTask.title)
+                Text(subTaskDisplayTitle)
                     .font(.callout)
                     .lineLimit(nil)
                     .multilineTextAlignment(.leading)
@@ -557,6 +598,46 @@ struct SubTaskRowView: View {
         }
         editingTitle = false
     }
+
+    private var subTaskDisplayTitle: String {
+        guard isHovering, subTask.isCompleted, let completedAt = subTask.completedAt else {
+            return subTask.title
+        }
+        return "\(subTask.title)（\(formatCompletionTimestamp(completedAt))）"
+    }
+}
+
+private enum MilestoneListStyle {
+    static let sendButtonActive = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedRed: 0.46, green: 0.72, blue: 1.0, alpha: 1)
+            : NSColor(calibratedRed: 0.32, green: 0.68, blue: 1.0, alpha: 1)
+    })
+    static let sendButtonInactive = Color(nsColor: .tertiaryLabelColor)
+}
+
+private func formatCompletionTimestamp(_ date: Date) -> String {
+    let calendar = Calendar.current
+    let formatter = DateFormatter()
+
+    if calendar.isDateInToday(date) {
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    if calendar.isDateInYesterday(date) {
+        formatter.dateFormat = "HH:mm"
+        return "昨天 \(formatter.string(from: date))"
+    }
+
+    if calendar.component(.year, from: date) == calendar.component(.year, from: Date()) {
+        formatter.dateFormat = "M/d HH:mm"
+    } else {
+        formatter.dateFormat = "yyyy/M/d HH:mm"
+    }
+
+    return formatter.string(from: date)
 }
 
 // MARK: - Preview

@@ -131,6 +131,7 @@ final class Milestone {
     @Attribute(.unique) var milestoneId: UUID
     var title: String
     var isCompleted: Bool
+    var completedAt: Date?
     var orderIndex: Int
 
     @Relationship(deleteRule: .cascade, inverse: \SubTask.milestone)
@@ -146,6 +147,7 @@ final class Milestone {
         self.title = title
         self.orderIndex = orderIndex
         self.isCompleted = isCompleted
+        self.completedAt = isCompleted ? Date() : nil
     }
 
     /// 单里程碑的自身进度：无子任务 → 0 或 1，有子任务 → completed/M
@@ -165,7 +167,13 @@ final class Milestone {
     /// 仅当存在子任务时生效；无子任务时维持手动设定的状态。
     func syncCompletionFromSubtasks() {
         guard !subtasks.isEmpty else { return }
-        isCompleted = subtasks.allSatisfy(\.isCompleted)
+        let allCompleted = subtasks.allSatisfy(\.isCompleted)
+        if allCompleted, !isCompleted {
+            completedAt = Date()
+        } else if !allCompleted {
+            completedAt = nil
+        }
+        isCompleted = allCompleted
     }
 }
 
@@ -176,6 +184,7 @@ final class SubTask {
     @Attribute(.unique) var taskId: UUID
     var title: String
     var isCompleted: Bool
+    var completedAt: Date?
     var orderIndex: Int
 
     @Relationship(deleteRule: .cascade)
@@ -188,6 +197,7 @@ final class SubTask {
         self.title = title
         self.orderIndex = orderIndex
         self.isCompleted = isCompleted
+        self.completedAt = isCompleted ? Date() : nil
     }
 }
 
