@@ -234,15 +234,14 @@ struct SidebarView: View {
                 ForEach(activeProjects) { project in
                     ActiveProjectRow(
                         project: project,
+                        isSelected: selection == .project(project),
                         onEdit: { editingProject = project },
                         onArchive: { archivePickerProject = project },
                         onDelete: { showDeleteProjectConfirmation(project) },
                         onSelect: {
-                            print("[SidebarView] selection → \(project.title)")
                             selection = .project(project)
                         }
                     )
-                    .tag(SidebarSelection.project(project))
                     .overlay(alignment: .top) {
                         if activeProjectDropTarget == ActiveProjectDropTarget(projectId: project.projectId, placement: .before) {
                             ActiveProjectDropIndicator()
@@ -449,8 +448,25 @@ struct SidebarView: View {
 
 // MARK: - ActiveProjectRow
 
+private enum ActiveProjectRowMetrics {
+    static let defaultProgressBarHeight: CGFloat = 32
+    static let selectedProgressBarHeight: CGFloat = 36
+    static let defaultRowHeight: CGFloat = 32
+    static let selectedRowHeight: CGFloat = 36
+    static let defaultHorizontalInset: CGFloat = 2
+    static let selectedHorizontalInset: CGFloat = 0
+    static let progressTrackColor = Color(red: 0.90, green: 0.90, blue: 0.90)
+    static let selectedShadowOpacity: Double = 0.15
+    static let selectedShadowRadius: CGFloat = 2.5
+    static let selectedShadowYOffset: CGFloat = 0
+    static let selectedShadowSpread: CGFloat = 3
+    static let selectedShadowBleed: CGFloat = 2
+    static let selectionAnimation = Animation.spring(response: 0.22, dampingFraction: 0.88)
+}
+
 struct ActiveProjectRow: View {
     let project: Project
+    let isSelected: Bool
     let onEdit: () -> Void
     let onArchive: () -> Void
     let onDelete: () -> Void
@@ -469,11 +485,24 @@ struct ActiveProjectRow: View {
             : Color(hex: project.accentColor)
     }
 
+    private var progressBarHeight: CGFloat {
+        isSelected ? ActiveProjectRowMetrics.selectedProgressBarHeight : ActiveProjectRowMetrics.defaultProgressBarHeight
+    }
+
+    private var rowHeight: CGFloat {
+        isSelected ? ActiveProjectRowMetrics.selectedRowHeight : ActiveProjectRowMetrics.defaultRowHeight
+    }
+
+    private var horizontalInset: CGFloat {
+        isSelected ? ActiveProjectRowMetrics.selectedHorizontalInset : ActiveProjectRowMetrics.defaultHorizontalInset
+    }
+
     /// 公共内容行，供双层渲染复用
-    private func rowContent(color: Color) -> some View {
+    private func rowContent(color: Color, usesProjectIconColor: Bool = false) -> some View {
         HStack(spacing: 10) {
             Image(systemName: project.sfSymbolName)
                 .font(.title3)
+                .foregroundStyle(usesProjectIconColor ? accentColor : color)
             Text(project.title)
                 .font(.body)
                 .lineLimit(1)
@@ -488,20 +517,35 @@ struct ActiveProjectRow: View {
     }
 
     var body: some View {
-        ZStack(alignment: .leading) {
+        ZStack(alignment: .center) {
+            if isSelected {
+                Capsule(style: .continuous)
+                    .stroke(.black.opacity(ActiveProjectRowMetrics.selectedShadowOpacity), lineWidth: ActiveProjectRowMetrics.selectedShadowSpread)
+                    .frame(height: progressBarHeight + ActiveProjectRowMetrics.selectedShadowSpread)
+                    .padding(.horizontal, -ActiveProjectRowMetrics.selectedShadowSpread / 2)
+                    .offset(y: ActiveProjectRowMetrics.selectedShadowYOffset)
+                    .blur(radius: ActiveProjectRowMetrics.selectedShadowRadius)
+                    .allowsHitTesting(false)
+            }
+
             // 轨道底色
-            RoundedRectangle(cornerRadius: 5)
-                .fill(.quaternary.opacity(0.45))
+            Capsule(style: .continuous)
+                .fill(ActiveProjectRowMetrics.progressTrackColor)
+                .frame(height: progressBarHeight)
 
             // 进度填充
             GeometryReader { geo in
-                RoundedRectangle(cornerRadius: 5)
+                Capsule(style: .continuous)
                     .fill(accentColor.opacity(0.88))
-                    .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(project.progress))))
+                    .frame(
+                        width: max(0, min(geo.size.width, geo.size.width * CGFloat(project.progress))),
+                        height: progressBarHeight
+                    )
+                    .frame(maxHeight: .infinity, alignment: .center)
             }
 
             // 深色文字层
-            rowContent(color: .primary)
+            rowContent(color: .primary, usesProjectIconColor: true)
 
             // 白色文字层
             GeometryReader { geo in
@@ -516,10 +560,11 @@ struct ActiveProjectRow: View {
                     )
             }
         }
-        .frame(height: 38)
-        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .frame(height: rowHeight)
+        .padding(.horizontal, horizontalInset)
+        .padding(.vertical, isSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
+        .animation(ActiveProjectRowMetrics.selectionAnimation, value: isSelected)
         .onTapGesture {
-            print("[ActiveProjectRow] 点击选中: \(project.title)")
             onSelect()
         }
         .contextMenu {
@@ -973,6 +1018,10 @@ struct ArchivedProjectSelectableRow: View {
             : Color(hex: project.accentColor)
     }
 
+    private var progressBarHeight: CGFloat {
+        isSelected ? 22 : 0
+    }
+
     private func rowContent(color: Color, usesProjectIconColor: Bool = false) -> some View {
         HStack(spacing: 6) {
             Spacer().frame(width: indentPerLevel * CGFloat(level + 1) + 5)
@@ -996,39 +1045,39 @@ struct ArchivedProjectSelectableRow: View {
 
     var body: some View {
         Button {
-            print("[ArchivedProjectSelectableRow] 点击选中: \(project.title)")
             onSelect()
         } label: {
-            Group {
+            ZStack(alignment: .center) {
                 if isSelected {
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(.quaternary.opacity(0.45))
+                    Capsule(style: .continuous)
+                        .fill(.quaternary.opacity(0.45))
+                        .frame(height: progressBarHeight)
 
-                        GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(accentColor.opacity(0.88))
-                                .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(project.progress))))
-                        }
-
-                        rowContent(color: .primary)
-
-                        GeometryReader { geo in
-                            let fillW = geo.size.width * CGFloat(project.progress)
-                            rowContent(color: .white)
-                                .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
-                                .mask(
-                                    HStack(spacing: 0) {
-                                        Color.white.frame(width: fillW)
-                                        Color.clear
-                                    }
-                                )
-                        }
+                    GeometryReader { geo in
+                        Capsule(style: .continuous)
+                            .fill(accentColor.opacity(0.88))
+                            .frame(
+                                width: max(0, min(geo.size.width, geo.size.width * CGFloat(project.progress))),
+                                height: progressBarHeight
+                            )
+                            .frame(maxHeight: .infinity, alignment: .center)
                     }
-                    .frame(height: 30)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                } else {
-                    rowContent(color: .secondary, usesProjectIconColor: true)
+                }
+
+                rowContent(color: isSelected ? .primary : .secondary, usesProjectIconColor: true)
+
+                if isSelected {
+                    GeometryReader { geo in
+                        let fillW = geo.size.width * CGFloat(project.progress)
+                        rowContent(color: .white)
+                            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+                            .mask(
+                                HStack(spacing: 0) {
+                                    Color.white.frame(width: fillW)
+                                    Color.clear
+                                }
+                            )
+                    }
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
