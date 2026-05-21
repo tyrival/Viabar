@@ -1080,12 +1080,20 @@ struct ArchivedProjectSelectableRow: View {
     }
 
     private var progressBarHeight: CGFloat {
-        isSelected ? 22 : 0
+        ActiveProjectRowMetrics.defaultProgressBarHeight
+    }
+
+    private var rowHeight: CGFloat {
+        ActiveProjectRowMetrics.defaultRowHeight
+    }
+
+    private var horizontalInset: CGFloat {
+        ActiveProjectRowMetrics.defaultHorizontalInset
     }
 
     private func rowContent(color: Color, usesProjectIconColor: Bool = false) -> some View {
         HStack(spacing: 6) {
-            Spacer().frame(width: indentPerLevel * CGFloat(level + 1) + 5)
+            Spacer().frame(width: indentPerLevel * CGFloat(level + 1))
 
             Spacer()
                 .frame(width: 16)
@@ -1111,7 +1119,7 @@ struct ArchivedProjectSelectableRow: View {
             ZStack(alignment: .center) {
                 if isSelected {
                     Capsule(style: .continuous)
-                        .fill(.quaternary.opacity(0.45))
+                        .fill(ActiveProjectRowMetrics.progressTrackColor)
                         .frame(height: progressBarHeight)
 
                     GeometryReader { geo in
@@ -1141,11 +1149,13 @@ struct ArchivedProjectSelectableRow: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: rowHeight, alignment: .leading)
+            .padding(.horizontal, horizontalInset)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.vertical, 0)
+        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         .overlay(alignment: .top) {
             if dropTarget == ArchiveProjectDropTarget(projectId: project.projectId, placement: .before) {
                 ActiveProjectDropIndicator()
