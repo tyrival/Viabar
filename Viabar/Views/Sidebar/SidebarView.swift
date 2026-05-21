@@ -192,31 +192,33 @@ struct SidebarView: View {
 
     private var overviewSection: some View {
         Section {
+            let isOverviewSelected = selection == .overview
+
             Button {
                 selection = .overview
             } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.title3)
-                    Text("总览")
-                        .font(.body)
-                    Spacer()
-                }
-                .foregroundStyle(selection == .overview ? .white : .secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .frame(height: 38)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
-                    if selection == .overview {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(ViabarColor.primary)
+                ZStack {
+                    Capsule(style: .continuous)
+                        .fill(isOverviewSelected ? ViabarColor.primary : ActiveProjectRowMetrics.progressTrackColor)
+                        .frame(height: ActiveProjectRowMetrics.defaultProgressBarHeight)
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.title3)
+                        Text("总览")
+                            .font(ActiveProjectRowMetrics.projectTitleFont)
+                        Spacer()
                     }
+                    .foregroundStyle(isOverviewSelected ? .white : .primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
                 }
-                .contentShape(Rectangle())
+                .frame(height: ActiveProjectRowMetrics.defaultRowHeight)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Capsule(style: .continuous))
+                .animation(ActiveProjectRowMetrics.selectionAnimation, value: isOverviewSelected)
             }
             .buttonStyle(.plain)
-            .tag(SidebarSelection.overview)
         }
     }
 
@@ -451,10 +453,10 @@ struct SidebarView: View {
 
 private enum ActiveProjectRowMetrics {
     static let defaultProgressBarHeight: CGFloat = 32
-    static let selectedProgressBarHeight: CGFloat = 32
+    static let selectedProgressBarHeight: CGFloat = 36
     static let defaultRowHeight: CGFloat = 32
-    static let selectedRowHeight: CGFloat = 32
-    static let defaultHorizontalInset: CGFloat = 2
+    static let selectedRowHeight: CGFloat = 36
+    static let defaultHorizontalInset: CGFloat = 6
     static let selectedHorizontalInset: CGFloat = 0
     static let progressTrackColor = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -472,15 +474,18 @@ private enum ActiveProjectRowMetrics {
     static let defaultShadowRadius: CGFloat = 2
     static let defaultShadowYOffset: CGFloat = 1
     static let selectedFarShadowOpacity: Double = 0.07
-    static let selectedFarShadowRadius: CGFloat = 4
+    static let selectedFarShadowRadius: CGFloat = 3
     static let selectedFarShadowYOffset: CGFloat = 6
     static let selectedNearShadowOpacity: Double = 0.04
-    static let selectedNearShadowRadius: CGFloat = 2
+    static let selectedNearShadowRadius: CGFloat = 1
     static let selectedNearShadowYOffset: CGFloat = 3
     static let selectedShadowInset: CGFloat = 5
-    static let selectedShadowBleed: CGFloat = 4
-    static let selectedLift: CGFloat = -2
-    static let selectionAnimation = Animation.spring(response: 0.22, dampingFraction: 0.88)
+    static let selectedShadowBleed: CGFloat = 2
+    static let selectedLift: CGFloat = 0
+    static let projectTitleFont = Font.callout.weight(.semibold)
+    static let shadowAnimationDuration: Double = 0.15
+    static let shadowAnimation = Animation.easeInOut(duration: shadowAnimationDuration)
+    static let selectionAnimation = Animation.easeInOut(duration: shadowAnimationDuration)
 }
 
 struct ActiveProjectRow: View {
@@ -535,7 +540,7 @@ struct ActiveProjectRow: View {
                 .font(.title3)
                 .foregroundStyle(usesProjectIconColor ? accentColor : color)
             Text(project.title)
-                .font(.body.weight(.semibold))
+                .font(ActiveProjectRowMetrics.projectTitleFont)
                 .foregroundStyle(color)
                 .lineLimit(1)
             Spacer(minLength: 8)
@@ -550,26 +555,26 @@ struct ActiveProjectRow: View {
 
     var body: some View {
         ZStack(alignment: .center) {
-            if isSelected {
+            Group {
                 shadowCapsule(
-                    opacity: ActiveProjectRowMetrics.selectedFarShadowOpacity,
+                    opacity: isSelected ? ActiveProjectRowMetrics.selectedFarShadowOpacity : 0,
                     radius: ActiveProjectRowMetrics.selectedFarShadowRadius,
                     yOffset: ActiveProjectRowMetrics.selectedFarShadowYOffset,
                     inset: ActiveProjectRowMetrics.selectedShadowInset
                 )
                 shadowCapsule(
-                    opacity: ActiveProjectRowMetrics.selectedNearShadowOpacity,
+                    opacity: isSelected ? ActiveProjectRowMetrics.selectedNearShadowOpacity : 0,
                     radius: ActiveProjectRowMetrics.selectedNearShadowRadius,
                     yOffset: ActiveProjectRowMetrics.selectedNearShadowYOffset,
                     inset: ActiveProjectRowMetrics.selectedShadowInset
                 )
-            } else {
                 shadowCapsule(
-                    opacity: ActiveProjectRowMetrics.defaultShadowOpacity,
+                    opacity: isSelected ? 0 : ActiveProjectRowMetrics.defaultShadowOpacity,
                     radius: ActiveProjectRowMetrics.defaultShadowRadius,
                     yOffset: ActiveProjectRowMetrics.defaultShadowYOffset
                 )
             }
+            .animation(ActiveProjectRowMetrics.shadowAnimation, value: isSelected)
 
             // 轨道底色
             Capsule(style: .continuous)
