@@ -76,6 +76,11 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
             .sorted { $0.fireDate < $1.fireDate }
 
         for entry in dueEntries {
+            if entry.ownerKind == "project" {
+                handleDueProjectEntry(entry, now: now)
+                continue
+            }
+
             if let notification = notificationContent(for: entry) {
                 postNotification(title: notification.title, body: notification.body)
             }
@@ -138,6 +143,32 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         UNUserNotificationCenter.current().add(request)
     }
 
+    private func handleDueProjectEntry(_ entry: NotificationScheduleEntry, now: Date) {
+        defer {
+            modelContext.delete(entry)
+        }
+
+        guard let project = project(id: entry.projectId),
+              !project.isArchived,
+              let nextTaskTitle = project.topUnfinishedTitle
+        else { return }
+
+        postNotification(title: project.title, body: "下一步：\(nextTaskTitle)")
+
+        guard let reminder = project.reminder else { return }
+        guard reminder.type == "repeating" else {
+            project.reminder = nil
+            return
+        }
+
+        guard let nextDate = nextProjectRepeatFireDate(after: entry.fireDate, reminder: reminder, now: now) else {
+            return
+        }
+
+        reminder.fireTimestamp = nextDate
+        insertProjectEntry(for: project, fireDate: nextDate)
+    }
+
     private func notificationContent(for entry: NotificationScheduleEntry) -> (title: String, body: String)? {
         guard entry.ownerKind == "project" else {
             guard let project = project(id: entry.projectId),
@@ -152,6 +183,67 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         else { return nil }
 
         return (project.title, "下一步：\(nextTaskTitle)")
+    }
+
+    private func insertProjectEntry(for project: Project, fireDate: Date) {
+        guard let nextTaskTitle = project.topUnfinishedTitle else { return }
+        let entry = NotificationScheduleEntry(
+            ownerId: project.projectId,
+            ownerKind: "project",
+            projectId: project.projectId,
+            projectTitle: project.title,
+            body: "下一步：\(nextTaskTitle)",
+            fireDate: fireDate
+        )
+        modelContext.insert(entry)
+    }
+
+    private func nextProjectRepeatFireDate(after firedDate: Date, reminder: Reminder, now: Date) -> Date? {
+        var candidate = firedDate
+        for _ in 0..<10000 {
+            guard let nextDate = nextRepeatFireDate(after: candidate, repeatIntervalDays: reminder.repeatIntervalDays) else {
+                return nil
+            }
+
+            if nextDate > now {
+                return nextDate
+            }
+
+            candidate = nextDate
+        }
+        return nil
+    }
+
+    private func nextRepeatFireDate(after date: Date, repeatIntervalDays: Int?) -> Date? {
+        let calendar = Calendar.current
+        switch repeatIntervalDays {
+        case 0:
+            return calendar.date(byAdding: .hour, value: 1, to: date)
+        case -1:
+            return nextWeekday(after: date)
+        case 30:
+            return calendar.date(byAdding: .month, value: 1, to: date)
+        case 90:
+            return calendar.date(byAdding: .month, value: 3, to: date)
+        case 180:
+            return calendar.date(byAdding: .month, value: 6, to: date)
+        case 365:
+            return calendar.date(byAdding: .year, value: 1, to: date)
+        default:
+            return calendar.date(byAdding: .day, value: repeatIntervalDays ?? 1, to: date)
+        }
+    }
+
+    private func nextWeekday(after date: Date) -> Date? {
+        var candidate = Calendar.current.date(byAdding: .day, value: 1, to: date)
+        while let current = candidate {
+            let weekday = Calendar.current.component(.weekday, from: current)
+            if weekday != 1 && weekday != 7 {
+                return current
+            }
+            candidate = Calendar.current.date(byAdding: .day, value: 1, to: current)
+        }
+        return nil
     }
 
     private func scheduleNextTimer() {

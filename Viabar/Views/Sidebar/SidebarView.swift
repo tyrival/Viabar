@@ -537,6 +537,10 @@ struct ActiveProjectRow: View {
         isSelected ? ActiveProjectRowMetrics.selectedHorizontalInset : ActiveProjectRowMetrics.defaultHorizontalInset
     }
 
+    private var hasScheduledProjectReminder: Bool {
+        project.reminder != nil && !project.isArchived && project.topUnfinishedTitle != nil
+    }
+
     private func shadowCapsule(color: Color = .black, opacity: Double, radius: CGFloat, yOffset: CGFloat, inset: CGFloat = 0) -> some View {
         Capsule(style: .continuous)
             .fill(color.opacity(opacity))
@@ -548,8 +552,14 @@ struct ActiveProjectRow: View {
     }
 
     /// 公共内容行，供双层渲染复用
-    private func rowContent(color: Color, usesProjectIconColor: Bool = false, usesMutedPercentColor: Bool = false) -> some View {
+    private func rowContent(
+        color: Color,
+        usesProjectIconColor: Bool = false,
+        usesMutedPercentColor: Bool = false,
+        usesProjectReminderColor: Bool = false
+    ) -> some View {
         let percentColor = usesMutedPercentColor ? ActiveProjectRowMetrics.progressPercentColor : color
+        let reminderColor = usesProjectReminderColor ? Color.orange : color
 
         return HStack(spacing: 10) {
             Image(systemName: project.sfSymbolName)
@@ -560,6 +570,12 @@ struct ActiveProjectRow: View {
                 .foregroundStyle(color)
                 .lineLimit(1)
             Spacer(minLength: 8)
+            if hasScheduledProjectReminder {
+                Image(systemName: "alarm.fill")
+                    .font(.caption)
+                    .foregroundStyle(reminderColor)
+                    .frame(width: 14)
+            }
             Text("\(Int(project.progress * 100))%")
                 .font(.caption)
                 .monospacedDigit()
@@ -609,7 +625,12 @@ struct ActiveProjectRow: View {
             }
 
             // 深色文字层
-            rowContent(color: .primary, usesProjectIconColor: true, usesMutedPercentColor: true)
+            rowContent(
+                color: .primary,
+                usesProjectIconColor: true,
+                usesMutedPercentColor: true,
+                usesProjectReminderColor: true
+            )
 
             // 白色文字层
             GeometryReader { geo in
