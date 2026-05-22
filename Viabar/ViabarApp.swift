@@ -18,6 +18,7 @@ struct ViabarApp: App {
             SubTask.self,
             Memo.self,
             Reminder.self,
+            NotificationScheduleEntry.self,
             ArchiveFolder.self,
         ])
 
@@ -47,6 +48,11 @@ struct ViabarApp: App {
             modelContext: sharedModelContainer.mainContext
         )
         projectService.configureSync(.default)
+
+        let notificationScheduleService = container.registerNotificationScheduleService(
+            modelContext: sharedModelContainer.mainContext
+        )
+        notificationScheduleService.start()
 
         // Phase 2 预留：
         // let syncService = CloudSyncService(...)

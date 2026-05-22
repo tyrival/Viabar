@@ -28,6 +28,10 @@ struct MilestoneListView: View {
         container.projectService
     }
 
+    private var notificationScheduleService: NotificationScheduleService? {
+        container.notificationScheduleService
+    }
+
     // MARK: - Filtered Milestones
 
     private var visibleMilestones: [Milestone] {
@@ -115,11 +119,13 @@ struct MilestoneListView: View {
                 onToggleMilestone: toggleMilestone(id:),
                 onUpdateMilestoneTitle: updateMilestoneTitle(id:title:),
                 onDeleteMilestone: deleteMilestone(id:),
+                onMilestoneReminderChange: syncMilestoneReminder(id:reminder:),
                 reminderBinding: milestoneReminderBinding(id:),
                 onAddSubTask: addSubTask(milestoneID:title:),
                 onToggleSubTask: toggleSubTask(id:),
                 onUpdateSubTaskTitle: updateSubTaskTitle(id:title:),
                 onDeleteSubTask: deleteSubTask(id:),
+                onSubTaskReminderChange: syncSubTaskReminder(id:reminder:),
                 scrollToBottomTrigger: scrollToBottomTrigger,
                 onMoveMilestone: moveMilestone(id:targetID:placement:),
                 onMoveSubTask: moveSubTask(id:targetMilestoneID:targetSubTaskID:placement:),
@@ -239,12 +245,15 @@ struct MilestoneListView: View {
     private func toggleMilestone(id: UUID) {
         guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
         projectService?.toggleMilestoneComplete(milestone)
+        syncMilestoneAndSubTaskReminders(milestone)
     }
 
     private func toggleSubTask(id: UUID) {
         for milestone in project.milestones {
             if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
                 projectService?.toggleSubTaskComplete(subtask)
+                syncSubTaskReminder(subtask, project: project)
+                syncMilestoneReminder(milestone, project: project)
                 return
             }
         }
@@ -258,6 +267,7 @@ struct MilestoneListView: View {
 
         milestone.title = trimmed
         projectService?.save()
+        syncMilestoneReminder(milestone, project: project)
     }
 
     private func updateSubTaskTitle(id: UUID, title: String) {
@@ -268,6 +278,7 @@ struct MilestoneListView: View {
             if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
                 subtask.title = trimmed
                 projectService?.save()
+                syncSubTaskReminder(subtask, project: project)
                 return
             }
         }
@@ -275,13 +286,17 @@ struct MilestoneListView: View {
 
     private func deleteMilestone(id: UUID) {
         guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
+        notificationScheduleService?.removeEntry(ownerId: milestone.milestoneId)
+        milestone.subtasks.forEach { notificationScheduleService?.removeEntry(ownerId: $0.taskId) }
         projectService?.deleteMilestone(milestone)
     }
 
     private func deleteSubTask(id: UUID) {
         for milestone in project.milestones {
             if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                notificationScheduleService?.removeEntry(ownerId: subtask.taskId)
                 projectService?.deleteSubTask(subtask)
+                syncMilestoneReminder(milestone, project: project)
                 return
             }
         }
@@ -315,6 +330,7 @@ struct MilestoneListView: View {
                 guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
                 milestone.reminder = reminder
                 projectService?.save()
+                syncMilestoneReminder(milestone, project: project)
             }
         )
     }
@@ -334,6 +350,7 @@ struct MilestoneListView: View {
                     if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
                         subtask.reminder = reminder
                         projectService?.save()
+                        syncSubTaskReminder(subtask, project: project)
                         return
                     }
                 }
@@ -343,6 +360,41 @@ struct MilestoneListView: View {
 
     private var hasMilestoneDraft: Bool {
         !newMilestoneTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func syncMilestoneReminder(id: UUID, reminder: Reminder?) {
+        guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
+        if reminder == nil {
+            notificationScheduleService?.removeEntry(ownerId: id)
+        } else {
+            syncMilestoneReminder(milestone, project: project)
+        }
+    }
+
+    private func syncSubTaskReminder(id: UUID, reminder: Reminder?) {
+        for milestone in project.milestones {
+            if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                if reminder == nil {
+                    notificationScheduleService?.removeEntry(ownerId: id)
+                } else {
+                    syncSubTaskReminder(subtask, project: project)
+                }
+                return
+            }
+        }
+    }
+
+    private func syncMilestoneAndSubTaskReminders(_ milestone: Milestone) {
+        syncMilestoneReminder(milestone, project: project)
+        milestone.subtasks.forEach { syncSubTaskReminder($0, project: project) }
+    }
+
+    private func syncMilestoneReminder(_ milestone: Milestone, project: Project) {
+        notificationScheduleService?.syncMilestone(milestone, project: project)
+    }
+
+    private func syncSubTaskReminder(_ subtask: SubTask, project: Project) {
+        notificationScheduleService?.syncSubTask(subtask, project: project)
     }
 }
 
@@ -368,11 +420,13 @@ private struct SafeMilestoneListView: View {
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
     let onDeleteMilestone: (UUID) -> Void
+    let onMilestoneReminderChange: (UUID, Reminder?) -> Void
     let reminderBinding: (UUID) -> Binding<Reminder?>
     let onAddSubTask: (UUID, String) -> Bool
     let onToggleSubTask: (UUID) -> Void
     let onUpdateSubTaskTitle: (UUID, String) -> Void
     let onDeleteSubTask: (UUID) -> Void
+    let onSubTaskReminderChange: (UUID, Reminder?) -> Void
     let scrollToBottomTrigger: Int
     let onMoveMilestone: (UUID, UUID?, ReorderPlacement) -> Void
     let onMoveSubTask: (UUID, UUID, UUID?, ReorderPlacement) -> Void
@@ -393,6 +447,9 @@ private struct SafeMilestoneListView: View {
                         onUpdateMilestoneTitle: onUpdateMilestoneTitle,
                         onDeleteMilestone: onDeleteMilestone,
                         reminder: reminderBinding(snapshot.id),
+                        onReminderChange: { reminder in
+                            onMilestoneReminderChange(snapshot.id, reminder)
+                        },
                         onBeginAddSubTask: {
                             addingSubTaskFor = snapshot.id
                         },
@@ -411,6 +468,9 @@ private struct SafeMilestoneListView: View {
                             onToggle: onToggleSubTask,
                             onUpdateTitle: onUpdateSubTaskTitle,
                             onDelete: onDeleteSubTask,
+                            onReminderChange: { reminder in
+                                onSubTaskReminderChange(subtask.id, reminder)
+                            },
                             draggingItem: $draggingItem,
                             dropTarget: $dropTarget,
                             onPerformDrop: performDrop(_:target:)
@@ -621,6 +681,7 @@ private struct SafeMilestoneRowView: View {
     let onUpdateMilestoneTitle: (UUID, String) -> Void
     let onDeleteMilestone: (UUID) -> Void
     @Binding var reminder: Reminder?
+    let onReminderChange: (Reminder?) -> Void
     let onBeginAddSubTask: () -> Void
     @Binding var draggingItem: TaskDragItem?
     @Binding var dropTarget: TaskDropTarget?
@@ -662,7 +723,8 @@ private struct SafeMilestoneRowView: View {
                 isCompleted: snapshot.isCompleted,
                 isEditing: isEditing,
                 iconFont: .body,
-                textFont: .caption
+                textFont: .caption,
+                onReminderChange: onReminderChange
             )
         }
         .padding(.horizontal, 8)
@@ -849,6 +911,7 @@ private struct SafeSubTaskRowView: View {
     let onToggle: (UUID) -> Void
     let onUpdateTitle: (UUID, String) -> Void
     let onDelete: (UUID) -> Void
+    let onReminderChange: (Reminder?) -> Void
     @Binding var draggingItem: TaskDragItem?
     @Binding var dropTarget: TaskDropTarget?
     let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
@@ -880,7 +943,8 @@ private struct SafeSubTaskRowView: View {
                 isCompleted: subtask.isCompleted,
                 isEditing: isEditing,
                 iconFont: .caption,
-                textFont: .caption2
+                textFont: .caption2,
+                onReminderChange: onReminderChange
             )
         }
         .padding(.vertical, 5)
@@ -1003,6 +1067,7 @@ private struct ReminderStatusView: View {
     let isEditing: Bool
     let iconFont: Font
     let textFont: Font
+    let onReminderChange: (Reminder?) -> Void
 
     @State private var isReminderPopoverPresented = false
     @State private var isPostponeButtonHovered = false
@@ -1038,7 +1103,7 @@ private struct ReminderStatusView: View {
             .buttonStyle(.plain)
             .focusable(false)
             .popover(isPresented: $isReminderPopoverPresented, arrowEdge: .trailing) {
-                ReminderSettingsPopover(reminder: $reminder)
+                ReminderSettingsPopover(reminder: $reminder, onReminderChange: onReminderChange)
             }
         }
         .frame(width: reminderColumnWidth + reminderInfoColumnWidth + 4, alignment: .trailing)
@@ -1125,12 +1190,14 @@ private struct ReminderStatusView: View {
 
     private func postponeReminder(_ reminder: Reminder) {
         guard let nextDate = reminder.postponedByOneCycle else { return }
-        self.reminder = Reminder(
+        let updatedReminder = Reminder(
             type: reminder.type,
             fireTime: reminder.fireTime,
             fireTimestamp: nextDate,
             repeatIntervalDays: reminder.repeatIntervalDays
         )
+        self.reminder = updatedReminder
+        onReminderChange(updatedReminder)
     }
 }
 

@@ -38,6 +38,36 @@ final class Reminder {
     }
 }
 
+// MARK: - NotificationScheduleEntry
+
+@Model
+final class NotificationScheduleEntry {
+    @Attribute(.unique) var entryId: UUID
+    var ownerId: UUID
+    var ownerKind: String
+    var projectId: UUID
+    var projectTitle: String
+    var body: String
+    var fireDate: Date
+
+    init(
+        ownerId: UUID,
+        ownerKind: String,
+        projectId: UUID,
+        projectTitle: String,
+        body: String,
+        fireDate: Date
+    ) {
+        self.entryId = UUID()
+        self.ownerId = ownerId
+        self.ownerKind = ownerKind
+        self.projectId = projectId
+        self.projectTitle = projectTitle
+        self.body = body
+        self.fireDate = fireDate
+    }
+}
+
 // MARK: - Project
 
 @Model

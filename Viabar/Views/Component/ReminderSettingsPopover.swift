@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReminderSettingsPopover: View {
     @Binding var reminder: Reminder?
+    var onReminderChange: (Reminder?) -> Void = { _ in }
 
     @State private var selectedDate = Date()
     @State private var selectedTime = Date()
@@ -58,6 +59,7 @@ struct ReminderSettingsPopover: View {
 
             Button(role: .destructive) {
                 reminder = nil
+                onReminderChange(nil)
             } label: {
                 Image(systemName: "trash.circle.fill")
                     .font(.title3)
@@ -118,6 +120,7 @@ struct ReminderSettingsPopover: View {
             fireTimestamp: fireTimestamp,
             repeatIntervalDays: repeatOption.repeatIntervalDays
         )
+        onReminderChange(reminder)
     }
 
     private static func date(fromFireTime fireTime: String?) -> Date? {
