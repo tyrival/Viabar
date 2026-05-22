@@ -346,7 +346,7 @@ struct OverviewDashboardView: View {
     let onArchiveProject: (Project) -> Void
     let onDeleteProject: (Project) -> Void
 
-    private let cardMinimumWidth: CGFloat = 280
+    private let cardMinimumWidth: CGFloat = 320
     private let cardSpacing: CGFloat = 12
     private let contentPadding: CGFloat = 16
 
@@ -397,12 +397,28 @@ struct OverviewProjectCard: View {
     let onDelete: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
 
     private let cardHorizontalPadding: CGFloat = 18
     private let headerHeight: CGFloat = 42
+    private let bodyHeight: CGFloat = 120
     private let iconFrameSize: CGFloat = 24
-    private let progressStepCount = 22
-    private let progressDotSize: CGFloat = 8
+    private let milestoneRowHeight: CGFloat = 24
+    private let reminderRowHeight: CGFloat = 18
+    private let progressRowHeight: CGFloat = 14
+    private let milestoneReminderSpacing: CGFloat = 12
+    private let reminderProgressSpacing: CGFloat = 14
+    private let progressStepCount = 22 // 调整这里可改变底部进度点数量
+    private let progressDotSize: CGFloat = 5
+    private let progressDotSpacing: CGFloat = 5
+    private let progressPercentWidth: CGFloat = 38
+    private let hoverAnimationDuration = 0.16 // 调整这里可改变卡片悬浮动画时长
+    private let restingShadowRadius: CGFloat = 1 // 调整这里可改变默认阴影
+    private let restingShadowYOffset: CGFloat = 2
+    private let hoverShadowRadius: CGFloat = 10 // 调整这里可改变 hover 阴影
+    private let hoverShadowYOffset: CGFloat = 5
+    private let reminderTodayPendingColor = Color.orange
+    private let reminderOverdueColor = Color.red
 
     private var accentColor: Color {
         project.progress >= 1.0
@@ -414,12 +430,12 @@ struct OverviewProjectCard: View {
         project.unfinishedMilestones.first
     }
 
+    private var displayedMilestoneReminder: Reminder? {
+        topMilestone?.reminder
+    }
+
     private var reminderDate: Date? {
-        if let milestoneReminder = topMilestone?.reminder,
-           let date = milestoneReminder.nextFireDate {
-            return date
-        }
-        return project.reminder?.nextFireDate
+        displayedMilestoneReminder?.overviewFireDate
     }
 
     private var filledStepCount: Int {
@@ -435,16 +451,49 @@ struct OverviewProjectCard: View {
         colorScheme == .dark ? Color.white.opacity(0.05) : Color(nsColor: .controlBackgroundColor)
     }
 
+    private var headerBackground: Color {
+        accentColor
+    }
+
     private var cardShadowColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.16)
+        let opacity = isHovering ? 0.14 : 0.08
+        return colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity)
+    }
+
+    private var cardBorderColor: Color {
+        accentColor.opacity(colorScheme == .dark ? 0.24 : 0.16)
+    }
+
+    private var milestoneTextColor: Color {
+        colorScheme == .dark ? Color(hex: "#C6CBD2") : Color(hex: "#4B5563")
     }
 
     private var reminderTextColor: Color {
         colorScheme == .dark ? Color.gray.opacity(0.78) : Color.gray.opacity(0.88)
     }
 
+    private var reminderForegroundColor: Color {
+        guard let reminder = displayedMilestoneReminder else {
+            return reminderTextColor
+        }
+
+        if reminder.isOverviewReminderOverdue {
+            return reminderOverdueColor
+        }
+
+        if reminder.isOverviewReminderTodayPending {
+            return reminderTodayPendingColor
+        }
+
+        return reminderTextColor
+    }
+
     private var progressTintColor: Color {
         progressColor(at: project.progress)
+    }
+
+    private var progressDotsWidth: CGFloat {
+        CGFloat(progressStepCount) * progressDotSize + CGFloat(max(progressStepCount - 1, 0)) * progressDotSpacing
     }
 
     private func progressColor(at value: Double) -> Color {
@@ -465,7 +514,7 @@ struct OverviewProjectCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: project.sfSymbolName)
-                    .font(.title3.weight(.bold))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(width: iconFrameSize, height: iconFrameSize)
 
@@ -478,83 +527,102 @@ struct OverviewProjectCard: View {
             }
             .padding(.horizontal, cardHorizontalPadding)
             .frame(maxWidth: .infinity, minHeight: headerHeight, maxHeight: headerHeight, alignment: .center)
-            .background(accentColor)
+            .background(headerBackground)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
                 if let milestone = topMilestone {
                     HStack(spacing: 4) {
-                        Image(systemName: "star.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.yellow)
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(ViabarColor.warning)
                             .frame(width: iconFrameSize, height: iconFrameSize, alignment: .center)
 
                         Text(milestone.title)
-                            .font(.title3)
-                            .foregroundStyle(.primary)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(milestoneTextColor)
                             .lineLimit(1)
                     }
+                    .frame(height: milestoneRowHeight)
                 } else {
-                    HStack { Spacer() }
-                        .frame(height: iconFrameSize)
+                    Color.clear
+                        .frame(height: milestoneRowHeight)
                 }
 
-                if let reminderDate {
+                Color.clear
+                    .frame(height: milestoneReminderSpacing)
+
+                if let reminderDate, displayedMilestoneReminder != nil {
                     HStack(spacing: 4) {
-                        Image(systemName: "alarm")
+                        Image(systemName: "alarm.fill")
                             .font(.callout.weight(.semibold))
-                            .foregroundStyle(.red.opacity(0.72))
+                            .foregroundStyle(reminderForegroundColor)
                             .frame(width: iconFrameSize, height: 18, alignment: .center)
 
-                        Text(reminderDate.formattedOverviewReminder)
+                        Text(reminderDate.formattedOverviewReminder(relativeTo: Date()))
                             .font(.callout)
-                            .foregroundStyle(reminderTextColor)
+                            .foregroundStyle(reminderForegroundColor)
                     }
-                    .frame(height: 18)
+                    .frame(height: reminderRowHeight)
                 } else {
-                    HStack { Spacer() }
-                        .frame(height: 18)
+                    Color.clear
+                        .frame(height: reminderRowHeight)
                 }
 
-                HStack(alignment: .center, spacing: 10) {
-                    GeometryReader { proxy in
-                        let stepCount = max(progressStepCount - 1, 1)
-                        let availableWidth = max(0, proxy.size.width - progressDotSize)
-                        let stepSpacing = availableWidth / CGFloat(stepCount)
+                Color.clear
+                    .frame(height: reminderProgressSpacing)
 
-                        ZStack(alignment: .leading) {
+                HStack {
+                    Spacer(minLength: 0)
+
+                    HStack(alignment: .center, spacing: 10) {
+                        HStack(spacing: progressDotSpacing) {
+                            let stepCount = max(progressStepCount - 1, 1)
                             ForEach(0..<progressStepCount, id: \.self) { index in
                                 let colorProgress = Double(index) / Double(stepCount)
                                 Circle()
                                     .fill(index < filledStepCount ? progressColor(at: colorProgress) : Color.gray.opacity(0.22))
                                     .frame(width: progressDotSize, height: progressDotSize)
-                                    .offset(x: CGFloat(index) * stepSpacing)
                             }
                         }
-                    }
-                    .frame(height: progressDotSize)
+                        .frame(width: progressDotsWidth, height: progressDotSize, alignment: .leading)
 
-                    Text(progressPercentText)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(progressTintColor)
-                        .monospacedDigit()
-                        .lineLimit(1)
+                        Text(progressPercentText)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(progressTintColor)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .frame(width: progressPercentWidth, alignment: .trailing)
+                    }
                 }
+                .frame(height: progressRowHeight)
+                .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, cardHorizontalPadding)
-            .padding(.top, 18)
-            .padding(.bottom, 10)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.top, 20)
+            .padding(.bottom, 14)
+            .frame(maxWidth: .infinity, minHeight: bodyHeight, maxHeight: bodyHeight, alignment: .topLeading)
             .background(cardBackground)
         }
-        .frame(height: 142)
+        .frame(height: headerHeight + bodyHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(cardBackground)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(cardBorderColor, lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: cardShadowColor, radius: 14, y: 6)
+        .shadow(
+            color: cardShadowColor,
+            radius: isHovering ? hoverShadowRadius : restingShadowRadius,
+            y: isHovering ? hoverShadowYOffset : restingShadowYOffset
+        )
+        .offset(y: isHovering ? -2 : 0)
+        .animation(.easeOut(duration: hoverAnimationDuration), value: isHovering)
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onHover { isHovering = $0 }
         .onTapGesture(perform: onSelect)
         .contextMenu {
             Button {
@@ -578,11 +646,21 @@ struct OverviewProjectCard: View {
 }
 
 private extension Reminder {
-    var nextFireDate: Date? {
-        if type == "single" {
-            return fireTimestamp
-        }
+    var overviewFireDate: Date? {
+        fireTimestamp ?? nextOverviewRepeatingFireDate
+    }
 
+    var isOverviewReminderOverdue: Bool {
+        guard let date = overviewFireDate else { return false }
+        return date < Date()
+    }
+
+    var isOverviewReminderTodayPending: Bool {
+        guard let date = overviewFireDate else { return false }
+        return Calendar.current.isDateInToday(date) && date >= Date()
+    }
+
+    private var nextOverviewRepeatingFireDate: Date? {
         guard let fireTime else { return fireTimestamp }
 
         let parts = fireTime.split(separator: ":").compactMap { Int($0) }
@@ -605,7 +683,20 @@ private extension Reminder {
 }
 
 private extension Date {
-    var formattedOverviewReminder: String {
+    func formattedOverviewReminder(relativeTo now: Date) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm:ss"
+
+        if calendar.isDate(self, inSameDayAs: now) {
+            return "今天 \(timeFormatter.string(from: self))"
+        }
+
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           calendar.isDate(self, inSameDayAs: tomorrow) {
+            return "明天 \(timeFormatter.string(from: self))"
+        }
+
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter.string(from: self)
