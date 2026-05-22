@@ -45,8 +45,26 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         )
     }
 
+    func syncProject(_ project: Project) {
+        let nextTaskTitle = project.topUnfinishedTitle
+        syncEntry(
+            ownerId: project.projectId,
+            ownerKind: "project",
+            project: project,
+            body: nextTaskTitle.map { "下一步：\($0)" } ?? "",
+            reminder: project.reminder,
+            isCompleted: project.isArchived || nextTaskTitle == nil
+        )
+    }
+
     func removeEntry(ownerId: UUID) {
         entries(for: ownerId).forEach { modelContext.delete($0) }
+        save()
+        scheduleNextTimer()
+    }
+
+    func removeEntries(projectId: UUID) {
+        entries(forProjectId: projectId).forEach { modelContext.delete($0) }
         save()
         scheduleNextTimer()
     }
@@ -58,7 +76,9 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
             .sorted { $0.fireDate < $1.fireDate }
 
         for entry in dueEntries {
-            postNotification(title: entry.projectTitle, body: entry.body)
+            if let notification = notificationContent(for: entry) {
+                postNotification(title: notification.title, body: notification.body)
+            }
             modelContext.delete(entry)
         }
 
@@ -84,7 +104,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
     ) {
         entries(for: ownerId).forEach { modelContext.delete($0) }
 
-        guard !isCompleted, let fireDate = reminder?.timelineFireDate else {
+        guard !project.isArchived, !isCompleted, let fireDate = reminder?.timelineFireDate else {
             save()
             scheduleNextTimer()
             return
@@ -118,6 +138,22 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         UNUserNotificationCenter.current().add(request)
     }
 
+    private func notificationContent(for entry: NotificationScheduleEntry) -> (title: String, body: String)? {
+        guard entry.ownerKind == "project" else {
+            guard let project = project(id: entry.projectId),
+                  !project.isArchived
+            else { return nil }
+            return (project.title, entry.body)
+        }
+
+        guard let project = project(id: entry.projectId),
+              !project.isArchived,
+              let nextTaskTitle = project.topUnfinishedTitle
+        else { return nil }
+
+        return (project.title, "下一步：\(nextTaskTitle)")
+    }
+
     private func scheduleNextTimer() {
         timer?.invalidate()
         timer = nil
@@ -142,11 +178,25 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         return (try? modelContext.fetch(descriptor)) ?? []
     }
 
+    private func entries(forProjectId projectId: UUID) -> [NotificationScheduleEntry] {
+        let descriptor = FetchDescriptor<NotificationScheduleEntry>(
+            predicate: #Predicate { $0.projectId == projectId }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
     private func allEntries() -> [NotificationScheduleEntry] {
         let descriptor = FetchDescriptor<NotificationScheduleEntry>(
             sortBy: [SortDescriptor(\.fireDate)]
         )
         return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func project(id projectId: UUID) -> Project? {
+        let descriptor = FetchDescriptor<Project>(
+            predicate: #Predicate { $0.projectId == projectId }
+        )
+        return (try? modelContext.fetch(descriptor))?.first
     }
 
     private func save() {

@@ -86,6 +86,10 @@ final class ProjectService: ProjectServiceProtocol {
     private let modelContext: ModelContext
     private let container: ServiceContainer
 
+    private var notificationScheduleService: NotificationScheduleService? {
+        container.notificationScheduleService
+    }
+
     // MARK: - Sync State (reserved for CloudSyncService)
 
     private(set) var syncStatus: SyncStatus = .idle
@@ -124,9 +128,11 @@ final class ProjectService: ProjectServiceProtocol {
         // SwiftData auto-tracks changes on managed objects,
         // keeping this as an explicit entry point for future side-effects (sync, undo, etc.)
         save()
+        syncReminderTimeline(for: project)
     }
 
     func deleteProject(_ project: Project) {
+        notificationScheduleService?.removeEntries(projectId: project.projectId)
         modelContext.delete(project)
         save()
     }
@@ -140,12 +146,19 @@ final class ProjectService: ProjectServiceProtocol {
         milestone.project = project
         project.milestones.append(milestone)
         save()
+        syncProjectReminder(project)
         return milestone
     }
 
     func deleteMilestone(_ milestone: Milestone) {
+        let project = milestone.project
+        notificationScheduleService?.removeEntry(ownerId: milestone.milestoneId)
+        milestone.subtasks.forEach { notificationScheduleService?.removeEntry(ownerId: $0.taskId) }
         modelContext.delete(milestone)
         save()
+        if let project {
+            syncProjectReminder(project)
+        }
     }
 
     func toggleMilestoneComplete(_ milestone: Milestone) {
@@ -164,6 +177,9 @@ final class ProjectService: ProjectServiceProtocol {
             milestone.completedAt = completedAt
         }
         save()
+        if let project = milestone.project {
+            syncReminderTimeline(for: project)
+        }
     }
 
     // MARK: - SubTask CRUD
@@ -176,14 +192,22 @@ final class ProjectService: ProjectServiceProtocol {
         milestone.subtasks.append(subtask)
         milestone.syncCompletionFromSubtasks()
         save()
+        if let project = milestone.project {
+            syncProjectReminder(project)
+        }
         return subtask
     }
 
     func deleteSubTask(_ subTask: SubTask) {
         let milestone = subTask.milestone
+        let project = milestone?.project
+        notificationScheduleService?.removeEntry(ownerId: subTask.taskId)
         modelContext.delete(subTask)
         milestone?.syncCompletionFromSubtasks()
         save()
+        if let project {
+            syncProjectReminder(project)
+        }
     }
 
     func toggleSubTaskComplete(_ subTask: SubTask) {
@@ -191,6 +215,9 @@ final class ProjectService: ProjectServiceProtocol {
         subTask.completedAt = subTask.isCompleted ? Date() : nil
         subTask.milestone?.syncCompletionFromSubtasks()
         save()
+        if let project = subTask.milestone?.project {
+            syncReminderTimeline(for: project)
+        }
     }
 
     // MARK: - Memo CRUD
@@ -217,6 +244,7 @@ final class ProjectService: ProjectServiceProtocol {
         project.archivedAt = Date()
         project.archiveFolder = folder
         save()
+        notificationScheduleService?.removeEntries(projectId: project.projectId)
     }
 
     func unarchiveProject(_ project: Project) {
@@ -226,6 +254,7 @@ final class ProjectService: ProjectServiceProtocol {
         // 移回活跃列表末尾
         project.orderIndex = allActiveProjects().count
         save()
+        syncReminderTimeline(for: project)
     }
 
     @discardableResult
@@ -247,6 +276,7 @@ final class ProjectService: ProjectServiceProtocol {
         project.archiveFolder = folder
         project.isArchived = true
         save()
+        notificationScheduleService?.removeEntries(projectId: project.projectId)
     }
 
     func moveFolder(_ folder: ArchiveFolder, to parent: ArchiveFolder?) {
@@ -299,6 +329,7 @@ final class ProjectService: ProjectServiceProtocol {
             item.orderIndex = index
         }
         save()
+        syncProjectReminder(project)
     }
 
     func moveSubTask(_ subTaskID: UUID, to targetMilestoneID: UUID, targetSubTaskID: UUID?, placement: ReorderPlacement) {
@@ -336,6 +367,12 @@ final class ProjectService: ProjectServiceProtocol {
         }
         targetMilestone.syncCompletionFromSubtasks()
         save()
+        if let project = targetMilestone.project {
+            syncProjectReminder(project)
+        }
+        if let project = sourceMilestone?.project, project.projectId != targetMilestone.project?.projectId {
+            syncProjectReminder(project)
+        }
     }
 
     func reorderMemos(in project: Project, movingID: UUID, targetID: UUID?, placement: ReorderPlacement) {
@@ -394,6 +431,25 @@ final class ProjectService: ProjectServiceProtocol {
             // TODO: Phase 2 — 统一错误处理与用户提示
             print("[ProjectService] save failed: \(error.localizedDescription)")
         }
+    }
+
+    private func syncReminderTimeline(for project: Project) {
+        guard !project.isArchived else {
+            notificationScheduleService?.removeEntries(projectId: project.projectId)
+            return
+        }
+
+        syncProjectReminder(project)
+        project.milestones.forEach { milestone in
+            notificationScheduleService?.syncMilestone(milestone, project: project)
+            milestone.subtasks.forEach { subtask in
+                notificationScheduleService?.syncSubTask(subtask, project: project)
+            }
+        }
+    }
+
+    private func syncProjectReminder(_ project: Project) {
+        notificationScheduleService?.syncProject(project)
     }
 
     private func folders(in parent: ArchiveFolder?) -> [ArchiveFolder] {
@@ -461,6 +517,7 @@ final class ProjectService: ProjectServiceProtocol {
         }
 
         for project in folder.projects {
+            notificationScheduleService?.removeEntries(projectId: project.projectId)
             modelContext.delete(project)
         }
     }
