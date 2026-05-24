@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 // MARK: - NewProjectView
 
@@ -19,6 +20,7 @@ struct NewProjectView: View {
     @State private var templateSearchText = ""
     @State private var showingTemplatePicker = false
     @State private var showingTemplateManager = false
+    @State private var isTemplateManagerHovered = false
 
     init(editingProject: Project? = nil) {
         self.editingProject = editingProject
@@ -163,9 +165,30 @@ struct NewProjectView: View {
                     Image(systemName: "square.3.layers.3d.middle.filled")
                         .font(.system(size: 16, weight: .medium))
                         .frame(width: 32, height: 32)
+                        .foregroundStyle(isTemplateManagerHovered ? .white : .secondary)
+                        .background(
+                            Circle()
+                                .fill(isTemplateManagerHovered ? Color.blue : Color(nsColor: .controlBackgroundColor))
+                        )
+                        .overlay {
+                            Circle()
+                                .stroke(
+                                    isTemplateManagerHovered ? Color.blue : Color(nsColor: .separatorColor).opacity(0.5),
+                                    lineWidth: 1
+                                )
+                        }
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .help("管理模板")
+                .onHover { hovering in
+                    isTemplateManagerHovered = hovering
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
             }
         }
     }
@@ -412,11 +435,11 @@ struct CustomColorCircle: View {
 
 let commonSymbols: [String] = [
     // 通用
-    "circle.dashed", "circle.fill", "checkmark.circle.fill", "xmark.circle.fill",
+    "bookmark.fill", "circle.dashed", "circle.fill", "checkmark.circle.fill", "xmark.circle.fill",
     "star.fill", "star.leadinghalf.filled", "heart.fill", "heart.circle.fill",
     "flame.fill", "bolt.fill", "bolt.circle.fill", "shield.fill",
     // 标记
-    "flag.fill", "flag.checkered", "bookmark.fill", "tag.fill", "pin.fill",
+    "flag.fill", "flag.checkered", "tag.fill", "pin.fill",
     "mappin.circle.fill", "location.fill", "paperclip",
     // 文件/文档
     "doc.fill", "doc.text.fill", "folder.fill", "tray.full.fill",

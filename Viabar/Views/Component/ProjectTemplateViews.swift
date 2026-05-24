@@ -152,6 +152,11 @@ private struct TemplateSubTaskDraft: Identifiable {
     var title: String
 }
 
+private enum TemplateEditorField: Hashable {
+    case milestone(UUID)
+    case subtask(UUID)
+}
+
 struct ProjectTemplateEditorView: View {
     @Environment(ServiceContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
@@ -164,6 +169,7 @@ struct ProjectTemplateEditorView: View {
     @State private var showsCompletedTasks: Bool
     @State private var milestones: [TemplateMilestoneDraft]
     @State private var showingSymbolPicker = false
+    @FocusState private var focusedField: TemplateEditorField?
 
     init(template: ProjectTemplate? = nil) {
         self.template = template
@@ -290,11 +296,13 @@ struct ProjectTemplateEditorView: View {
                 Text("任务项").font(.headline)
                 Spacer()
                 Button {
-                    milestones.append(TemplateMilestoneDraft(title: "", subtasks: []))
+                    appendMilestone()
                 } label: {
-                    Label("添加任务", systemImage: "plus")
+                    Image(systemName: "plus.app")
+                        .font(.title3)
                 }
                 .buttonStyle(.plain)
+                .help("添加任务")
             }
 
             if milestones.isEmpty {
@@ -310,7 +318,11 @@ struct ProjectTemplateEditorView: View {
                         canMoveDown: index < milestones.count - 1,
                         onMoveUp: { moveMilestone(at: index, by: -1) },
                         onMoveDown: { moveMilestone(at: index, by: 1) },
-                        onDelete: { milestones.removeAll { $0.id == draft.id } }
+                        onDelete: { milestones.removeAll { $0.id == draft.id } },
+                        onAddMilestone: { insertMilestone(after: draft.id) },
+                        onAddSubTask: { appendSubTask(to: draft.id) },
+                        onSubmitSubTask: { subtaskID in insertSubTask(after: subtaskID, in: draft.id) },
+                        focusedField: $focusedField
                     )
                 }
             }
@@ -358,6 +370,47 @@ struct ProjectTemplateEditorView: View {
         milestones.swapAt(index, target)
     }
 
+    private func appendMilestone() {
+        let milestone = TemplateMilestoneDraft(title: "", subtasks: [])
+        milestones.append(milestone)
+        focus(.milestone(milestone.id))
+    }
+
+    private func insertMilestone(after id: UUID) {
+        let milestone = TemplateMilestoneDraft(title: "", subtasks: [])
+        guard let index = milestones.firstIndex(where: { $0.id == id }) else {
+            milestones.append(milestone)
+            focus(.milestone(milestone.id))
+            return
+        }
+        milestones.insert(milestone, at: index + 1)
+        focus(.milestone(milestone.id))
+    }
+
+    private func appendSubTask(to milestoneID: UUID) {
+        guard let index = milestones.firstIndex(where: { $0.id == milestoneID }) else { return }
+        let subtask = TemplateSubTaskDraft(title: "")
+        milestones[index].subtasks.append(subtask)
+        focus(.subtask(subtask.id))
+    }
+
+    private func insertSubTask(after subtaskID: UUID, in milestoneID: UUID) {
+        guard let milestoneIndex = milestones.firstIndex(where: { $0.id == milestoneID }) else { return }
+        let subtask = TemplateSubTaskDraft(title: "")
+        if let index = milestones[milestoneIndex].subtasks.firstIndex(where: { $0.id == subtaskID }) {
+            milestones[milestoneIndex].subtasks.insert(subtask, at: index + 1)
+        } else {
+            milestones[milestoneIndex].subtasks.append(subtask)
+        }
+        focus(.subtask(subtask.id))
+    }
+
+    private func focus(_ field: TemplateEditorField) {
+        DispatchQueue.main.async {
+            focusedField = field
+        }
+    }
+
     private func saveTemplate() {
         let trimmedName = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
@@ -390,12 +443,18 @@ private struct TemplateMilestoneEditorRow: View {
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
     let onDelete: () -> Void
+    let onAddMilestone: () -> Void
+    let onAddSubTask: () -> Void
+    let onSubmitSubTask: (UUID) -> Void
+    var focusedField: FocusState<TemplateEditorField?>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 TextField("任务名称", text: $milestone.title)
                     .textFieldStyle(.roundedBorder)
+                    .focused(focusedField, equals: .milestone(milestone.id))
+                    .onSubmit(onAddMilestone)
                 Button(action: onMoveUp) {
                     Image(systemName: "chevron.up")
                 }
@@ -406,8 +465,14 @@ private struct TemplateMilestoneEditorRow: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canMoveDown)
+                Button(action: onAddSubTask) {
+                    Image(systemName: "list.bullet.indent")
+                }
+                .buttonStyle(.plain)
+                .help("添加子任务")
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash")
+                        .foregroundStyle(.red)
                 }
                 .buttonStyle(.plain)
             }
@@ -418,6 +483,10 @@ private struct TemplateMilestoneEditorRow: View {
                         .foregroundStyle(.tertiary)
                     TextField("子任务名称", text: subtaskBinding(for: subtask.id))
                         .textFieldStyle(.roundedBorder)
+                        .focused(focusedField, equals: .subtask(subtask.id))
+                        .onSubmit {
+                            onSubmitSubTask(subtask.id)
+                        }
                     Button {
                         moveSubtask(at: index, by: -1)
                     } label: {
@@ -436,20 +505,12 @@ private struct TemplateMilestoneEditorRow: View {
                         milestone.subtasks.removeAll { $0.id == subtask.id }
                     } label: {
                         Image(systemName: "trash")
+                            .foregroundStyle(.red)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(.leading, 18)
             }
-
-            Button {
-                milestone.subtasks.append(TemplateSubTaskDraft(title: ""))
-            } label: {
-                Label("添加子任务", systemImage: "plus")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-            .padding(.leading, 24)
         }
         .padding(10)
         .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 8))
