@@ -4,7 +4,6 @@ struct SearchTargetHighlight: ViewModifier {
     let triggerID: UUID?
     let isActive: Bool
     let cornerRadius: CGFloat
-    let lineWidth: CGFloat
 
     @State private var opacity = 0.0
 
@@ -12,7 +11,7 @@ struct SearchTargetHighlight: ViewModifier {
         content
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.orange.opacity(opacity), lineWidth: lineWidth)
+                    .stroke(Color.orange.opacity(opacity), lineWidth: 2)
                     .allowsHitTesting(false)
             }
             .task(id: triggerID) {
@@ -40,15 +39,13 @@ extension View {
     func searchTargetHighlight(
         triggerID: UUID?,
         isActive: Bool,
-        cornerRadius: CGFloat = 8,
-        lineWidth: CGFloat = 2
+        cornerRadius: CGFloat = 8
     ) -> some View {
         modifier(
             SearchTargetHighlight(
                 triggerID: triggerID,
                 isActive: isActive,
-                cornerRadius: cornerRadius,
-                lineWidth: lineWidth
+                cornerRadius: cornerRadius
             )
         )
     }

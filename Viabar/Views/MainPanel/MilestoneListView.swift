@@ -473,6 +473,7 @@ private struct SafeMilestoneListView: View {
                 ForEach(snapshots) { snapshot in
                     SafeMilestoneRowView(
                         snapshot: snapshot,
+                        highlightRequestID: snapshot.id == scrollTargetID ? navigationRequestID : nil,
                         onToggleMilestone: onToggleMilestone,
                         onUpdateMilestoneTitle: onUpdateMilestoneTitle,
                         onDeleteMilestone: onDeleteMilestone,
@@ -486,11 +487,6 @@ private struct SafeMilestoneListView: View {
                         draggingItem: $draggingItem,
                         dropTarget: $dropTarget,
                         onPerformDrop: performDrop(_:target:)
-                    )
-                    .searchTargetHighlight(
-                        triggerID: snapshot.id == scrollTargetID ? navigationRequestID : nil,
-                        isActive: snapshot.id == scrollTargetID,
-                        lineWidth: 3.5
                     )
                     .id(snapshot.id)
                     .safeListRow()
@@ -733,6 +729,7 @@ private enum TaskRowDropTarget {
 
 private struct SafeMilestoneRowView: View {
     let snapshot: MilestoneSnapshot
+    let highlightRequestID: UUID?
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
     let onDeleteMilestone: (UUID) -> Void
@@ -746,6 +743,7 @@ private struct SafeMilestoneRowView: View {
     @State private var isEditing = false
     @State private var titleDraft = ""
     @State private var isRowHovered = false
+    @State private var isSearchHighlighted = false
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
@@ -758,6 +756,20 @@ private struct SafeMilestoneRowView: View {
             guard !focused else { return }
             commitTitleEdit()
         }
+        .task(id: highlightRequestID) {
+            guard highlightRequestID != nil else {
+                isSearchHighlighted = false
+                return
+            }
+
+            isSearchHighlighted = true
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeOut(duration: 0.2)) {
+                isSearchHighlighted = false
+            }
+        }
     }
 
     private var milestoneRow: some View {
@@ -766,7 +778,11 @@ private struct SafeMilestoneRowView: View {
                 onToggleMilestone(snapshot.id)
             } label: {
                 Image(systemName: snapshot.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(snapshot.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(
+                        isSearchHighlighted
+                            ? AnyShapeStyle(.white)
+                            : snapshot.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary)
+                    )
                     .font(.title3)
             }
             .buttonStyle(.plain)
@@ -780,6 +796,7 @@ private struct SafeMilestoneRowView: View {
                 isEditing: isEditing,
                 iconFont: .body,
                 textFont: .caption,
+                usesInvertedForeground: isSearchHighlighted,
                 onReminderChange: onReminderChange
             )
         }
@@ -788,7 +805,11 @@ private struct SafeMilestoneRowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
+                .fill(
+                    isSearchHighlighted
+                        ? AnyShapeStyle(.orange)
+                        : AnyShapeStyle(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
+                )
         }
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .focusable(false)
@@ -869,6 +890,7 @@ private struct SafeMilestoneRowView: View {
                 .textFieldStyle(.plain)
                 .lineLimit(nil)
                 .font(.body)
+                .foregroundStyle(.primary)
                 .focused($isTitleFocused)
                 .onSubmit { commitTitleEdit() }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -878,7 +900,11 @@ private struct SafeMilestoneRowView: View {
             Text(snapshot.title)
                 .font(.body)
                 .strikethrough(snapshot.isCompleted)
-                .foregroundStyle(snapshot.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                .foregroundStyle(
+                    isSearchHighlighted
+                        ? AnyShapeStyle(.white)
+                        : snapshot.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+                )
                 .lineLimit(nil)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1123,6 +1149,7 @@ private struct ReminderStatusView: View {
     let isEditing: Bool
     let iconFont: Font
     let textFont: Font
+    var usesInvertedForeground: Bool = false
     let onReminderChange: (Reminder?) -> Void
 
     @State private var isReminderPopoverPresented = false
@@ -1133,6 +1160,10 @@ private struct ReminderStatusView: View {
     }
 
     private var alarmColor: AnyShapeStyle {
+        if usesInvertedForeground {
+            return AnyShapeStyle(.white)
+        }
+
         guard hasReminder else {
             return AnyShapeStyle(.tertiary)
         }
@@ -1190,6 +1221,10 @@ private struct ReminderStatusView: View {
     }
 
     private func summaryColor(for reminder: Reminder) -> AnyShapeStyle {
+        if usesInvertedForeground {
+            return AnyShapeStyle(.white)
+        }
+
         if isCompleted {
             return AnyShapeStyle(.secondary)
         }
@@ -1206,6 +1241,10 @@ private struct ReminderStatusView: View {
     }
 
     private func postponeColor(for reminder: Reminder) -> AnyShapeStyle {
+        if usesInvertedForeground {
+            return AnyShapeStyle(.white)
+        }
+
         if isCompleted {
             return AnyShapeStyle(.secondary)
         }
