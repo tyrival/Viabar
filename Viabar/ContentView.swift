@@ -58,6 +58,15 @@ struct ContentView: View {
                 memoToggleLayer
             }
 
+            if isGlobalSearchPresented {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        dismissGlobalSearch()
+                    }
+                    .zIndex(2.5)
+            }
+
             mainToolbarLayer
         }
         .animation(.easeInOut(duration: 0.2), value: isMemoDrawerVisible)
@@ -291,6 +300,10 @@ struct ContentView: View {
                             .lineLimit(1)
                             .frame(maxWidth: 360, alignment: .leading)
                             .padding(.leading, 180)
+                            .searchTargetHighlight(
+                                triggerID: projectTitleHighlightRequestID(for: project),
+                                isActive: projectTitleHighlightRequestID(for: project) != nil
+                            )
                         }
 
                         Spacer()
@@ -381,6 +394,13 @@ struct ContentView: View {
         }
 
         dismissGlobalSearch()
+    }
+
+    private func projectTitleHighlightRequestID(for project: Project) -> UUID? {
+        guard navigationRequest?.projectID == project.projectId,
+              case .some(.project) = navigationRequest?.destination
+        else { return nil }
+        return navigationRequest?.id
     }
 
     private func dismissGlobalSearch() {

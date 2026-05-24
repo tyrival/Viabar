@@ -487,6 +487,11 @@ private struct SafeMilestoneListView: View {
                         dropTarget: $dropTarget,
                         onPerformDrop: performDrop(_:target:)
                     )
+                    .searchTargetHighlight(
+                        triggerID: snapshot.id == scrollTargetID ? navigationRequestID : nil,
+                        isActive: snapshot.id == scrollTargetID,
+                        lineWidth: 3.5
+                    )
                     .id(snapshot.id)
                     .safeListRow()
 
@@ -505,6 +510,10 @@ private struct SafeMilestoneListView: View {
                             draggingItem: $draggingItem,
                             dropTarget: $dropTarget,
                             onPerformDrop: performDrop(_:target:)
+                        )
+                        .searchTargetHighlight(
+                            triggerID: subtask.id == scrollTargetID ? navigationRequestID : nil,
+                            isActive: subtask.id == scrollTargetID
                         )
                         .id(subtask.id)
                         .safeListRow()

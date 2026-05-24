@@ -79,7 +79,10 @@ struct MemoTimelineView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(visibleMemos) { memo in
-                        MemoCardView(memo: memo)
+                        MemoCardView(
+                            memo: memo,
+                            highlightRequestID: memo.memoId == targetedMemoID ? navigationRequest?.id : nil
+                        )
                             .id(memo.memoId)
                             .onDrag {
                                 draggingMemoID = memo.memoId
@@ -271,6 +274,7 @@ struct MemoTimelineView: View {
 
 struct MemoCardView: View {
     let memo: Memo
+    var highlightRequestID: UUID? = nil
 
     @Environment(ServiceContainer.self) private var container
     @State private var showsCopiedTag = false
@@ -337,6 +341,10 @@ struct MemoCardView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(MemoTimelineStyle.cardBorder, lineWidth: 1)
+        )
+        .searchTargetHighlight(
+            triggerID: highlightRequestID,
+            isActive: highlightRequestID != nil
         )
         .contentShape(Rectangle())
         .contextMenu {

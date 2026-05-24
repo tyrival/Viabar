@@ -259,6 +259,7 @@ struct SidebarView: View {
                     ActiveProjectRow(
                         project: project,
                         isSelected: selection == .project(project),
+                        highlightRequestID: projectHighlightRequestID(for: project),
                         onEdit: { editingProject = project },
                         onArchive: { archivePickerProject = project },
                         onDelete: { showDeleteProjectConfirmation(project) },
@@ -373,6 +374,7 @@ struct SidebarView: View {
                     folder: folder,
                     selection: $selection,
                     level: 0,
+                    projectHighlightRequest: revealRequest,
                     expandedFolderIds: $expandedFolderIds,
                     draggingActiveProjectId: $draggingActiveProjectId,
                     activeProjectDropTarget: $activeProjectDropTarget,
@@ -486,6 +488,13 @@ struct SidebarView: View {
         }
     }
 
+    private func projectHighlightRequestID(for project: Project) -> UUID? {
+        guard revealRequest?.projectID == project.projectId,
+              case .some(.project) = revealRequest?.destination
+        else { return nil }
+        return revealRequest?.id
+    }
+
 }
 
 // MARK: - ActiveProjectRow
@@ -530,6 +539,7 @@ private enum ActiveProjectRowMetrics {
 struct ActiveProjectRow: View {
     let project: Project
     let isSelected: Bool
+    var highlightRequestID: UUID? = nil
     let onEdit: () -> Void
     let onArchive: () -> Void
     let onDelete: () -> Void
@@ -670,6 +680,11 @@ struct ActiveProjectRow: View {
         }
         .frame(height: rowHeight)
         .padding(.horizontal, horizontalInset)
+        .searchTargetHighlight(
+            triggerID: highlightRequestID,
+            isActive: highlightRequestID != nil,
+            cornerRadius: rowHeight / 2
+        )
         .padding(.vertical, isSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
         .offset(y: isSelected ? ActiveProjectRowMetrics.selectedLift : 0)
         .animation(ActiveProjectRowMetrics.selectionAnimation, value: isSelected)
@@ -857,6 +872,7 @@ struct RecursiveFolderRow: View {
     let folder: ArchiveFolder
     @Binding var selection: SidebarSelection?
     let level: Int
+    let projectHighlightRequest: GlobalSearchNavigationRequest?
     @Binding var expandedFolderIds: Set<UUID>
     @Binding var draggingActiveProjectId: UUID?
     @Binding var activeProjectDropTarget: ActiveProjectDropTarget?
@@ -885,6 +901,13 @@ struct RecursiveFolderRow: View {
     }
 
     private let indentPerLevel: CGFloat = 16
+
+    private func projectHighlightRequestID(for project: Project) -> UUID? {
+        guard projectHighlightRequest?.projectID == project.projectId,
+              case .some(.project) = projectHighlightRequest?.destination
+        else { return nil }
+        return projectHighlightRequest?.id
+    }
 
     var body: some View {
         // 文件夹头部 + 展开内容包装，不套多余 VStack
@@ -923,6 +946,7 @@ struct RecursiveFolderRow: View {
                     folder: child,
                     selection: $selection,
                     level: level + 1,
+                    projectHighlightRequest: projectHighlightRequest,
                     expandedFolderIds: $expandedFolderIds,
                     draggingActiveProjectId: $draggingActiveProjectId,
                     activeProjectDropTarget: $activeProjectDropTarget,
@@ -950,6 +974,7 @@ struct RecursiveFolderRow: View {
                         level: level,
                         indentPerLevel: indentPerLevel,
                         isSelected: selection == .project(project),
+                        highlightRequestID: projectHighlightRequestID(for: project),
                         dropTarget: archiveProjectDropTarget,
                         onDragStart: { draggingActiveProjectId = project.projectId },
                         onDelete: { onDeleteProject(project) }
@@ -1110,6 +1135,7 @@ struct ArchivedProjectSelectableRow: View {
     let level: Int
     let indentPerLevel: CGFloat
     let isSelected: Bool
+    var highlightRequestID: UUID? = nil
     let dropTarget: ArchiveProjectDropTarget?
     let onDragStart: () -> Void
     let onDelete: () -> Void
@@ -1202,6 +1228,11 @@ struct ArchivedProjectSelectableRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .searchTargetHighlight(
+            triggerID: highlightRequestID,
+            isActive: highlightRequestID != nil,
+            cornerRadius: rowHeight / 2
+        )
         .padding(.vertical, 0)
         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         .overlay(alignment: .top) {

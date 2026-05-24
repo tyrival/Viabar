@@ -53,7 +53,9 @@ struct GlobalSearchOverlay: View {
             withAnimation(.easeInOut(duration: 0.18)) {
                 isPresented = true
             }
-            isFieldFocused = true
+            DispatchQueue.main.async {
+                isFieldFocused = true
+            }
         } label: {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: iconSize, weight: .medium))
@@ -73,10 +75,12 @@ struct GlobalSearchOverlay: View {
     private var expandedPanel: some View {
         VStack(spacing: 0) {
             searchField
+                .zIndex(1)
 
             if !trimmedQuery.isEmpty {
                 Divider()
                 resultContent
+                    .zIndex(0)
             }
         }
         .frame(width: availableWidth, alignment: .trailing)
@@ -84,13 +88,16 @@ struct GlobalSearchOverlay: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
         }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.16), radius: 20, y: 8)
         .onAppear {
-            isFieldFocused = true
+            DispatchQueue.main.async {
+                isFieldFocused = true
+            }
         }
         .onKeyPress(.upArrow) {
             moveSelection(by: -1)
@@ -122,19 +129,19 @@ struct GlobalSearchOverlay: View {
 
             if !query.isEmpty {
                 Button {
-                    query = ""
-                    highlightedResultID = nil
-                    hoveredResultID = nil
+                    clearQuery()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .contentShape(Rectangle())
                 .help("清空搜索")
             }
         }
         .padding(.horizontal, 12)
         .frame(height: buttonSize)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     @ViewBuilder
@@ -159,9 +166,6 @@ struct GlobalSearchOverlay: View {
                             .contentShape(Rectangle())
                             .onHover { isHovering in
                                 hoveredResultID = isHovering ? result.id : nil
-                                if isHovering {
-                                    highlightedResultID = result.id
-                                }
                             }
                             .onTapGesture {
                                 onSelect(result)
@@ -169,6 +173,7 @@ struct GlobalSearchOverlay: View {
                         }
                     }
                 }
+                .scrollClipDisabled(false)
                 .onChange(of: highlightedResultID) { _, id in
                     guard let id else { return }
                     withAnimation(.easeInOut(duration: 0.12)) {
@@ -177,6 +182,7 @@ struct GlobalSearchOverlay: View {
                 }
             }
             .frame(height: min(CGFloat(results.count), maximumVisibleResults) * rowHeight)
+            .clipped()
         }
     }
 
@@ -201,12 +207,17 @@ struct GlobalSearchOverlay: View {
     }
 
     private func dismiss() -> KeyPress.Result {
-        query = ""
-        highlightedResultID = nil
-        hoveredResultID = nil
+        clearQuery()
         isPresented = false
         isFieldFocused = false
         return .handled
+    }
+
+    private func clearQuery() {
+        query = ""
+        highlightedResultID = nil
+        hoveredResultID = nil
+        isFieldFocused = true
     }
 }
 

@@ -1,6 +1,7 @@
 import Foundation
 
 enum GlobalSearchDestination: Equatable {
+    case project
     case milestone(UUID)
     case subTask(milestoneID: UUID, subTaskID: UUID)
     case memo(UUID)
@@ -34,6 +35,18 @@ enum GlobalSearchIndex {
         var results: [GlobalSearchResult] = []
         let prefix = project.isArchived ? "归档 / " : ""
         let projectPath = "\(prefix)\(project.title)"
+
+        if project.title.localizedCaseInsensitiveContains(term) {
+            results.append(
+                GlobalSearchResult(
+                    id: "project-\(project.projectId.uuidString)",
+                    project: project,
+                    text: project.title,
+                    path: projectPath,
+                    destination: .project
+                )
+            )
+        }
 
         for milestone in project.milestones.sorted(by: { $0.orderIndex < $1.orderIndex }) {
             if milestone.title.localizedCaseInsensitiveContains(term) {

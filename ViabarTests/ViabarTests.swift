@@ -2,7 +2,7 @@ import Testing
 @testable import Viabar
 
 struct GlobalSearchTests {
-    @Test func buildsTaskSubtaskAndMemoResults() {
+    @Test func buildsProjectTaskSubtaskAndMemoResults() {
         let project = Project(title: "发布计划", orderIndex: 0)
         let milestone = Milestone(title: "准备发布页面信息架构复核", orderIndex: 0)
         milestone.project = project
@@ -16,8 +16,9 @@ struct GlobalSearchTests {
 
         let results = GlobalSearchIndex.results(matching: "发布", projects: [project])
 
-        #expect(results.map(\.text) == ["准备发布页面信息架构复核", "发布公告复核", "发布检查已结束"])
+        #expect(results.map(\.text) == ["发布计划", "准备发布页面信息架构复核", "发布公告复核", "发布检查已结束"])
         #expect(results.map(\.path) == [
+            "发布计划",
             "发布计划 / 准备发布页面信息架构复核",
             "发布计划 / 准备发布页面信息架… / 发布公告复核",
             "发布计划 / 备忘录",
