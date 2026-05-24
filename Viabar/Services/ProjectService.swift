@@ -24,10 +24,11 @@ final class ServiceContainer {
 
 protocol ProjectServiceProtocol: AnyObject {
     // Project CRUD
-    func createProject(title: String, hideCompleted: Bool, orderIndex: Int) -> Project
+    func createProject(title: String, hideCompleted: Bool, orderIndex: Int, template: ProjectTemplate?) -> Project
     func allProjects() -> [Project]
     func updateProject(_ project: Project)
     func deleteProject(_ project: Project)
+    func toggleFavorite(_ project: Project)
 
     // Milestone
     func addMilestone(to project: Project, title: String, orderIndex: Int?) -> Milestone
@@ -63,6 +64,16 @@ protocol ProjectServiceProtocol: AnyObject {
     func moveSubTask(_ subTaskID: UUID, to targetMilestoneID: UUID, targetSubTaskID: UUID?, placement: ReorderPlacement)
     func reorderFolderProjects(_ folder: ArchiveFolder, fromOffsets: IndexSet, toOffset: Int)
     func reorderFolders(fromOffsets: IndexSet, toOffset: Int)
+
+    func saveTemplate(
+        _ template: ProjectTemplate?,
+        name: String,
+        hideCompleted: Bool,
+        accentColor: String,
+        sfSymbolName: String,
+        milestones: [(title: String, subtasks: [String])]
+    ) -> ProjectTemplate
+    func deleteTemplate(_ template: ProjectTemplate)
 
     func save()
 }
@@ -110,7 +121,12 @@ final class ProjectService: ProjectServiceProtocol {
     // MARK: - Project CRUD
 
     @discardableResult
-    func createProject(title: String, hideCompleted: Bool = true, orderIndex: Int = 0) -> Project {
+    func createProject(
+        title: String,
+        hideCompleted: Bool = true,
+        orderIndex: Int = 0,
+        template: ProjectTemplate? = nil
+    ) -> Project {
         let activeProjects = allActiveProjects()
         let insertionIndex = min(max(orderIndex, 0), activeProjects.count)
 
@@ -118,8 +134,15 @@ final class ProjectService: ProjectServiceProtocol {
             existingProject.orderIndex = index < insertionIndex ? index : index + 1
         }
 
-        let project = Project(title: title, hideCompleted: hideCompleted, orderIndex: insertionIndex)
+        let project = Project(
+            title: title,
+            hideCompleted: template?.hideCompleted ?? hideCompleted,
+            orderIndex: insertionIndex
+        )
         modelContext.insert(project)
+        if let template {
+            copyTaskTree(from: template, to: project)
+        }
         save()
         return project
     }
@@ -141,6 +164,11 @@ final class ProjectService: ProjectServiceProtocol {
     func deleteProject(_ project: Project) {
         notificationScheduleService?.removeEntries(projectId: project.projectId)
         modelContext.delete(project)
+        save()
+    }
+
+    func toggleFavorite(_ project: Project) {
+        project.isFavorite.toggle()
         save()
     }
 
@@ -428,6 +456,60 @@ final class ProjectService: ProjectServiceProtocol {
         save()
     }
 
+    // MARK: - Template CRUD
+
+    @discardableResult
+    func saveTemplate(
+        _ template: ProjectTemplate?,
+        name: String,
+        hideCompleted: Bool,
+        accentColor: String,
+        sfSymbolName: String,
+        milestones: [(title: String, subtasks: [String])]
+    ) -> ProjectTemplate {
+        let savedTemplate: ProjectTemplate
+        if let template {
+            savedTemplate = template
+            template.milestones.forEach { modelContext.delete($0) }
+            template.milestones.removeAll()
+        } else {
+            let descriptor = FetchDescriptor<ProjectTemplate>(
+                sortBy: [SortDescriptor(\.orderIndex)]
+            )
+            let templates = (try? modelContext.fetch(descriptor)) ?? []
+            let nextIndex = (templates.map(\.orderIndex).max() ?? -1) + 1
+            savedTemplate = ProjectTemplate(name: name, orderIndex: nextIndex)
+            modelContext.insert(savedTemplate)
+        }
+
+        savedTemplate.name = name
+        savedTemplate.hideCompleted = hideCompleted
+        savedTemplate.accentColor = accentColor
+        savedTemplate.sfSymbolName = sfSymbolName
+
+        for (milestoneIndex, milestoneInput) in milestones.enumerated() {
+            let milestone = TemplateMilestone(title: milestoneInput.title, orderIndex: milestoneIndex)
+            milestone.template = savedTemplate
+            modelContext.insert(milestone)
+            savedTemplate.milestones.append(milestone)
+
+            for (subtaskIndex, subtaskTitle) in milestoneInput.subtasks.enumerated() {
+                let subtask = TemplateSubTask(title: subtaskTitle, orderIndex: subtaskIndex)
+                subtask.milestone = milestone
+                modelContext.insert(subtask)
+                milestone.subtasks.append(subtask)
+            }
+        }
+
+        save()
+        return savedTemplate
+    }
+
+    func deleteTemplate(_ template: ProjectTemplate) {
+        modelContext.delete(template)
+        save()
+    }
+
     // MARK: - Persist
 
     func save() {
@@ -472,6 +554,22 @@ final class ProjectService: ProjectServiceProtocol {
             sortBy: [SortDescriptor(\.orderIndex)]
         )
         return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func copyTaskTree(from template: ProjectTemplate, to project: Project) {
+        for templateMilestone in template.milestones.sorted(by: { $0.orderIndex < $1.orderIndex }) {
+            let milestone = Milestone(title: templateMilestone.title, orderIndex: templateMilestone.orderIndex)
+            milestone.project = project
+            modelContext.insert(milestone)
+            project.milestones.append(milestone)
+
+            for templateSubtask in templateMilestone.subtasks.sorted(by: { $0.orderIndex < $1.orderIndex }) {
+                let subtask = SubTask(title: templateSubtask.title, orderIndex: templateSubtask.orderIndex)
+                subtask.milestone = milestone
+                modelContext.insert(subtask)
+                milestone.subtasks.append(subtask)
+            }
+        }
     }
 
     private func normalizeSubTaskOrder(in milestone: Milestone) {

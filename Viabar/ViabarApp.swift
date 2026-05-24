@@ -20,6 +20,9 @@ struct ViabarApp: App {
             Reminder.self,
             NotificationScheduleEntry.self,
             ArchiveFolder.self,
+            ProjectTemplate.self,
+            TemplateMilestone.self,
+            TemplateSubTask.self,
         ])
 
         // iCloud sync 预留：替换为以下配置即可启用 CloudKit 同步

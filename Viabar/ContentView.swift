@@ -483,6 +483,7 @@ struct OverviewProjectCard: View {
     let onDelete: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(ServiceContainer.self) private var container
     @State private var isHovering = false
 
     private let cardHorizontalPadding: CGFloat = 18
@@ -505,6 +506,10 @@ struct OverviewProjectCard: View {
     private let hoverShadowYOffset: CGFloat = 5
     private let reminderTodayPendingColor = Color.orange
     private let reminderOverdueColor = Color.red
+
+    private var projectService: ProjectService? {
+        container.projectService
+    }
 
     private var accentColor: Color {
         project.progress >= 1.0
@@ -610,6 +615,12 @@ struct OverviewProjectCard: View {
                     .lineLimit(1)
 
                 Spacer()
+
+                if project.isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(ViabarColor.warning)
+                }
             }
             .padding(.horizontal, cardHorizontalPadding)
             .frame(maxWidth: .infinity, minHeight: headerHeight, maxHeight: headerHeight, alignment: .center)
@@ -721,6 +732,11 @@ struct OverviewProjectCard: View {
             } label: {
                 Label("归档", systemImage: "archivebox")
             }
+            Button {
+                projectService?.toggleFavorite(project)
+            } label: {
+                Label(project.isFavorite ? "取消收藏" : "收藏", systemImage: project.isFavorite ? "star.slash" : "star")
+            }
             Divider()
             Button(role: .destructive) {
                 onDelete()
@@ -792,5 +808,18 @@ private extension Date {
 #Preview {
     ContentView()
         .environment(ServiceContainer())
-        .modelContainer(for: Project.self, inMemory: true)
+        .modelContainer(
+            for: [
+                Project.self,
+                Milestone.self,
+                SubTask.self,
+                Memo.self,
+                Reminder.self,
+                ArchiveFolder.self,
+                ProjectTemplate.self,
+                TemplateMilestone.self,
+                TemplateSubTask.self,
+            ],
+            inMemory: true
+        )
 }

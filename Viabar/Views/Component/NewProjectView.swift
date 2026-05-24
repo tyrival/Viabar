@@ -1,10 +1,12 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - NewProjectView
 
 struct NewProjectView: View {
     @Environment(ServiceContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
+    @Query(sort: \ProjectTemplate.orderIndex) private var templates: [ProjectTemplate]
 
     let editingProject: Project?
 
@@ -13,6 +15,10 @@ struct NewProjectView: View {
     @State private var selectedSymbol: String = commonSymbols[0]
     @State private var projectReminder: Reminder?
     @State private var showingReminderPopover = false
+    @State private var selectedTemplateID: UUID?
+    @State private var templateSearchText = ""
+    @State private var showingTemplatePicker = false
+    @State private var showingTemplateManager = false
 
     init(editingProject: Project? = nil) {
         self.editingProject = editingProject
@@ -24,6 +30,16 @@ struct NewProjectView: View {
 
     private var projectService: ProjectService? {
         container.projectService
+    }
+
+    private var selectedTemplate: ProjectTemplate? {
+        templates.first { $0.templateId == selectedTemplateID }
+    }
+
+    private var filteredTemplates: [ProjectTemplate] {
+        let query = templateSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return templates }
+        return templates.filter { $0.name.localizedCaseInsensitiveContains(query) }
     }
 
     private var isUsingCustomColor: Bool {
@@ -57,7 +73,9 @@ struct NewProjectView: View {
 
             VStack(alignment: .leading, spacing: 20) {
                 nameField
-                templateSection
+                if editingProject == nil {
+                    templateSection
+                }
                 iconAndColorRow
                 symbolGridScroll
             }
@@ -75,6 +93,9 @@ struct NewProjectView: View {
             .padding()
         }
         .frame(width: 520, height: 620)
+        .sheet(isPresented: $showingTemplateManager) {
+            ProjectTemplateManagementView()
+        }
     }
 
     // MARK: - Name
@@ -103,22 +124,121 @@ struct NewProjectView: View {
         }
     }
 
-    // MARK: - Template (placeholder)
+    // MARK: - Template
 
     private var templateSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("模板").font(.headline)
-            HStack {
-                Image(systemName: "square.on.square")
-                    .foregroundStyle(.tertiary)
-                Text("暂无可选模板，后续版本将支持")
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
+            HStack(spacing: 8) {
+                Button {
+                    showingTemplatePicker.toggle()
+                } label: {
+                    HStack {
+                        if let selectedTemplate {
+                            Image(systemName: selectedTemplate.sfSymbolName)
+                                .foregroundStyle(Color(hex: selectedTemplate.accentColor))
+                            Text(selectedTemplate.name)
+                                .foregroundStyle(.primary)
+                        } else {
+                            Text(templates.isEmpty ? "暂无模板" : "选择模板...")
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 32)
+                    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingTemplatePicker, arrowEdge: .bottom) {
+                    templatePickerPopover
+                }
+
+                Button {
+                    showingTemplateManager = true
+                } label: {
+                    Image(systemName: "square.3.layers.3d.middle.filled")
+                        .font(.system(size: 16, weight: .medium))
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.bordered)
+                .help("管理模板")
             }
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    private var templatePickerPopover: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("输入模板名称筛选", text: $templateSearchText)
+                .textFieldStyle(.roundedBorder)
+
+            ScrollView {
+                VStack(spacing: 4) {
+                    if selectedTemplateID != nil && templateSearchText.isEmpty {
+                        Button {
+                            selectedTemplateID = nil
+                            showingTemplatePicker = false
+                        } label: {
+                            HStack {
+                                Image(systemName: "xmark.circle")
+                                    .frame(width: 20)
+                                Text("不使用模板")
+                                Spacer()
+                            }
+                            .padding(.horizontal, 8)
+                            .frame(height: 30)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider()
+                    }
+
+                    if filteredTemplates.isEmpty {
+                        Text(templates.isEmpty ? "还没有模板" : "没有匹配的模板")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    } else {
+                        ForEach(filteredTemplates) { template in
+                            Button {
+                                applyTemplateSelection(template)
+                            } label: {
+                                HStack {
+                                    Image(systemName: template.sfSymbolName)
+                                        .foregroundStyle(Color(hex: template.accentColor))
+                                        .frame(width: 20)
+                                    Text(template.name)
+                                    Spacer()
+                                    if selectedTemplateID == template.templateId {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .frame(height: 30)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 180)
+        }
+        .padding(10)
+        .frame(width: 265)
+    }
+
+    private func applyTemplateSelection(_ template: ProjectTemplate) {
+        selectedTemplateID = template.templateId
+        selectedColorHex = template.accentColor
+        selectedSymbol = template.sfSymbolName
+        showingTemplatePicker = false
     }
 
     // MARK: - Icon & Color Row
@@ -202,7 +322,7 @@ struct NewProjectView: View {
         let name = projectName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, let svc = projectService else { return }
 
-        let project = editingProject ?? svc.createProject(title: name)
+        let project = editingProject ?? svc.createProject(title: name, template: selectedTemplate)
         project.title = name
         project.accentColor = selectedColorHex
         project.sfSymbolName = selectedSymbol
@@ -290,7 +410,7 @@ struct CustomColorCircle: View {
 
 // MARK: - SF Symbol List (100)
 
-private let commonSymbols: [String] = [
+let commonSymbols: [String] = [
     // 通用
     "circle.dashed", "circle.fill", "checkmark.circle.fill", "xmark.circle.fill",
     "star.fill", "star.leadinghalf.filled", "heart.fill", "heart.circle.fill",
@@ -351,4 +471,8 @@ private let commonSymbols: [String] = [
 #Preview {
     NewProjectView()
         .environment(ServiceContainer())
+        .modelContainer(
+            for: [ProjectTemplate.self, TemplateMilestone.self, TemplateSubTask.self],
+            inMemory: true
+        )
 }

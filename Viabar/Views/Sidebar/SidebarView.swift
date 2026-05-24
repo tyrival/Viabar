@@ -589,10 +589,12 @@ struct ActiveProjectRow: View {
         color: Color,
         usesProjectIconColor: Bool = false,
         usesMutedPercentColor: Bool = false,
-        usesProjectReminderColor: Bool = false
+        usesProjectReminderColor: Bool = false,
+        usesFixedFavoriteColor: Bool = false
     ) -> some View {
         let percentColor = usesMutedPercentColor ? ActiveProjectRowMetrics.progressPercentColor : color
         let reminderColor = usesProjectReminderColor ? Color.orange : color
+        let favoriteColor = usesFixedFavoriteColor ? ViabarColor.warning : Color.clear
 
         return HStack(spacing: 10) {
             Image(systemName: project.sfSymbolName)
@@ -607,6 +609,12 @@ struct ActiveProjectRow: View {
                 Image(systemName: "alarm.fill")
                     .font(.caption)
                     .foregroundStyle(reminderColor)
+                    .frame(width: 14)
+            }
+            if project.isFavorite {
+                Image(systemName: "star.fill")
+                    .font(.caption)
+                    .foregroundStyle(favoriteColor)
                     .frame(width: 14)
             }
             Text("\(Int(project.progress * 100))%")
@@ -662,7 +670,8 @@ struct ActiveProjectRow: View {
                 color: .primary,
                 usesProjectIconColor: true,
                 usesMutedPercentColor: true,
-                usesProjectReminderColor: true
+                usesProjectReminderColor: true,
+                usesFixedFavoriteColor: true
             )
 
             // 白色文字层
@@ -697,6 +706,11 @@ struct ActiveProjectRow: View {
             }
             Button { onArchive() } label: {
                 Label("归档", systemImage: "archivebox")
+            }
+            Button {
+                projectService?.toggleFavorite(project)
+            } label: {
+                Label(project.isFavorite ? "取消收藏" : "收藏", systemImage: project.isFavorite ? "star.slash" : "star")
             }
             Divider()
             Button(role: .destructive) {
@@ -1593,7 +1607,10 @@ private struct SidebarPreviewData {
             SubTask.self,
             Memo.self,
             Reminder.self,
-            ArchiveFolder.self
+            ArchiveFolder.self,
+            ProjectTemplate.self,
+            TemplateMilestone.self,
+            TemplateSubTask.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let modelContainer = try! ModelContainer(for: schema, configurations: [configuration])

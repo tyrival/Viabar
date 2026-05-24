@@ -76,6 +76,7 @@ final class Project {
     var title: String
     var hideCompleted: Bool
     var isArchived: Bool = false
+    var isFavorite: Bool = false
     var orderIndex: Int = 0
     var archivedAt: Date?
     var accentColor: String = ViabarColor.primaryHex
@@ -151,6 +152,68 @@ final class Project {
     var unfinishedMilestones: [Milestone] {
         milestones.filter { !$0.isCompleted }
             .sorted(by: { $0.orderIndex < $1.orderIndex })
+    }
+}
+
+// MARK: - ProjectTemplate
+
+@Model
+final class ProjectTemplate {
+    @Attribute(.unique) var templateId: UUID
+    var name: String
+    var hideCompleted: Bool
+    var orderIndex: Int
+    var accentColor: String
+    var sfSymbolName: String
+
+    @Relationship(deleteRule: .cascade, inverse: \TemplateMilestone.template)
+    var milestones: [TemplateMilestone] = []
+
+    init(
+        name: String,
+        hideCompleted: Bool = true,
+        orderIndex: Int = 0,
+        accentColor: String = ViabarColor.primaryHex,
+        sfSymbolName: String = "circle.dashed"
+    ) {
+        self.templateId = UUID()
+        self.name = name
+        self.hideCompleted = hideCompleted
+        self.orderIndex = orderIndex
+        self.accentColor = accentColor
+        self.sfSymbolName = sfSymbolName
+    }
+}
+
+@Model
+final class TemplateMilestone {
+    @Attribute(.unique) var milestoneId: UUID
+    var title: String
+    var orderIndex: Int
+
+    @Relationship(deleteRule: .cascade, inverse: \TemplateSubTask.milestone)
+    var subtasks: [TemplateSubTask] = []
+
+    var template: ProjectTemplate?
+
+    init(title: String, orderIndex: Int = 0) {
+        self.milestoneId = UUID()
+        self.title = title
+        self.orderIndex = orderIndex
+    }
+}
+
+@Model
+final class TemplateSubTask {
+    @Attribute(.unique) var taskId: UUID
+    var title: String
+    var orderIndex: Int
+    var milestone: TemplateMilestone?
+
+    init(title: String, orderIndex: Int = 0) {
+        self.taskId = UUID()
+        self.title = title
+        self.orderIndex = orderIndex
     }
 }
 
