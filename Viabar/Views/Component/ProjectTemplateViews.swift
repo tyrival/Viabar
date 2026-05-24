@@ -169,6 +169,7 @@ struct ProjectTemplateEditorView: View {
     @State private var showsCompletedTasks: Bool
     @State private var milestones: [TemplateMilestoneDraft]
     @State private var showingSymbolPicker = false
+    @State private var scrollTarget: TemplateEditorField?
     @FocusState private var focusedField: TemplateEditorField?
 
     init(template: ProjectTemplate? = nil) {
@@ -221,14 +222,23 @@ struct ProjectTemplateEditorView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    nameSection
-                    colorAndIconSection
-                    visibilitySection
-                    taskSection
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        nameSection
+                        colorAndIconSection
+                        visibilitySection
+                        taskSection
+                    }
+                    .padding()
                 }
-                .padding()
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                    scrollTarget = nil
+                }
             }
 
             Divider()
@@ -407,6 +417,7 @@ struct ProjectTemplateEditorView: View {
 
     private func focus(_ field: TemplateEditorField) {
         DispatchQueue.main.async {
+            scrollTarget = field
             focusedField = field
         }
     }
@@ -455,6 +466,7 @@ private struct TemplateMilestoneEditorRow: View {
                     .textFieldStyle(.roundedBorder)
                     .focused(focusedField, equals: .milestone(milestone.id))
                     .onSubmit(onAddMilestone)
+                    .id(TemplateEditorField.milestone(milestone.id))
                 Button(action: onMoveUp) {
                     Image(systemName: "chevron.up")
                 }
@@ -510,6 +522,7 @@ private struct TemplateMilestoneEditorRow: View {
                     .buttonStyle(.plain)
                 }
                 .padding(.leading, 18)
+                .id(TemplateEditorField.subtask(subtask.id))
             }
         }
         .padding(10)
