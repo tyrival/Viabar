@@ -618,7 +618,7 @@ struct OverviewProjectCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 if let milestone = topMilestone {
                     HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
+                        Image(systemName: "bookmark.fill")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(ViabarColor.warning)
                             .frame(width: iconFrameSize, height: iconFrameSize, alignment: .center)
