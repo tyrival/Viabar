@@ -16,6 +16,7 @@ private let milestoneRowOuterVerticalPadding: CGFloat = 4
 struct MilestoneListView: View {
     let project: Project
     var showsHeader: Bool = true
+    var navigationRequest: GlobalSearchNavigationRequest? = nil
 
     @Environment(ServiceContainer.self) private var container
     @State private var newMilestoneTitle: String = ""
@@ -32,13 +33,38 @@ struct MilestoneListView: View {
         container.notificationScheduleService
     }
 
+    private var targetedMilestoneID: UUID? {
+        guard navigationRequest?.projectID == project.projectId else { return nil }
+        switch navigationRequest?.destination {
+        case let .some(.milestone(id)):
+            return id
+        case let .some(.subTask(milestoneID, _)):
+            return milestoneID
+        default:
+            return nil
+        }
+    }
+
+    private var targetedSubTaskID: UUID? {
+        guard navigationRequest?.projectID == project.projectId,
+              case let .some(.subTask(_, subTaskID)) = navigationRequest?.destination
+        else { return nil }
+        return subTaskID
+    }
+
+    private var scrollTargetID: UUID? {
+        targetedSubTaskID ?? targetedMilestoneID
+    }
+
     // MARK: - Filtered Milestones
 
     private var visibleMilestones: [Milestone] {
         let sorted = project.milestones.sorted { $0.orderIndex < $1.orderIndex }
         guard project.hideCompleted else { return sorted }
         return sorted.filter { m in
-            !m.isCompleted || m.subtasks.contains(where: { !$0.isCompleted })
+            m.milestoneId == targetedMilestoneID
+                || !m.isCompleted
+                || m.subtasks.contains(where: { !$0.isCompleted || $0.taskId == targetedSubTaskID })
         }
     }
 
@@ -46,7 +72,7 @@ struct MilestoneListView: View {
         visibleMilestones.map { milestone in
             let sortedSubtasks = milestone.subtasks.sorted { $0.orderIndex < $1.orderIndex }
             let visibleSubtasks = project.hideCompleted
-                ? sortedSubtasks.filter { !$0.isCompleted }
+                ? sortedSubtasks.filter { !$0.isCompleted || $0.taskId == targetedSubTaskID }
                 : sortedSubtasks
 
             return MilestoneSnapshot(
@@ -129,7 +155,9 @@ struct MilestoneListView: View {
                 scrollToBottomTrigger: scrollToBottomTrigger,
                 onMoveMilestone: moveMilestone(id:targetID:placement:),
                 onMoveSubTask: moveSubTask(id:targetMilestoneID:targetSubTaskID:placement:),
-                subTaskReminderBinding: subTaskReminderBinding(id:)
+                subTaskReminderBinding: subTaskReminderBinding(id:),
+                scrollTargetID: scrollTargetID,
+                navigationRequestID: navigationRequest?.id
             )
         } else {
             ScrollView {
@@ -431,6 +459,8 @@ private struct SafeMilestoneListView: View {
     let onMoveMilestone: (UUID, UUID?, ReorderPlacement) -> Void
     let onMoveSubTask: (UUID, UUID, UUID?, ReorderPlacement) -> Void
     let subTaskReminderBinding: (UUID) -> Binding<Reminder?>
+    let scrollTargetID: UUID?
+    let navigationRequestID: UUID?
 
     @State private var addingSubTaskFor: UUID?
     @State private var draggingItem: TaskDragItem?
@@ -457,6 +487,7 @@ private struct SafeMilestoneListView: View {
                         dropTarget: $dropTarget,
                         onPerformDrop: performDrop(_:target:)
                     )
+                    .id(snapshot.id)
                     .safeListRow()
 
                     ForEach(snapshot.subtasks) { subtask in
@@ -475,6 +506,7 @@ private struct SafeMilestoneListView: View {
                             dropTarget: $dropTarget,
                             onPerformDrop: performDrop(_:target:)
                         )
+                        .id(subtask.id)
                         .safeListRow()
                     }
 
@@ -511,6 +543,12 @@ private struct SafeMilestoneListView: View {
             .onChange(of: scrollToBottomTrigger) { _, _ in
                 scrollToBottom(proxy)
             }
+            .onAppear {
+                scrollToTarget(proxy)
+            }
+            .onChange(of: navigationRequestID) { _, _ in
+                scrollToTarget(proxy)
+            }
         }
     }
 
@@ -518,6 +556,15 @@ private struct SafeMilestoneListView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
             withAnimation(.easeInOut(duration: 0.18)) {
                 proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+            }
+        }
+    }
+
+    private func scrollToTarget(_ proxy: ScrollViewProxy) {
+        guard let scrollTargetID else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                proxy.scrollTo(scrollTargetID, anchor: .center)
             }
         }
     }

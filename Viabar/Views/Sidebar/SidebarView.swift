@@ -97,6 +97,7 @@ struct SidebarView: View {
     @Query(sort: \Project.orderIndex) private var allProjects: [Project]
     @Query(sort: \ArchiveFolder.orderIndex) private var allFolders: [ArchiveFolder]
     @Binding var selection: SidebarSelection?
+    var revealRequest: GlobalSearchNavigationRequest? = nil
 
     @State private var showNewProjectSheet: Bool = false
     @State private var editingProject: Project?
@@ -176,6 +177,12 @@ struct SidebarView: View {
             Text(deleteConfirmation?.message ?? "")
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 260)
+        .onAppear {
+            revealArchivedProject(revealRequest?.projectID)
+        }
+        .onChange(of: revealRequest?.id) { _, _ in
+            revealArchivedProject(revealRequest?.projectID)
+        }
         .archiveFolderPicker(
             isPresented: Binding(
                 get: { archivePickerProject != nil },
@@ -461,6 +468,22 @@ struct SidebarView: View {
         }
 
         deleteConfirmation = nil
+    }
+
+    private func revealArchivedProject(_ projectID: UUID?) {
+        guard let projectID,
+              let project = allProjects.first(where: { $0.projectId == projectID && $0.isArchived }),
+              let folder = project.archiveFolder
+        else { return }
+
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isArchiveExpanded = true
+            var current: ArchiveFolder? = folder
+            while let currentFolder = current {
+                expandedFolderIds.insert(currentFolder.folderId)
+                current = currentFolder.parent
+            }
+        }
     }
 
 }

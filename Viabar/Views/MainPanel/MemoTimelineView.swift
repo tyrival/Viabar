@@ -10,6 +10,7 @@ struct MemoTimelineView: View {
     let project: Project
     @Binding var searchDraft: String
     @Binding var activeSearchQuery: String
+    var navigationRequest: GlobalSearchNavigationRequest? = nil
 
     @Environment(ServiceContainer.self) private var container
     @State private var newMemoContent: String = ""
@@ -45,6 +46,13 @@ struct MemoTimelineView: View {
 
     private var hasActiveSearch: Bool {
         !activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var targetedMemoID: UUID? {
+        guard navigationRequest?.projectID == project.projectId,
+              case let .some(.memo(id)) = navigationRequest?.destination
+        else { return nil }
+        return id
     }
 
     // MARK: - Body
@@ -122,10 +130,18 @@ struct MemoTimelineView: View {
             }
             .scrollClipDisabled(false)
             .onAppear {
-                scrollToBottom(proxy)
+                if let targetedMemoID {
+                    scrollToMemo(targetedMemoID, proxy: proxy)
+                } else {
+                    scrollToBottom(proxy)
+                }
             }
             .onChange(of: scrollToBottomTrigger) { _, _ in
                 scrollToBottom(proxy)
+            }
+            .onChange(of: navigationRequest?.id) { _, _ in
+                guard let targetedMemoID else { return }
+                scrollToMemo(targetedMemoID, proxy: proxy)
             }
         }
     }
@@ -234,6 +250,14 @@ struct MemoTimelineView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
             withAnimation(.easeInOut(duration: 0.18)) {
                 proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+            }
+        }
+    }
+
+    private func scrollToMemo(_ id: UUID, proxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                proxy.scrollTo(id, anchor: .center)
             }
         }
     }

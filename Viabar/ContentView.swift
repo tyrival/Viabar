@@ -14,6 +14,10 @@ struct ContentView: View {
     @State private var overviewDeleteProject: Project?
     @State private var memoSearchDraft: String = ""
     @State private var activeMemoSearchQuery: String = ""
+    @State private var isGlobalSearchPresented = false
+    @State private var globalSearchQuery = ""
+    @State private var highlightedSearchResultID: String?
+    @State private var navigationRequest: GlobalSearchNavigationRequest?
 
     @Environment(ServiceContainer.self) private var container
 
@@ -27,14 +31,17 @@ struct ContentView: View {
         toolbarButtonSize + toolbarEdgeInset * 2
     }
 
-    private var collapsedHideCompletedTrailing: CGFloat {
+    private var collapsedProjectToolbarTrailing: CGFloat {
         toolbarButtonSize + toolbarEdgeInset * 2
     }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             NavigationSplitView(columnVisibility: $splitVisibility) {
-                SidebarView(selection: $selection)
+                SidebarView(
+                    selection: $selection,
+                    revealRequest: navigationRequest
+                )
             } detail: {
                 detailContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -51,11 +58,13 @@ struct ContentView: View {
                 memoToggleLayer
             }
 
-            if let project = selectedProject {
-                mainToolbarLayer(project: project)
-            }
+            mainToolbarLayer
         }
         .animation(.easeInOut(duration: 0.2), value: isMemoDrawerVisible)
+        .onChange(of: selectedProject?.projectId) { _, projectID in
+            guard let navigationRequest, projectID != navigationRequest.projectID else { return }
+            self.navigationRequest = nil
+        }
         .sheet(item: $overviewEditProject) { project in
             NewProjectView(editingProject: project)
         }
@@ -113,7 +122,8 @@ struct ContentView: View {
             MainSplitView(
                 project: project,
                 reservesMemoDrawer: isMemoDrawerVisible,
-                memoPanelWidth: memoDrawerWidth
+                memoPanelWidth: memoDrawerWidth,
+                navigationRequest: navigationRequest
             )
         }
     }
@@ -131,6 +141,10 @@ struct ContentView: View {
 
     private var projectService: ProjectService? {
         container.projectService
+    }
+
+    private var globalSearchResults: [GlobalSearchResult] {
+        GlobalSearchIndex.results(matching: globalSearchQuery, projects: allProjects)
     }
 
     private func memoDrawer(project: Project) -> some View {
@@ -151,7 +165,8 @@ struct ContentView: View {
                 MemoTimelineView(
                     project: project,
                     searchDraft: $memoSearchDraft,
-                    activeSearchQuery: $activeMemoSearchQuery
+                    activeSearchQuery: $activeMemoSearchQuery,
+                    navigationRequest: navigationRequest
                 )
             }
             .frame(width: memoDrawerWidth)
@@ -255,41 +270,71 @@ struct ContentView: View {
         .onHover { hoveredToolbarButton = $0 ? .memoDrawer : nil }
     }
 
-    private func mainToolbarLayer(project: Project) -> some View {
+    private var mainToolbarLayer: some View {
         VStack {
-            ZStack(alignment: .top) {
-                toolbarGradientMask
-                    .padding(.trailing, isMemoDrawerVisible ? memoDrawerWidth : 0)
+            GeometryReader { proxy in
+                ZStack(alignment: .top) {
+                    toolbarGradientMask
+                        .padding(.trailing, selectedProject != nil && isMemoDrawerVisible ? memoDrawerWidth : 0)
 
-                HStack(spacing: 12) {
-                    if isSidebarHidden {
-                        HStack(spacing: 8) {
-                            Image(systemName: project.sfSymbolName)
-                                .font(.title2.weight(.semibold))
-                                .foregroundStyle(Color(hex: project.accentColor))
-                            Text(project.title)
-                                .font(.title2.weight(.bold))
-                                .lineLimit(1)
-                                .foregroundStyle(.primary)
+                    HStack(spacing: 12) {
+                        if isSidebarHidden, let project = selectedProject {
+                            HStack(spacing: 8) {
+                                Image(systemName: project.sfSymbolName)
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(Color(hex: project.accentColor))
+                                Text(project.title)
+                                    .font(.title2.weight(.bold))
+                                    .lineLimit(1)
+                                    .foregroundStyle(.primary)
+                            }
+                            .lineLimit(1)
+                            .frame(maxWidth: 360, alignment: .leading)
+                            .padding(.leading, 180)
                         }
-                        .lineLimit(1)
-                        .frame(maxWidth: 360, alignment: .leading)
-                        .padding(.leading, 180)
+
+                        Spacer()
+
+                        GlobalSearchOverlay(
+                            isPresented: $isGlobalSearchPresented,
+                            query: $globalSearchQuery,
+                            highlightedResultID: $highlightedSearchResultID,
+                            results: globalSearchResults,
+                            availableWidth: globalSearchWidth(for: proxy.size.width),
+                            iconSize: toolbarButtonIconSize,
+                            buttonSize: toolbarButtonSize,
+                            onSelect: openSearchResult(_:)
+                        )
+
+                        if let project = selectedProject {
+                            hideCompletedButton(project: project)
+                        }
                     }
-
-                    Spacer()
-
-                    hideCompletedButton(project: project)
-                        .padding(.trailing, isMemoDrawerVisible ? memoDrawerWidth + toolbarEdgeInset : collapsedHideCompletedTrailing)
+                    .padding(.trailing, toolbarTrailingPadding)
+                    .padding(.top, toolbarEdgeInset)
                 }
-                .padding(.top, toolbarEdgeInset)
             }
             .frame(height: toolbarGradientHeight)
 
             Spacer()
         }
         .ignoresSafeArea(.container, edges: [.top, .bottom])
-        .zIndex(1)
+        .zIndex(3)
+    }
+
+    private var toolbarTrailingPadding: CGFloat {
+        guard selectedProject != nil else { return toolbarEdgeInset }
+        return isMemoDrawerVisible
+            ? memoDrawerWidth + toolbarEdgeInset
+            : collapsedProjectToolbarTrailing
+    }
+
+    private func globalSearchWidth(for toolbarWidth: CGFloat) -> CGFloat {
+        let preferredWidth: CGFloat = isSidebarHidden ? 520 : 420
+        let titleReservation: CGFloat = isSidebarHidden && selectedProject != nil ? 500 : 120
+        let projectControls = selectedProject == nil ? 0 : toolbarButtonSize + 12
+        let usableWidth = toolbarWidth - toolbarTrailingPadding - titleReservation - projectControls
+        return min(preferredWidth, max(260, usableWidth))
     }
 
     private var toolbarGradientMask: some View {
@@ -321,6 +366,27 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .help(project.hideCompleted ? "显示已完成里程碑" : "隐藏已完成里程碑")
         .onHover { hoveredToolbarButton = $0 ? .hideCompleted : nil }
+    }
+
+    private func openSearchResult(_ result: GlobalSearchResult) {
+        navigationRequest = GlobalSearchNavigationRequest(
+            projectID: result.project.projectId,
+            destination: result.destination
+        )
+        selection = .project(result.project)
+
+        if case .memo = result.destination {
+            resetMemoSearch()
+            isMemoDrawerVisible = true
+        }
+
+        dismissGlobalSearch()
+    }
+
+    private func dismissGlobalSearch() {
+        isGlobalSearchPresented = false
+        globalSearchQuery = ""
+        highlightedSearchResultID = nil
     }
 
     private func toolbarButtonBackground(isHovered: Bool) -> some View {

@@ -9,9 +9,14 @@ struct MainSplitView: View {
     let project: Project
     var reservesMemoDrawer: Bool = false
     var memoPanelWidth: CGFloat = 360
+    var navigationRequest: GlobalSearchNavigationRequest? = nil
 
     var body: some View {
-        MilestoneListView(project: project, showsHeader: false)
+        MilestoneListView(
+            project: project,
+            showsHeader: false,
+            navigationRequest: navigationRequest
+        )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.trailing, reservesMemoDrawer ? memoPanelWidth : 0)
     }
