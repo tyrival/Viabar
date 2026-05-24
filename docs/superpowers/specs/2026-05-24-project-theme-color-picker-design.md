@@ -11,9 +11,9 @@ the macOS system color picker.
 Replace the existing project theme presets with these nine hex colors, preserving
 this display order:
 
-1. `#00CBCF` - blue
+1. `#009AFF` - blue
 2. `#00AB74` - green
-3. `#009AFF` - blue
+3. `#00CBCF` - blue
 4. `#FFCB24` - yellow
 5. `#00CD69` - green
 6. `#FF4846` - red

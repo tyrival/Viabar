@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension Color {
@@ -36,5 +37,17 @@ extension Color {
     var overlayTextColor: Color {
         // 简单起见统一用白色 + 阴影，保证可读性
         .white
+    }
+
+    /// 返回适合存储的 sRGB 十六进制字符串，不包含透明通道。
+    var hexRGB: String? {
+        guard let rgbColor = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+
+        return String(
+            format: "#%02X%02X%02X",
+            Int((rgbColor.redComponent * 255).rounded()),
+            Int((rgbColor.greenComponent * 255).rounded()),
+            Int((rgbColor.blueComponent * 255).rounded())
+        )
     }
 }

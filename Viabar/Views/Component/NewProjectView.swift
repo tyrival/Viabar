@@ -26,6 +26,23 @@ struct NewProjectView: View {
         container.projectService
     }
 
+    private var isUsingCustomColor: Bool {
+        !ViabarColor.palette.contains {
+            $0.hex.caseInsensitiveCompare(selectedColorHex) == .orderedSame
+        }
+    }
+
+    private var customColorBinding: Binding<Color> {
+        Binding(
+            get: { Color(hex: selectedColorHex) },
+            set: { newColor in
+                if let hex = newColor.hexRGB {
+                    selectedColorHex = hex
+                }
+            }
+        )
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -122,10 +139,15 @@ struct NewProjectView: View {
                         ColorCircle(
                             hex: item.hex,
                             name: item.name,
-                            isSelected: selectedColorHex == item.hex,
+                            isSelected: selectedColorHex.caseInsensitiveCompare(item.hex) == .orderedSame,
                             onSelect: { selectedColorHex = item.hex }
                         )
                     }
+
+                    CustomColorCircle(
+                        color: customColorBinding,
+                        isSelected: isUsingCustomColor
+                    )
                 }
             }
         }
@@ -224,6 +246,45 @@ struct ColorCircle: View {
         }
         .buttonStyle(.plain)
         .help(name)
+    }
+}
+
+// MARK: - CustomColorCircle
+
+struct CustomColorCircle: View {
+    @Binding var color: Color
+    let isSelected: Bool
+
+    var body: some View {
+        ZStack {
+            ColorPicker("自定义颜色", selection: $color, supportsOpacity: false)
+                .labelsHidden()
+                .opacity(0.01)
+
+            Circle()
+                .fill(
+                    isSelected
+                        ? AnyShapeStyle(color)
+                        : AnyShapeStyle(
+                            AngularGradient(
+                                colors: [.red, .yellow, .green, .blue, .purple, .red],
+                                center: .center
+                            )
+                        )
+                )
+                .allowsHitTesting(false)
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.caption2).bold()
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 1)
+                    .allowsHitTesting(false)
+            }
+        }
+        .frame(width: 28, height: 28)
+        .contentShape(Circle())
+        .help("自定义颜色")
     }
 }
 

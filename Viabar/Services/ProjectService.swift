@@ -111,7 +111,14 @@ final class ProjectService: ProjectServiceProtocol {
 
     @discardableResult
     func createProject(title: String, hideCompleted: Bool = true, orderIndex: Int = 0) -> Project {
-        let project = Project(title: title, hideCompleted: hideCompleted, orderIndex: orderIndex)
+        let activeProjects = allActiveProjects()
+        let insertionIndex = min(max(orderIndex, 0), activeProjects.count)
+
+        for (index, existingProject) in activeProjects.enumerated() {
+            existingProject.orderIndex = index < insertionIndex ? index : index + 1
+        }
+
+        let project = Project(title: title, hideCompleted: hideCompleted, orderIndex: insertionIndex)
         modelContext.insert(project)
         save()
         return project
