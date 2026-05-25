@@ -141,7 +141,10 @@ private struct SettingsDetailView: View {
                 SettingsRow("图标") {
                     Picker("图标", selection: menuBarIconBinding) {
                         ForEach(MenuBarIcon.allCases) { icon in
-                            Label(icon.rawValue, systemImage: icon.rawValue).tag(icon)
+                            Image(systemName: icon.rawValue)
+                                .font(.system(size: 16))
+                                .accessibilityLabel(Text(icon.rawValue))
+                                .tag(icon)
                         }
                     }
                     .labelsHidden()

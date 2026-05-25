@@ -295,8 +295,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         descriptor.fetchLimit = 1
         let settings = (try? modelContext.fetch(descriptor))?.first
         let language = AppLanguage.effectiveLanguage(storedValue: settings?.language)
-        let format = AppLocalization.string("下一步：%@", language: language)
-        return String(format: format, title)
+        return AppLocalization.format("下一步：%@", language: language, title)
     }
 }
 

@@ -1554,7 +1554,7 @@ struct MilestoneRowView: View {
                         .foregroundStyle(milestone.isCompleted ? .secondary : .primary)
 
                     if isHovering, milestone.isCompleted, let completedAt = milestone.completedAt {
-                        Text("（\(formatCompletionTimestamp(completedAt, language: .resolve(locale: locale)))）")
+                        Text(completionTimestampLabel(completedAt, language: .resolve(locale: locale)))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .fixedSize(horizontal: true, vertical: true)
@@ -1718,7 +1718,13 @@ struct SubTaskRowView: View {
         guard isHovering, subTask.isCompleted, let completedAt = subTask.completedAt else {
             return subTask.title
         }
-        return "\(subTask.title)（\(formatCompletionTimestamp(completedAt, language: .resolve(locale: locale)))）"
+        let language = EffectiveAppLanguage.resolve(locale: locale)
+        return AppLocalization.format(
+            "%@（%@）",
+            language: language,
+            subTask.title,
+            formatCompletionTimestamp(completedAt, language: language)
+        )
     }
 }
 
@@ -1732,6 +1738,10 @@ private enum MilestoneListStyle {
     static let sendButtonInactive = Color(nsColor: .tertiaryLabelColor)
 }
 
+private func completionTimestampLabel(_ date: Date, language: EffectiveAppLanguage) -> String {
+    AppLocalization.format("（%@）", language: language, formatCompletionTimestamp(date, language: language))
+}
+
 private func formatCompletionTimestamp(_ date: Date, language: EffectiveAppLanguage) -> String {
     let calendar = Calendar.current
     let formatter = DateFormatter()
@@ -1743,8 +1753,7 @@ private func formatCompletionTimestamp(_ date: Date, language: EffectiveAppLangu
 
     if calendar.isDateInYesterday(date) {
         formatter.dateFormat = "HH:mm"
-        let format = AppLocalization.string("昨天 %@", language: language)
-        return String(format: format, formatter.string(from: date))
+        return AppLocalization.format("昨天 %@", language: language, formatter.string(from: date))
     }
 
     if calendar.component(.year, from: date) == calendar.component(.year, from: Date()) {

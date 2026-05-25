@@ -184,6 +184,8 @@
 "循环" = "Repeating";
 "下一步：%@" = "Next: %@";
 "昨天 %@" = "Yesterday %@";
+"（%@）" = "(%@)";
+"%@（%@）" = "%@ (%@)";
 "默认归档" = "Default Archive";
 "“%@”不是空文件夹，删除后其中的项目和子文件夹均不可恢复。" = "\"%@\" is not empty. Its projects and subfolders will be permanently deleted.";
 "蓝" = "Blue";

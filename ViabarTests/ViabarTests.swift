@@ -218,9 +218,11 @@ struct AppSettingsTests {
 
     @Test func resolvesLanguageImmediatelyWithEnglishSystemFallback() {
         #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["zh-Hans-CN"]) == .simplifiedChinese)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["zh-CN"]) == .simplifiedChinese)
         #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["en-SG"]) == .english)
         #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["zh-Hant-TW"]) == .english)
         #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["ja-JP"]) == .english)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["ja-JP", "zh-Hans-CN"]) == .english)
         #expect(AppLanguage.effectiveLanguage(storedValue: "invalid", preferredLanguages: ["zh-Hans"]) == .simplifiedChinese)
         #expect(AppLanguage.effectiveLanguage(storedValue: "english", preferredLanguages: ["zh-Hans"]) == .english)
         #expect(AppLanguage.effectiveLanguage(storedValue: "simplifiedChinese", preferredLanguages: ["en"]) == .simplifiedChinese)

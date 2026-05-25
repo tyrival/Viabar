@@ -44,7 +44,9 @@ enum AppLanguage: String, CaseIterable, Identifiable {
             return .simplifiedChinese
         case .system:
             let preferred = preferredLanguages.first?.lowercased() ?? ""
-            return preferred.hasPrefix("zh-hans") || preferred.hasPrefix("zh_cn")
+            return preferred.hasPrefix("zh-hans")
+                || preferred.hasPrefix("zh-cn")
+                || preferred.hasPrefix("zh_cn")
                 ? .simplifiedChinese
                 : .english
         }
