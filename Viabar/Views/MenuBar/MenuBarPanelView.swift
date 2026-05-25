@@ -77,7 +77,13 @@ struct MenuBarPanelView: View {
         }
         .padding(10)
         .frame(width: 390, height: 560)
-        .background(MenuBarPanelStyle.panelBackground.opacity(0.9))
+        .background {
+            ZStack {
+                MenuBarPanelWindowConfigurator()
+                Rectangle()
+                    .fill(MenuBarPanelStyle.panelTint)
+            }
+        }
         .environment(\.locale, effectiveLanguage.locale)
         .preferredColorScheme(preferredColorScheme)
         .onChange(of: selectedProjectID) { _, _ in
@@ -162,8 +168,9 @@ struct MenuBarPanelView: View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    TextField("添加任务", text: $taskDraft)
+                    TextField("添加任务", text: $taskDraft, axis: .vertical)
                         .textFieldStyle(.plain)
+                        .lineLimit(1...3)
                         .onSubmit(commitTask)
                 }
 
@@ -491,6 +498,41 @@ private struct MenuBarReminderSummary: View {
     }
 }
 
+private struct MenuBarPanelWindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> MenuBarPanelProbeView {
+        let view = MenuBarPanelProbeView()
+        view.onWindowResolved = applyWindowAppearance
+        return view
+    }
+
+    func updateNSView(_ nsView: MenuBarPanelProbeView, context: Context) {
+        nsView.onWindowResolved = applyWindowAppearance
+        nsView.resolveCurrentWindow()
+    }
+
+    private func applyWindowAppearance(_ window: NSWindow) {
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.titlebarAppearsTransparent = true
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+    }
+}
+
+private final class MenuBarPanelProbeView: NSView {
+    var onWindowResolved: ((NSWindow) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        resolveCurrentWindow()
+    }
+
+    func resolveCurrentWindow() {
+        guard let window else { return }
+        onWindowResolved?(window)
+    }
+}
+
 struct MenuBarStatusLabelView: View {
     let icon: MenuBarIcon
 
@@ -500,17 +542,21 @@ struct MenuBarStatusLabelView: View {
 }
 
 private enum MenuBarPanelStyle {
-    static let panelBackground = Color(nsColor: NSColor(name: nil) { appearance in
+    static let panelTint = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.20, alpha: 1)
-            : NSColor(calibratedRed: 0.88, green: 0.92, blue: 0.98, alpha: 1)
+            ? NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.20, alpha: 0.36)
+            : NSColor(calibratedRed: 0.78, green: 0.87, blue: 0.97, alpha: 0.02)
     })
     static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 1)
-            : NSColor(calibratedWhite: 0.97, alpha: 0.78)
+            ? NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.54)
+            : NSColor(calibratedWhite: 0.97, alpha: 0.32)
     })
-    static let cardBorder = Color(nsColor: NSColor.separatorColor).opacity(0.38)
+    static let cardBorder = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(calibratedWhite: 0.52, alpha: 0.36)
+            : NSColor(calibratedWhite: 0.70, alpha: 0.52)
+    })
     static let headerTagForeground = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(calibratedWhite: 0.92, alpha: 1)
