@@ -66,7 +66,11 @@ struct NewProjectView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(editingProject == nil ? "新建" : "编辑").font(.title3).bold()
+                if editingProject == nil {
+                    Text("新建").font(.title3).bold()
+                } else {
+                    Text("编辑").font(.title3).bold()
+                }
                 Spacer()
             }
             .padding()
@@ -88,9 +92,15 @@ struct NewProjectView: View {
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
-                Button(editingProject == nil ? "创建" : "保存") { commitProject() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(projectName.trimmingCharacters(in: .whitespaces).isEmpty)
+                if editingProject == nil {
+                    Button("创建") { commitProject() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(projectName.trimmingCharacters(in: .whitespaces).isEmpty)
+                } else {
+                    Button("保存") { commitProject() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(projectName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
             }
             .padding()
         }
@@ -118,7 +128,7 @@ struct NewProjectView: View {
                         .foregroundStyle(projectReminder == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
                 }
                 .buttonStyle(.borderless)
-                .help(projectReminder == nil ? "添加项目提醒" : "编辑项目提醒")
+                .help(projectReminder == nil ? Text("添加项目提醒") : Text("编辑项目提醒"))
                 .popover(isPresented: $showingReminderPopover, arrowEdge: .leading) {
                     ReminderSettingsPopover(reminder: $projectReminder)
                 }
@@ -142,8 +152,14 @@ struct NewProjectView: View {
                             Text(selectedTemplate.name)
                                 .foregroundStyle(.primary)
                         } else {
-                            Text(templates.isEmpty ? "暂无模板" : "选择模板...")
-                                .foregroundStyle(.secondary)
+                            Group {
+                                if templates.isEmpty {
+                                    Text("暂无模板")
+                                } else {
+                                    Text("选择模板...")
+                                }
+                            }
+                            .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Image(systemName: "chevron.up.chevron.down")
@@ -221,11 +237,19 @@ struct NewProjectView: View {
                     }
 
                     if filteredTemplates.isEmpty {
-                        Text(templates.isEmpty ? "还没有模板" : "没有匹配的模板")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                        if templates.isEmpty {
+                            Text("还没有模板")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        } else {
+                            Text("没有匹配的模板")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
                     } else {
                         ForEach(filteredTemplates) { template in
                             Button {
@@ -369,7 +393,7 @@ struct NewProjectView: View {
 
 struct ColorCircle: View {
     let hex: String
-    let name: String
+    let name: LocalizedStringKey
     let isSelected: Bool
     let onSelect: () -> Void
 
@@ -388,7 +412,7 @@ struct ColorCircle: View {
             }
         }
         .buttonStyle(.plain)
-        .help(name)
+        .help(Text(name))
     }
 }
 

@@ -22,18 +22,28 @@ struct GlobalSearchResult: Identifiable {
 }
 
 enum GlobalSearchIndex {
-    static func results(matching query: String, projects: [Project]) -> [GlobalSearchResult] {
+    static func results(
+        matching query: String,
+        projects: [Project],
+        archiveLabel: String = "归档",
+        memoLabel: String = "备忘录"
+    ) -> [GlobalSearchResult] {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !term.isEmpty else { return [] }
 
         return orderedProjects(from: projects).flatMap { project in
-            matchingResults(in: project, term: term)
+            matchingResults(in: project, term: term, archiveLabel: archiveLabel, memoLabel: memoLabel)
         }
     }
 
-    private static func matchingResults(in project: Project, term: String) -> [GlobalSearchResult] {
+    private static func matchingResults(
+        in project: Project,
+        term: String,
+        archiveLabel: String,
+        memoLabel: String
+    ) -> [GlobalSearchResult] {
         var results: [GlobalSearchResult] = []
-        let prefix = project.isArchived ? "归档 / " : ""
+        let prefix = project.isArchived ? "\(archiveLabel) / " : ""
         let projectPath = "\(prefix)\(project.title)"
 
         if project.title.localizedCaseInsensitiveContains(term) {
@@ -85,7 +95,7 @@ enum GlobalSearchIndex {
                     id: "memo-\(memo.memoId.uuidString)",
                     project: project,
                     text: memo.content,
-                    path: "\(projectPath) / 备忘录",
+                    path: "\(projectPath) / \(memoLabel)",
                     destination: .memo(memo.memoId)
                 )
             )

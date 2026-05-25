@@ -8,6 +8,7 @@ struct GlobalSearchOverlay: View {
     let availableWidth: CGFloat
     let iconSize: CGFloat
     let buttonSize: CGFloat
+    let onPresent: () -> Void
     let onSelect: (GlobalSearchResult) -> Void
 
     @FocusState private var isFieldFocused: Bool
@@ -50,9 +51,7 @@ struct GlobalSearchOverlay: View {
 
     private var collapsedButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isPresented = true
-            }
+            onPresent()
             DispatchQueue.main.async {
                 isFieldFocused = true
             }

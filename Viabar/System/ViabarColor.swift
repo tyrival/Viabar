@@ -33,7 +33,7 @@ enum ViabarColor {
 
 extension ViabarColor {
     /// 新建项目时可选的背景色
-    static let palette: [(hex: String, name: String)] = [
+    static let palette: [(hex: String, name: LocalizedStringKey)] = [
         ("#009AFF", "蓝"),
         ("#00AB74", "绿"),
         ("#00CBCF", "蓝"),

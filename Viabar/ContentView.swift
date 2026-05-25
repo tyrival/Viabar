@@ -4,6 +4,7 @@ import AppKit
 
 struct ContentView: View {
     @Query(sort: \Project.orderIndex) private var allProjects: [Project]
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
 
     @State private var selection: SidebarSelection? = .overview
     @State private var isMemoDrawerVisible: Bool = true
@@ -20,6 +21,8 @@ struct ContentView: View {
     @State private var navigationRequest: GlobalSearchNavigationRequest?
 
     @Environment(ServiceContainer.self) private var container
+    @Environment(AppRuntimeController.self) private var runtimeController
+    @Environment(\.openWindow) private var openWindow
 
     private let memoDrawerWidth: CGFloat = 360
     private let toolbarButtonSize: CGFloat = 36
@@ -45,6 +48,11 @@ struct ContentView: View {
             } detail: {
                 detailContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .top) {
+                        toolbarGradientMask
+                            .padding(.trailing, selectedProject != nil && isMemoDrawerVisible ? memoDrawerWidth : 0)
+                            .ignoresSafeArea(.container, edges: .top)
+                    }
                     .toolbarBackground(.hidden, for: .automatic)
                     .navigationTitle("")
             }
@@ -70,6 +78,21 @@ struct ContentView: View {
             mainToolbarLayer
         }
         .animation(.easeInOut(duration: 0.2), value: isMemoDrawerVisible)
+        .background {
+            MainWindowReader { window in
+                runtimeController.registerMainWindow(window)
+            }
+        }
+        .environment(\.locale, effectiveLanguage.locale)
+        .onAppear {
+            runtimeController.registerMainWindowOpener {
+                openWindow(id: "main")
+            }
+            presentPendingGlobalSearchIfNeeded()
+        }
+        .onChange(of: runtimeController.searchPresentationID) { _, _ in
+            presentPendingGlobalSearchIfNeeded()
+        }
         .onChange(of: selectedProject?.projectId) { _, projectID in
             guard let navigationRequest, projectID != navigationRequest.projectID else { return }
             self.navigationRequest = nil
@@ -97,7 +120,9 @@ struct ContentView: View {
                 overviewDeleteProject = nil
             }
         } message: {
-            Text(overviewDeleteProject.map { "“\($0.title)”将被永久删除，无法恢复。" } ?? "")
+            if let project = overviewDeleteProject {
+                Text("“\(project.title)”将被永久删除，无法恢复。")
+            }
         }
         .archiveFolderPicker(
             isPresented: Binding(
@@ -122,6 +147,7 @@ struct ContentView: View {
         case .overview, .none:
             OverviewDashboardView(
                 projects: allProjects,
+                overviewScope: settingsRecords.first?.overviewScope,
                 onSelectProject: { selection = .project($0) },
                 onEditProject: { overviewEditProject = $0 },
                 onArchiveProject: { overviewArchiveProject = $0 },
@@ -144,6 +170,10 @@ struct ContentView: View {
         return nil
     }
 
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
     private var isSidebarHidden: Bool {
         splitVisibility == .detailOnly
     }
@@ -153,7 +183,12 @@ struct ContentView: View {
     }
 
     private var globalSearchResults: [GlobalSearchResult] {
-        GlobalSearchIndex.results(matching: globalSearchQuery, projects: allProjects)
+        GlobalSearchIndex.results(
+            matching: globalSearchQuery,
+            projects: allProjects,
+            archiveLabel: AppLocalization.string("归档", language: effectiveLanguage),
+            memoLabel: AppLocalization.string("备忘录", language: effectiveLanguage)
+        )
     }
 
     private func memoDrawer(project: Project) -> some View {
@@ -275,7 +310,7 @@ struct ContentView: View {
                 }
         }
         .buttonStyle(.plain)
-        .help(isMemoDrawerVisible ? "收起备忘录" : "展开备忘录")
+        .help(isMemoDrawerVisible ? Text("收起备忘录") : Text("展开备忘录"))
         .onHover { hoveredToolbarButton = $0 ? .memoDrawer : nil }
     }
 
@@ -283,9 +318,6 @@ struct ContentView: View {
         VStack {
             GeometryReader { proxy in
                 ZStack(alignment: .top) {
-                    toolbarGradientMask
-                        .padding(.trailing, selectedProject != nil && isMemoDrawerVisible ? memoDrawerWidth : 0)
-
                     HStack(spacing: 12) {
                         if isSidebarHidden, let project = selectedProject {
                             HStack(spacing: 8) {
@@ -316,6 +348,7 @@ struct ContentView: View {
                             availableWidth: globalSearchWidth(for: proxy.size.width),
                             iconSize: toolbarButtonIconSize,
                             buttonSize: toolbarButtonSize,
+                            onPresent: presentGlobalSearch,
                             onSelect: openSearchResult(_:)
                         )
 
@@ -360,7 +393,8 @@ struct ContentView: View {
             startPoint: .top,
             endPoint: .bottom
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .frame(height: toolbarGradientHeight, alignment: .top)
         .allowsHitTesting(false)
     }
 
@@ -377,7 +411,7 @@ struct ContentView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(project.hideCompleted ? "显示已完成里程碑" : "隐藏已完成里程碑")
+        .help(project.hideCompleted ? Text("显示已完成里程碑") : Text("隐藏已完成里程碑"))
         .onHover { hoveredToolbarButton = $0 ? .hideCompleted : nil }
     }
 
@@ -409,6 +443,17 @@ struct ContentView: View {
         highlightedSearchResultID = nil
     }
 
+    private func presentGlobalSearch() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isGlobalSearchPresented = true
+        }
+    }
+
+    private func presentPendingGlobalSearchIfNeeded() {
+        guard runtimeController.consumePendingSearchPresentation() else { return }
+        presentGlobalSearch()
+    }
+
     private func toolbarButtonBackground(isHovered: Bool) -> some View {
         Circle()
             .fill(Color(nsColor: .controlBackgroundColor))
@@ -427,6 +472,7 @@ private enum ToolbarButtonKind: Equatable {
 
 struct OverviewDashboardView: View {
     let projects: [Project]
+    let overviewScope: String?
     let onSelectProject: (Project) -> Void
     let onEditProject: (Project) -> Void
     let onArchiveProject: (Project) -> Void
@@ -437,9 +483,7 @@ struct OverviewDashboardView: View {
     private let contentPadding: CGFloat = 16
 
     private var visibleProjects: [Project] {
-        projects
-            .filter { !$0.isArchived }
-            .sorted { $0.orderIndex < $1.orderIndex }
+        OverviewScope.visibleProjects(from: projects, storedValue: overviewScope)
     }
 
     var body: some View {
@@ -472,6 +516,44 @@ struct OverviewDashboardView: View {
             repeating: GridItem(.flexible(minimum: cardMinimumWidth), spacing: cardSpacing, alignment: .top),
             count: columnCount
         )
+    }
+}
+
+private struct MainWindowReader: NSViewRepresentable {
+    let onResolve: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> WindowObservingView {
+        WindowObservingView(onResolve: onResolve)
+    }
+
+    func updateNSView(_ nsView: WindowObservingView, context: Context) {
+        nsView.onResolve = onResolve
+        nsView.resolveWindow()
+    }
+
+    final class WindowObservingView: NSView {
+        var onResolve: (NSWindow?) -> Void
+
+        init(onResolve: @escaping (NSWindow?) -> Void) {
+            self.onResolve = onResolve
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            resolveWindow()
+        }
+
+        func resolveWindow() {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.onResolve(self.window)
+            }
+        }
     }
 }
 
@@ -740,7 +822,11 @@ struct OverviewProjectCard: View {
             Button {
                 projectService?.toggleFavorite(project)
             } label: {
-                Label(project.isFavorite ? "取消收藏" : "收藏", systemImage: project.isFavorite ? "star.slash" : "star")
+                if project.isFavorite {
+                    Label("取消收藏", systemImage: "star.slash")
+                } else {
+                    Label("收藏", systemImage: "star")
+                }
             }
             Divider()
             Button(role: .destructive) {
@@ -792,6 +878,7 @@ private extension Reminder {
 #Preview {
     ContentView()
         .environment(ServiceContainer())
+        .environment(AppRuntimeController())
         .modelContainer(
             for: [
                 Project.self,

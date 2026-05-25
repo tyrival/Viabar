@@ -162,8 +162,12 @@ For `显示 / 隐藏主面板`:
 
 - if no main panel is visible, activate Viabar and make its main window key and
   front;
-- if the main panel is currently visible, order that window out so it can be
-  recalled with the same shortcut;
+- if the main panel is currently the active key window, order it out so it can
+  be recalled with the same shortcut;
+- if it is visible but behind another app or not key, activate Viabar and bring
+  the panel forward rather than hiding a panel the user is trying to summon;
+- if its previous main window was closed while the Viabar process remains
+  running, open a replacement main window and bring it to the front;
 - the Settings window is not treated as the main panel and does not substitute
   for it.
 

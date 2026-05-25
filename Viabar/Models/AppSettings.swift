@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 enum AppTheme: String, CaseIterable, Identifiable {
     case system
@@ -8,7 +9,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .system: "系统"
         case .light: "浅色"
@@ -24,12 +25,42 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .system: "系统"
         case .english: "English"
         case .simplifiedChinese: "简体中文"
         }
+    }
+
+    static func effectiveLanguage(
+        storedValue: String?,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> EffectiveAppLanguage {
+        switch AppLanguage(rawValue: storedValue ?? "") ?? .system {
+        case .english:
+            return .english
+        case .simplifiedChinese:
+            return .simplifiedChinese
+        case .system:
+            let preferred = preferredLanguages.first?.lowercased() ?? ""
+            return preferred.hasPrefix("zh-hans") || preferred.hasPrefix("zh_cn")
+                ? .simplifiedChinese
+                : .english
+        }
+    }
+}
+
+enum EffectiveAppLanguage: String {
+    case english = "en"
+    case simplifiedChinese = "zh-Hans"
+
+    var locale: Locale {
+        Locale(identifier: rawValue)
+    }
+
+    static func resolve(locale: Locale) -> EffectiveAppLanguage {
+        locale.identifier.lowercased().hasPrefix("zh-hans") ? .simplifiedChinese : .english
     }
 }
 
@@ -39,11 +70,18 @@ enum OverviewScope: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .allProjects: "所有项目"
         case .favoriteProjects: "星标项目"
         }
+    }
+
+    static func visibleProjects(from projects: [Project], storedValue: String?) -> [Project] {
+        let scope = OverviewScope(rawValue: storedValue ?? "") ?? .allProjects
+        return projects
+            .filter { !$0.isArchived && (scope == .allProjects || $0.isFavorite) }
+            .sorted { $0.orderIndex < $1.orderIndex }
     }
 }
 
@@ -265,5 +303,14 @@ struct ShortcutKeyCombination: Equatable {
         default:
             storedValue.count == 1 ? .character(storedValue) : nil
         }
+    }
+}
+
+struct AppShortcutConfiguration: Equatable {
+    let toggleMainPanel: String
+    let openSearch: String
+
+    var isValid: Bool {
+        toggleMainPanel != openSearch
     }
 }

@@ -157,12 +157,21 @@ struct MemoTimelineView: View {
             Image(systemName: hasActiveSearch ? "magnifyingglass" : "note.text.badge.plus")
                 .font(.title)
                 .foregroundStyle(.tertiary)
-            Text(hasActiveSearch ? "没有匹配的备忘录" : "暂无备忘录")
-                .font(.callout)
-                .foregroundStyle(.tertiary)
-            Text(hasActiveSearch ? "重置查询后可查看全部记录" : "在下方输入框中记录项目上下文")
-                .font(.caption)
-                .foregroundStyle(.quaternary)
+            if hasActiveSearch {
+                Text("没有匹配的备忘录")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                Text("重置查询后可查看全部记录")
+                    .font(.caption)
+                    .foregroundStyle(.quaternary)
+            } else {
+                Text("暂无备忘录")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                Text("在下方输入框中记录项目上下文")
+                    .font(.caption)
+                    .foregroundStyle(.quaternary)
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity)

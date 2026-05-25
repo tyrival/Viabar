@@ -73,7 +73,7 @@ struct ReminderSettingsPopover: View {
 
     private func pickerRow<PickerContent: View>(
         icon: String,
-        title: String,
+        title: LocalizedStringKey,
         @ViewBuilder picker: () -> PickerContent
     ) -> some View {
         HStack(spacing: 12) {
@@ -152,7 +152,7 @@ private enum ReminderRepeatOption: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .never: "永不"
         case .hourly: "每小时"

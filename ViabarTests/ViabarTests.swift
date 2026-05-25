@@ -192,4 +192,42 @@ struct AppSettingsTests {
         #expect(ShortcutKeyCombination(modifiers: [], key: .character("V")) == nil)
         #expect(ShortcutKeyCombination(modifiers: [.command], key: .escape) == nil)
     }
+
+    @Test func resolvesLanguageImmediatelyWithEnglishSystemFallback() {
+        #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["zh-Hans-CN"]) == .simplifiedChinese)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["en-SG"]) == .english)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["zh-Hant-TW"]) == .english)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "system", preferredLanguages: ["ja-JP"]) == .english)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "invalid", preferredLanguages: ["zh-Hans"]) == .simplifiedChinese)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "english", preferredLanguages: ["zh-Hans"]) == .english)
+        #expect(AppLanguage.effectiveLanguage(storedValue: "simplifiedChinese", preferredLanguages: ["en"]) == .simplifiedChinese)
+    }
+
+    @Test func overviewScopeFiltersOnlyActiveProjects() {
+        let active = Project(title: "Active", orderIndex: 0)
+        let favorite = Project(title: "Favorite", orderIndex: 1)
+        favorite.isFavorite = true
+        let archivedFavorite = Project(title: "Archived", orderIndex: 2)
+        archivedFavorite.isFavorite = true
+        archivedFavorite.isArchived = true
+
+        #expect(
+            OverviewScope.visibleProjects(
+                from: [active, favorite, archivedFavorite],
+                storedValue: "allProjects"
+            ).map(\.title) == ["Active", "Favorite"]
+        )
+        #expect(
+            OverviewScope.visibleProjects(
+                from: [active, favorite, archivedFavorite],
+                storedValue: "favoriteProjects"
+            ).map(\.title) == ["Favorite"]
+        )
+        #expect(OverviewScope.visibleProjects(from: [active, favorite], storedValue: "invalid").count == 2)
+    }
+
+    @Test func rejectsDuplicateConfiguredShortcuts() {
+        #expect(AppShortcutConfiguration(toggleMainPanel: "Option+V", openSearch: "Command+F").isValid)
+        #expect(!AppShortcutConfiguration(toggleMainPanel: "Option+V", openSearch: "Option+V").isValid)
+    }
 }

@@ -11,6 +11,7 @@ struct ArchiveFolderPickerView: View {
     let onCancel: () -> Void
 
     @Environment(ServiceContainer.self) private var container
+    @Environment(\.locale) private var locale
     @Query(sort: \ArchiveFolder.orderIndex) private var allFolders: [ArchiveFolder]
 
     @State private var selectedFolderId: UUID?
@@ -115,7 +116,10 @@ struct ArchiveFolderPickerView: View {
 
     private func createRootFolder() {
         guard let svc = projectService else { return }
-        let folder = svc.createArchiveFolder(name: "默认归档")
+        let language = EffectiveAppLanguage.resolve(locale: locale)
+        let folder = svc.createArchiveFolder(
+            name: AppLocalization.string("默认归档", language: language)
+        )
         selectedFolderId = folder.folderId
     }
 

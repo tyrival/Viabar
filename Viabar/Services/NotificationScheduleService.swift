@@ -51,7 +51,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
             ownerId: project.projectId,
             ownerKind: "project",
             project: project,
-            body: nextTaskTitle.map { "下一步：\($0)" } ?? "",
+            body: nextTaskTitle.map(nextStepBody(for:)) ?? "",
             reminder: project.reminder,
             isCompleted: project.isArchived || nextTaskTitle == nil
         )
@@ -153,7 +153,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
               let nextTaskTitle = project.topUnfinishedTitle
         else { return }
 
-        postNotification(title: project.title, body: "下一步：\(nextTaskTitle)")
+        postNotification(title: project.title, body: nextStepBody(for: nextTaskTitle))
 
         guard let reminder = project.reminder else { return }
         guard reminder.type == "repeating" else {
@@ -182,7 +182,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
               let nextTaskTitle = project.topUnfinishedTitle
         else { return nil }
 
-        return (project.title, "下一步：\(nextTaskTitle)")
+        return (project.title, nextStepBody(for: nextTaskTitle))
     }
 
     private func insertProjectEntry(for project: Project, fireDate: Date) {
@@ -192,7 +192,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
             ownerKind: "project",
             projectId: project.projectId,
             projectTitle: project.title,
-            body: "下一步：\(nextTaskTitle)",
+            body: nextStepBody(for: nextTaskTitle),
             fireDate: fireDate
         )
         modelContext.insert(entry)
@@ -294,6 +294,17 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
     private func save() {
         guard modelContext.hasChanges else { return }
         try? modelContext.save()
+    }
+
+    private func nextStepBody(for title: String) -> String {
+        var descriptor = FetchDescriptor<AppSettings>(
+            sortBy: [SortDescriptor(\AppSettings.createdAt)]
+        )
+        descriptor.fetchLimit = 1
+        let settings = (try? modelContext.fetch(descriptor))?.first
+        let language = AppLanguage.effectiveLanguage(storedValue: settings?.language)
+        let format = AppLocalization.string("下一步：%@", language: language)
+        return String(format: format, title)
     }
 }
 

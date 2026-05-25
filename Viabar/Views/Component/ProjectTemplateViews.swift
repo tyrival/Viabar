@@ -105,13 +105,9 @@ struct ProjectTemplateManagementView: View {
 private struct TemplateManagementRow: View {
     let template: ProjectTemplate
 
-    private var taskCountText: String {
+    var body: some View {
         let taskCount = template.milestones.count
         let subtaskCount = template.milestones.reduce(0) { $0 + $1.subtasks.count }
-        return "\(taskCount) 项任务 / \(subtaskCount) 项子任务"
-    }
-
-    var body: some View {
         HStack(spacing: 12) {
             Image(systemName: template.sfSymbolName)
                 .font(.title3)
@@ -123,7 +119,7 @@ private struct TemplateManagementRow: View {
                 Text(template.name)
                     .font(.headline)
                     .lineLimit(1)
-                Text(taskCountText)
+                Text("\(taskCount) 项任务 / \(subtaskCount) 项子任务")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -214,8 +210,14 @@ struct ProjectTemplateEditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(template == nil ? "新增模板" : "编辑模板")
-                    .font(.title3.weight(.semibold))
+                Group {
+                    if template == nil {
+                        Text("新增模板")
+                    } else {
+                        Text("编辑模板")
+                    }
+                }
+                .font(.title3.weight(.semibold))
                 Spacer()
             }
             .padding()

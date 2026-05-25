@@ -1164,6 +1164,10 @@ private struct ReminderStatusView: View {
         settingsRecords.first?.dateFormat
     }
 
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
     private var alarmColor: AnyShapeStyle {
         if usesInvertedForeground {
             return AnyShapeStyle(.white)
@@ -1212,7 +1216,7 @@ private struct ReminderStatusView: View {
                     postponeButton(for: reminder)
                 }
 
-                Text(reminder.inlineReminderSummary(dateFormatPattern: savedDateFormat))
+                Text(reminder.inlineReminderSummary(dateFormatPattern: savedDateFormat, language: effectiveLanguage))
                     .font(textFont)
                     .foregroundStyle(summaryColor(for: reminder))
                     .lineLimit(1)
@@ -1313,6 +1317,7 @@ struct MilestoneRowView: View {
     let onSelectSubTask: (UUID) -> Void
 
     @Environment(ServiceContainer.self) private var container
+    @Environment(\.locale) private var locale
     @State private var newSubTaskTitle: String = ""
     @State private var editingTitle = false
     @State private var titleDraft: String = ""
@@ -1553,7 +1558,7 @@ struct MilestoneRowView: View {
                         .foregroundStyle(milestone.isCompleted ? .secondary : .primary)
 
                     if isHovering, milestone.isCompleted, let completedAt = milestone.completedAt {
-                        Text("（\(formatCompletionTimestamp(completedAt))）")
+                        Text("（\(formatCompletionTimestamp(completedAt, language: .resolve(locale: locale)))）")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .fixedSize(horizontal: true, vertical: true)
@@ -1594,6 +1599,7 @@ struct SubTaskRowView: View {
     let onSelect: () -> Void
 
     @Environment(ServiceContainer.self) private var container
+    @Environment(\.locale) private var locale
     @State private var editingTitle = false
     @State private var titleDraft: String = ""
     @State private var showingReminderPopover = false
@@ -1716,7 +1722,7 @@ struct SubTaskRowView: View {
         guard isHovering, subTask.isCompleted, let completedAt = subTask.completedAt else {
             return subTask.title
         }
-        return "\(subTask.title)（\(formatCompletionTimestamp(completedAt))）"
+        return "\(subTask.title)（\(formatCompletionTimestamp(completedAt, language: .resolve(locale: locale)))）"
     }
 }
 
@@ -1739,12 +1745,12 @@ private extension Reminder {
         fireTimestamp ?? nextRepeatingFireDate
     }
 
-    func inlineReminderSummary(dateFormatPattern: String?) -> String {
+    func inlineReminderSummary(dateFormatPattern: String?, language: EffectiveAppLanguage) -> String {
         let time = inlineFireDate.map {
             AppDateFormatter.string(from: $0, pattern: dateFormatPattern)
         } ?? "--"
         guard isRepeating else { return time }
-        return "\(time) \(inlineRepeatTitle)"
+        return "\(time) \(inlineRepeatTitle(language: language))"
     }
 
     var isInlineReminderOverdue: Bool {
@@ -1757,22 +1763,24 @@ private extension Reminder {
         return Calendar.current.isDateInToday(date) && date >= Date()
     }
 
-    var inlineRepeatTitle: String {
+    func inlineRepeatTitle(language: EffectiveAppLanguage) -> String {
         guard isRepeating else { return "" }
+        let key: String
         switch repeatIntervalDays {
-        case 0: return "每小时"
-        case 1: return "每天"
-        case 2: return "每2天"
-        case 3: return "每3天"
-        case -1: return "工作日"
-        case 7: return "每周"
-        case 14: return "每两周"
-        case 30: return "每月"
-        case 90: return "每3个月"
-        case 180: return "每6个月"
-        case 365: return "每年"
-        default: return "循环"
+        case 0: key = "每小时"
+        case 1: key = "每天"
+        case 2: key = "每2天"
+        case 3: key = "每3天"
+        case -1: key = "工作日"
+        case 7: key = "每周"
+        case 14: key = "每两周"
+        case 30: key = "每月"
+        case 90: key = "每3个月"
+        case 180: key = "每6个月"
+        case 365: key = "每年"
+        default: key = "循环"
         }
+        return AppLocalization.string(key, language: language)
     }
 
     var postponedByOneCycle: Date? {
@@ -1831,7 +1839,7 @@ private extension Reminder {
     }
 }
 
-private func formatCompletionTimestamp(_ date: Date) -> String {
+private func formatCompletionTimestamp(_ date: Date, language: EffectiveAppLanguage) -> String {
     let calendar = Calendar.current
     let formatter = DateFormatter()
 
@@ -1842,7 +1850,8 @@ private func formatCompletionTimestamp(_ date: Date) -> String {
 
     if calendar.isDateInYesterday(date) {
         formatter.dateFormat = "HH:mm"
-        return "昨天 \(formatter.string(from: date))"
+        let format = AppLocalization.string("昨天 %@", language: language)
+        return String(format: format, formatter.string(from: date))
     }
 
     if calendar.component(.year, from: date) == calendar.component(.year, from: Date()) {

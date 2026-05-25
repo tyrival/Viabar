@@ -7,6 +7,7 @@ struct ViabarApp: App {
     // MARK: - State
 
     @State private var serviceContainer: ServiceContainer
+    @State private var runtimeController: AppRuntimeController
     private let sharedModelContainer: ModelContainer
 
     // MARK: - Init
@@ -66,20 +67,23 @@ struct ViabarApp: App {
         // projectService.cloudSyncService = syncService
 
         _serviceContainer = State(initialValue: container)
+        _runtimeController = State(initialValue: AppRuntimeController())
     }
 
     // MARK: - Body
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
                 .frame(minWidth: 1080, minHeight: 700)
                 .environment(serviceContainer)
+                .environment(runtimeController)
                 .task {
                     let settings = AppSettingsStore.ensureDefaultSettings(
                         in: sharedModelContainer.mainContext
                     )
                     AppAppearanceController.apply(storedTheme: settings.theme)
+                    try? runtimeController.configureShortcuts(from: settings)
                 }
         }
         .windowStyle(.hiddenTitleBar)
@@ -88,6 +92,7 @@ struct ViabarApp: App {
 
         Settings {
             SettingsView()
+                .environment(runtimeController)
                 .modelContainer(sharedModelContainer)
         }
     }

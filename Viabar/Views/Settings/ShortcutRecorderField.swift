@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ShortcutRecorderField: View {
-    let accessibilityTitle: String
+    let accessibilityTitle: LocalizedStringKey
     let value: String
     @Binding var isRecording: Bool
     let onRecord: (String) -> Void
@@ -18,10 +18,17 @@ struct ShortcutRecorderField: View {
                     lineWidth: isRecording ? 1.5 : 1
                 )
 
-            Text(isRecording ? "请按键..." : ShortcutKeyCombination.displayString(for: value))
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isRecording ? Color.accentColor : .primary)
-                .padding(.horizontal, 7)
+            if isRecording {
+                Text("请按键...")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 7)
+            } else {
+                Text(ShortcutKeyCombination.displayString(for: value))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 7)
+            }
         }
         .frame(width: 88, height: 22)
         .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -32,11 +39,11 @@ struct ShortcutRecorderField: View {
             isRecording = true
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityTitle)
+        .accessibilityLabel(Text(accessibilityTitle))
         .accessibilityValue(
             isRecording
-                ? "正在录制快捷键"
-                : ShortcutKeyCombination.displayString(for: value)
+                ? Text("正在录制快捷键")
+                : Text(ShortcutKeyCombination.displayString(for: value))
         )
         .accessibilityAddTraits(.isButton)
     }

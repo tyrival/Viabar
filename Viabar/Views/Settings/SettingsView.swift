@@ -27,6 +27,10 @@ struct SettingsView: View {
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var selection: SettingsCategory = .general
 
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
     var body: some View {
         Group {
             if let settings = settingsRecords.first {
@@ -34,7 +38,7 @@ struct SettingsView: View {
                     ForEach(SettingsCategory.allCases) { category in
                         SettingsDetailView(category: category, settings: settings)
                             .tabItem {
-                                Label(category.rawValue, systemImage: category.icon)
+                                Label(LocalizedStringKey(category.rawValue), systemImage: category.icon)
                             }
                             .tag(category)
                     }
@@ -48,6 +52,7 @@ struct SettingsView: View {
             }
         }
         .frame(width: 660, height: 500)
+        .environment(\.locale, effectiveLanguage.locale)
     }
 }
 
@@ -59,7 +64,9 @@ private struct SettingsDetailView: View {
 
     let category: SettingsCategory
     @Bindable var settings: AppSettings
+    @Environment(AppRuntimeController.self) private var runtimeController
     @State private var recordingShortcut: ShortcutAction?
+    @State private var settingsErrorMessage: LocalizedStringKey?
 
     var body: some View {
         ScrollView {
@@ -75,6 +82,20 @@ private struct SettingsDetailView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onDisappear {
             recordingShortcut = nil
+        }
+        .onAppear {
+            guard category == .general else { return }
+            runtimeController.launchAtLogin.refresh()
+            settings.launchAtLogin = runtimeController.launchAtLogin.isEnabled
+        }
+        .alert("无法应用设置", isPresented: settingsErrorBinding) {
+            Button("好", role: .cancel) {
+                settingsErrorMessage = nil
+            }
+        } message: {
+            if let settingsErrorMessage {
+                Text(settingsErrorMessage)
+            }
         }
     }
 
@@ -97,7 +118,7 @@ private struct SettingsDetailView: View {
     private var generalPanel: some View {
         SettingsGroup("启动") {
             SettingsRow("开机启动") {
-                settingsSwitch($settings.launchAtLogin)
+                settingsSwitch(launchAtLoginBinding)
             }
             SettingsDivider()
             SettingsRow("启用菜单栏组件") {
@@ -144,10 +165,6 @@ private struct SettingsDetailView: View {
                     .frame(width: 150, alignment: .trailing)
                 }
                 SettingsDivider()
-                SettingsRow("工作日过滤") {
-                    settingsSwitch($settings.weekdayFilterEnabled)
-                }
-                SettingsDivider()
                 SettingsRow("日期格式") {
                     Picker("日期格式", selection: dateFormatBinding) {
                         ForEach(AppDateFormat.allCases) { format in
@@ -164,23 +181,23 @@ private struct SettingsDetailView: View {
 
     private var shortcutsPanel: some View {
         SettingsGroup("应用操作") {
-            SettingsRow("显示 / 隐藏主面板", description: "点击快捷键区域后按新的组合键") {
+            SettingsRow("显示 / 隐藏主面板") {
                 ShortcutRecorderField(
                     accessibilityTitle: "显示或隐藏主面板快捷键",
                     value: settings.toggleMainPanelShortcut,
                     isRecording: recordingBinding(for: .toggleMainPanel)
                 ) {
-                    settings.toggleMainPanelShortcut = $0
+                    recordShortcut($0, for: .toggleMainPanel)
                 }
             }
             SettingsDivider()
-            SettingsRow("打开搜索框", description: "按 Esc 取消录制") {
+            SettingsRow("打开搜索框") {
                 ShortcutRecorderField(
                     accessibilityTitle: "打开搜索框快捷键",
                     value: settings.openSearchShortcut,
                     isRecording: recordingBinding(for: .openSearch)
                 ) {
-                    settings.openSearchShortcut = $0
+                    recordShortcut($0, for: .openSearch)
                 }
             }
         }
@@ -195,8 +212,13 @@ private struct SettingsDetailView: View {
                 SettingsDivider()
                 SettingsRow("上次同步时间") {
                     HStack(spacing: 10) {
-                        Text(lastSyncText)
-                            .foregroundStyle(.secondary)
+                        if let lastSyncAt = settings.lastSyncAt {
+                            Text(AppDateFormatter.string(from: lastSyncAt, pattern: settings.dateFormat))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("尚未同步")
+                                .foregroundStyle(.secondary)
+                        }
                         Button("立即同步") {}
                             .controlSize(.small)
                             .disabled(true)
@@ -261,7 +283,7 @@ private struct SettingsDetailView: View {
         }
     }
 
-    private func placeholderRow(_ title: String) -> some View {
+    private func placeholderRow(_ title: LocalizedStringKey) -> some View {
         SettingsRow(title) {
             Button("即将开放") {}
                 .controlSize(.small)
@@ -278,8 +300,9 @@ private struct SettingsDetailView: View {
 
     private func selectBackupFolder() {
         let panel = NSOpenPanel()
-        panel.title = "选择备份文件夹"
-        panel.prompt = "选择"
+        let language = AppLanguage.effectiveLanguage(storedValue: settings.language)
+        panel.title = AppLocalization.string("选择备份文件夹", language: language)
+        panel.prompt = AppLocalization.string("选择", language: language)
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -296,6 +319,53 @@ private struct SettingsDetailView: View {
                 recordingShortcut = isRecording ? action : nil
             }
         )
+    }
+
+    private var settingsErrorBinding: Binding<Bool> {
+        Binding(
+            get: { settingsErrorMessage != nil },
+            set: { if !$0 { settingsErrorMessage = nil } }
+        )
+    }
+
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { settings.launchAtLogin },
+            set: { enabled in
+                do {
+                    try runtimeController.launchAtLogin.setEnabled(enabled)
+                    settings.launchAtLogin = runtimeController.launchAtLogin.isEnabled
+                } catch {
+                    settings.launchAtLogin = runtimeController.launchAtLogin.isEnabled
+                    settingsErrorMessage = "无法更新开机启动设置，请在系统设置中检查登录项权限。"
+                }
+            }
+        )
+    }
+
+    private func recordShortcut(_ storedValue: String, for action: ShortcutAction) {
+        let previousValue: String
+        switch action {
+        case .toggleMainPanel:
+            previousValue = settings.toggleMainPanelShortcut
+            settings.toggleMainPanelShortcut = storedValue
+        case .openSearch:
+            previousValue = settings.openSearchShortcut
+            settings.openSearchShortcut = storedValue
+        }
+
+        do {
+            try runtimeController.configureShortcuts(from: settings)
+        } catch {
+            switch action {
+            case .toggleMainPanel:
+                settings.toggleMainPanelShortcut = previousValue
+            case .openSearch:
+                settings.openSearchShortcut = previousValue
+            }
+            try? runtimeController.configureShortcuts(from: settings)
+            settingsErrorMessage = "该快捷键无法注册或已被另一项操作占用，请选择其他组合键。"
+        }
     }
 
     private var themeBinding: Binding<AppTheme> {
@@ -329,14 +399,6 @@ private struct SettingsDetailView: View {
         )
     }
 
-    private var lastSyncText: String {
-        guard let lastSyncAt = settings.lastSyncAt else {
-            return "尚未同步"
-        }
-
-        return AppDateFormatter.string(from: lastSyncAt, pattern: settings.dateFormat)
-    }
-
     private var versionText: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "--"
     }
@@ -344,10 +406,10 @@ private struct SettingsDetailView: View {
 
 private struct SettingsGroup<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
-    let title: String?
+    let title: LocalizedStringKey?
     let content: Content
 
-    init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
+    init(_ title: LocalizedStringKey? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
         self.content = content()
     }
@@ -384,13 +446,13 @@ private struct SettingsGroup<Content: View>: View {
 
 private struct SettingsRow<Control: View>: View {
     private let controlColumnWidth: CGFloat = 252
-    let title: String
-    let description: String?
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey?
     let control: Control
 
     init(
-        _ title: String,
-        description: String? = nil,
+        _ title: LocalizedStringKey,
+        description: LocalizedStringKey? = nil,
         @ViewBuilder control: () -> Control
     ) {
         self.title = title
@@ -437,5 +499,6 @@ private struct SettingsDivider: View {
     container.mainContext.insert(AppSettings())
 
     return SettingsView()
+        .environment(AppRuntimeController())
         .modelContainer(container)
 }

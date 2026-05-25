@@ -26,7 +26,7 @@ enum FolderNamePrompt: Identifiable {
         }
     }
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .createRoot:
             return "新建文件夹"
@@ -37,7 +37,7 @@ enum FolderNamePrompt: Identifiable {
         }
     }
 
-    var message: String {
+    var message: LocalizedStringKey {
         switch self {
         case .createRoot:
             return "输入归档文件夹名称。"
@@ -48,7 +48,7 @@ enum FolderNamePrompt: Identifiable {
         }
     }
 
-    var confirmTitle: String {
+    var confirmTitle: LocalizedStringKey {
         switch self {
         case .rename:
             return "重命名"
@@ -71,7 +71,7 @@ enum DeleteConfirmation: Identifiable {
         }
     }
 
-    var title: String {
+    var title: LocalizedStringKey {
         switch self {
         case .project:
             return "删除项目？"
@@ -80,7 +80,7 @@ enum DeleteConfirmation: Identifiable {
         }
     }
 
-    var message: String {
+    var message: LocalizedStringKey {
         switch self {
         case .project(let project):
             return "“\(project.title)”将被永久删除，无法恢复。"
@@ -710,7 +710,11 @@ struct ActiveProjectRow: View {
             Button {
                 projectService?.toggleFavorite(project)
             } label: {
-                Label(project.isFavorite ? "取消收藏" : "收藏", systemImage: project.isFavorite ? "star.slash" : "star")
+                if project.isFavorite {
+                    Label("取消收藏", systemImage: "star.slash")
+                } else {
+                    Label("收藏", systemImage: "star")
+                }
             }
             Divider()
             Button(role: .destructive) {
@@ -1568,8 +1572,8 @@ private extension ArchiveFolder {
 
 struct EmptyHintView: View {
     let icon: String
-    let message: String
-    let action: String
+    let message: LocalizedStringKey
+    let action: LocalizedStringKey
     let onAction: () -> Void
 
     var body: some View {
