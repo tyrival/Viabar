@@ -110,7 +110,7 @@ struct MilestoneListView: View {
 
             addMilestoneBar
         }
-        .background(.background)
+        .background(ViabarColor.mainPanelBackground)
     }
 
     // MARK: - Header
@@ -253,8 +253,8 @@ struct MilestoneListView: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color(nsColor: .windowBackgroundColor).opacity(0),
-                    Color(nsColor: .windowBackgroundColor).opacity(0.9)
+                    ViabarColor.mainPanelBackground.opacity(0),
+                    ViabarColor.mainPanelBackground.opacity(0.9)
                 ],
                 startPoint: .top,
                 endPoint: .bottom

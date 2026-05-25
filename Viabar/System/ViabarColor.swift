@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// 品牌色板 —— 统一维护，全局引用
@@ -16,6 +17,20 @@ enum ViabarColor {
     static let primaryPale = Color(hex: "#D5F7FF")
     /// 近白蓝（大面积背景）
     static let primaryGhost = Color(hex: "#F3FDFF")
+
+    /// 主面板背景色；浅色维持系统窗口底色，深色使用自定义面板色。
+    static let mainPanelBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.20, alpha: 0.95)
+            : NSColor.windowBackgroundColor
+    })
+
+    /// 备忘录区域保留原浅色底，并在深色时与主面板统一。
+    static let mainPanelMemoBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.20, alpha: 0.95)
+            : NSColor(calibratedWhite: 0.94, alpha: 1)
+    })
 
     // MARK: 状态色
 

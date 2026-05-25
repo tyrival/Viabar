@@ -220,17 +220,12 @@ struct ContentView: View {
             .frame(width: memoDrawerWidth)
         }
         .frame(maxHeight: .infinity)
-        .background(.background)
+        .background(ViabarColor.mainPanelBackground)
         .ignoresSafeArea(.container, edges: [.top, .bottom])
     }
 
     private var memoDrawerPanelBackground: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            return isDark
-                ? NSColor(calibratedWhite: 0.10, alpha: 1)
-                : NSColor(calibratedWhite: 0.94, alpha: 1)
-        })
+        ViabarColor.mainPanelMemoBackground
     }
 
     private var memoSearchField: some View {
@@ -390,9 +385,9 @@ struct ContentView: View {
     private var toolbarGradientMask: some View {
         LinearGradient(
             stops: [
-                .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.96), location: 0),
-                .init(color: Color(nsColor: .windowBackgroundColor).opacity(0.82), location: 0.52),
-                .init(color: Color(nsColor: .windowBackgroundColor).opacity(0), location: 1),
+                .init(color: ViabarColor.mainPanelBackground.opacity(0.96), location: 0),
+                .init(color: ViabarColor.mainPanelBackground.opacity(0.82), location: 0.52),
+                .init(color: ViabarColor.mainPanelBackground.opacity(0), location: 1),
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -523,7 +518,7 @@ struct OverviewDashboardView: View {
                 .padding(contentPadding)
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(ViabarColor.mainPanelBackground)
     }
 
     private func overviewColumns(for width: CGFloat) -> [GridItem] {

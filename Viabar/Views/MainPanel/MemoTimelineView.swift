@@ -475,12 +475,7 @@ private struct MemoEndDropDelegate: DropDelegate {
 // MARK: - Style
 
 private enum MemoTimelineStyle {
-    static let panelBackground = Color(nsColor: NSColor(name: nil) { appearance in
-        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        return isDark
-            ? NSColor(calibratedWhite: 0.10, alpha: 1)
-            : NSColor(calibratedWhite: 0.94, alpha: 1)
-    })
+    static let panelBackground = ViabarColor.mainPanelMemoBackground
 
     static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
