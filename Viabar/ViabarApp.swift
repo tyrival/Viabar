@@ -62,6 +62,10 @@ struct ViabarApp: App {
             modelContext: sharedModelContainer.mainContext
         )
         notificationScheduleService.start()
+        _ = container.registerBackupService(
+            modelContext: sharedModelContainer.mainContext,
+            notificationScheduleService: notificationScheduleService
+        )
 
         // Phase 2 预留：
         // let syncService = CloudSyncService(...)
@@ -88,6 +92,7 @@ struct ViabarApp: App {
                     )
                     AppAppearanceController.apply(storedTheme: settings.theme)
                     try? runtimeController.configureShortcuts(from: settings)
+                    serviceContainer.backupService?.start(settings: settings)
                 }
         }
         .windowStyle(.hiddenTitleBar)
@@ -109,6 +114,7 @@ struct ViabarApp: App {
                 onMenuBarEnabledChange: { isMenuBarInserted = $0 },
                 onMenuBarIconChange: { menuBarIcon = $0 }
             )
+                .environment(serviceContainer)
                 .environment(runtimeController)
                 .modelContainer(sharedModelContainer)
         }

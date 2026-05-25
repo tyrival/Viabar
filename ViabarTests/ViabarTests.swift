@@ -360,6 +360,142 @@ struct MenuBarContentTests {
     }
 }
 
+struct BackupMetadataTests {
+    @Test func parsesAndSortsBackupFilesNewestFirst() throws {
+        let older = try #require(
+            BackupFileMetadata(url: URL(fileURLWithPath: "/tmp/20260524-101000.viabackup"))
+        )
+        let newer = try #require(
+            BackupFileMetadata(url: URL(fileURLWithPath: "/tmp/20260525-211900.viabackup"))
+        )
+
+        #expect(BackupFileMetadata.sortedNewestFirst([older, newer]).map(\.url.lastPathComponent) == [
+            "20260525-211900.viabackup",
+            "20260524-101000.viabackup",
+        ])
+        #expect(BackupFileMetadata(url: URL(fileURLWithPath: "/tmp/not-a-backup.viabackup")) == nil)
+    }
+
+    @Test func retainsHourlyDailyWeeklyAndDeletesExpiredBackups() {
+        let now = Date(timeIntervalSince1970: 1_769_342_400)
+        let files = [
+            metadata("latest-hour", hoursBefore: 1, now: now),
+            metadata("duplicate-hour", hoursBefore: 1.2, now: now),
+            metadata("latest-day", hoursBefore: 30, now: now),
+            metadata("duplicate-day", hoursBefore: 33, now: now),
+            metadata("latest-week", hoursBefore: 24 * 12, now: now),
+            metadata("duplicate-week", hoursBefore: 24 * 13, now: now),
+            metadata("expired", hoursBefore: 24 * 190, now: now),
+        ]
+
+        let deleted = BackupRetentionPolicy.urlsToDelete(from: files, now: now)
+
+        #expect(deleted == Set([
+            URL(fileURLWithPath: "/tmp/duplicate-hour.viabackup"),
+            URL(fileURLWithPath: "/tmp/duplicate-day.viabackup"),
+            URL(fileURLWithPath: "/tmp/duplicate-week.viabackup"),
+            URL(fileURLWithPath: "/tmp/expired.viabackup"),
+        ]))
+    }
+
+    @Test func roundTripsVersionedBackupSnapshot() throws {
+        let snapshot = BackupSnapshot(
+            formatVersion: BackupSnapshot.currentFormatVersion,
+            createdAt: Date(timeIntervalSince1970: 0),
+            settings: BackupSettingsSnapshot(backupEnabled: true, backupPath: "~/Documents/Viabar"),
+            folders: [],
+            projects: [],
+            templates: []
+        )
+
+        let encoded = try JSONEncoder.backupEncoder.encode(snapshot)
+
+        #expect(try JSONDecoder.backupDecoder.decode(BackupSnapshot.self, from: encoded) == snapshot)
+    }
+
+    private func metadata(_ name: String, hoursBefore: Double, now: Date) -> BackupFileMetadata {
+        BackupFileMetadata(
+            url: URL(fileURLWithPath: "/tmp/\(name).viabackup"),
+            createdAt: now.addingTimeInterval(-hoursBefore * 3600)
+        )
+    }
+}
+
+@MainActor
+struct BackupRestoreTests {
+    @Test func restoreRebuildsNotificationTimelineFromReminderConfiguration() throws {
+        let schema = Schema([
+            Project.self,
+            Milestone.self,
+            SubTask.self,
+            Memo.self,
+            Reminder.self,
+            NotificationScheduleEntry.self,
+            ArchiveFolder.self,
+            ProjectTemplate.self,
+            TemplateMilestone.self,
+            TemplateSubTask.self,
+            AppSettings.self,
+        ])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
+        )
+        let context = container.mainContext
+        let schedule = NotificationScheduleService(modelContext: context, notificationPoster: { _, _ in })
+        let service = BackupService(modelContext: context, notificationScheduleService: schedule)
+        let fireDate = Date().addingTimeInterval(3600)
+        let projectID = UUID()
+        let milestoneID = UUID()
+        let snapshot = BackupSnapshot(
+            formatVersion: BackupSnapshot.currentFormatVersion,
+            createdAt: Date(),
+            settings: BackupSettingsSnapshot(backupEnabled: true, backupPath: "~/Documents/Viabar"),
+            folders: [],
+            projects: [
+                BackupProjectSnapshot(
+                    projectId: projectID,
+                    title: "Recovered",
+                    hideCompleted: true,
+                    isArchived: false,
+                    isFavorite: false,
+                    orderIndex: 0,
+                    archivedAt: nil,
+                    accentColor: ViabarColor.primaryHex,
+                    sfSymbolName: "bookmark.fill",
+                    archiveFolderId: nil,
+                    reminder: nil,
+                    milestones: [
+                        BackupMilestoneSnapshot(
+                            milestoneId: milestoneID,
+                            title: "Future",
+                            isCompleted: false,
+                            completedAt: nil,
+                            orderIndex: 0,
+                            reminder: BackupReminderSnapshot(
+                                reminderId: UUID(),
+                                type: "single",
+                                fireTime: nil,
+                                fireTimestamp: fireDate,
+                                repeatIntervalDays: nil,
+                                lastTriggeredTimestamp: nil
+                            ),
+                            subtasks: []
+                        ),
+                    ],
+                    memos: []
+                ),
+            ],
+            templates: []
+        )
+
+        try service.restore(snapshot: snapshot)
+
+        #expect(try context.fetch(FetchDescriptor<Project>()).map(\.title) == ["Recovered"])
+        #expect(try context.fetch(FetchDescriptor<NotificationScheduleEntry>()).map(\.ownerId) == [milestoneID])
+    }
+}
+
 @MainActor
 struct NotificationScheduleLifecycleTests {
     @Test func singleTaskReminderRemainsPersistedAfterNotificationIsConsumed() throws {

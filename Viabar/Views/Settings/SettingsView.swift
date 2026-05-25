@@ -74,9 +74,19 @@ private struct SettingsDetailView: View {
     @Bindable var settings: AppSettings
     let onMenuBarEnabledChange: (Bool) -> Void
     let onMenuBarIconChange: (MenuBarIcon) -> Void
+    @Environment(ServiceContainer.self) private var container
     @Environment(AppRuntimeController.self) private var runtimeController
     @State private var recordingShortcut: ShortcutAction?
     @State private var settingsErrorMessage: LocalizedStringKey?
+    @State private var showsBackupBrowser = false
+
+    private var backupService: BackupService? {
+        container.backupService
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settings.language)
+    }
 
     var body: some View {
         ScrollView {
@@ -94,9 +104,13 @@ private struct SettingsDetailView: View {
             recordingShortcut = nil
         }
         .onAppear {
-            guard category == .general else { return }
-            runtimeController.launchAtLogin.refresh()
-            settings.launchAtLogin = runtimeController.launchAtLogin.isEnabled
+            if category == .general {
+                runtimeController.launchAtLogin.refresh()
+                settings.launchAtLogin = runtimeController.launchAtLogin.isEnabled
+            }
+            if category == .data {
+                try? backupService?.refreshBackups(path: settings.backupPath)
+            }
         }
         .alert("无法应用设置", isPresented: settingsErrorBinding) {
             Button("好", role: .cancel) {
@@ -105,6 +119,11 @@ private struct SettingsDetailView: View {
         } message: {
             if let settingsErrorMessage {
                 Text(settingsErrorMessage)
+            }
+        }
+        .sheet(isPresented: $showsBackupBrowser) {
+            if let backupService {
+                BackupBrowserView(backupService: backupService, settings: settings)
             }
         }
     }
@@ -256,29 +275,14 @@ private struct SettingsDetailView: View {
     private var dataPanel: some View {
         VStack(alignment: .leading, spacing: 22) {
             SettingsGroup("数据同步") {
-                SettingsRow("启用") {
+                SettingsRow("iCloud") {
                     settingsSwitch($settings.syncEnabled)
-                }
-                SettingsDivider()
-                SettingsRow("上次同步时间") {
-                    HStack(spacing: 10) {
-                        if let lastSyncAt = settings.lastSyncAt {
-                            Text(AppDateFormatter.string(from: lastSyncAt, pattern: settings.dateFormat))
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("尚未同步")
-                                .foregroundStyle(.secondary)
-                        }
-                        Button("立即同步") {}
-                            .controlSize(.small)
-                            .disabled(true)
-                    }
                 }
             }
 
             SettingsGroup("数据备份") {
                 SettingsRow("启用") {
-                    settingsSwitch($settings.backupEnabled)
+                    settingsSwitch(backupEnabledBinding)
                 }
                 SettingsDivider()
                 SettingsRow("备份路径") {
@@ -286,7 +290,7 @@ private struct SettingsDetailView: View {
                         TextField("备份路径", text: $settings.backupPath)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12))
-                            .frame(width: 166)
+                            .frame(width: 190)
 
                         Button("选择...") {
                             selectBackupFolder()
@@ -295,16 +299,24 @@ private struct SettingsDetailView: View {
                     }
                 }
                 SettingsDivider()
-                SettingsRow("数据操作") {
+                SettingsRow("Backup") {
                     HStack(spacing: 8) {
-                        Button("数据导入") {}
-                            .disabled(true)
-                        Button("数据导出") {}
-                            .disabled(true)
+                        Button("立即备份") {
+                            createBackup()
+                        }
+                        Button("浏览备份") {
+                            showsBackupBrowser = true
+                        }
                     }
                     .controlSize(.small)
                 }
             }
+
+            BackupPolicySummaryView(
+                language: effectiveLanguage,
+                latestBackupText: backupService?.latestBackupText(language: effectiveLanguage)
+                    ?? AppLocalization.string("暂无备份", language: effectiveLanguage)
+            )
         }
     }
 
@@ -360,6 +372,12 @@ private struct SettingsDetailView: View {
 
         guard panel.runModal() == .OK, let directoryURL = panel.url else { return }
         settings.backupPath = directoryURL.path
+        do {
+            try backupService?.refreshBackups(path: settings.backupPath)
+            backupService?.setAutomaticBackupEnabled(settings.backupEnabled, settings: settings)
+        } catch {
+            settingsErrorMessage = "无法读取备份路径，请检查文件夹权限。"
+        }
     }
 
     private func recordingBinding(for action: ShortcutAction) -> Binding<Bool> {
@@ -483,6 +501,24 @@ private struct SettingsDetailView: View {
         )
     }
 
+    private var backupEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.backupEnabled },
+            set: { enabled in
+                settings.backupEnabled = enabled
+                backupService?.setAutomaticBackupEnabled(enabled, settings: settings)
+            }
+        )
+    }
+
+    private func createBackup() {
+        do {
+            try backupService?.createBackup(settings: settings)
+        } catch {
+            settingsErrorMessage = "无法创建备份，请检查备份路径权限。"
+        }
+    }
+
     private var versionText: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "--"
     }
@@ -576,6 +612,28 @@ private struct SettingsDivider: View {
     }
 }
 
+private struct BackupPolicySummaryView: View {
+    let language: EffectiveAppLanguage
+    let latestBackupText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Viabar 自动保存各级备份")
+                .font(.system(size: 13, weight: .semibold))
+            Text("• 过去 24 小时每小时备份")
+            Text("• 过去 7 天每天备份")
+            Text("• 过去 6 个月每周备份")
+            Text(AppLocalization.format("最新备份：%@", language: language, latestBackupText))
+                .fontWeight(.semibold)
+                .padding(.top, 5)
+        }
+        .font(.system(size: 12))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 #Preview {
     let schema = Schema([AppSettings.self])
     let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -583,6 +641,7 @@ private struct SettingsDivider: View {
     container.mainContext.insert(AppSettings())
 
     return SettingsView()
+        .environment(ServiceContainer())
         .environment(AppRuntimeController())
         .modelContainer(container)
 }

@@ -71,6 +71,21 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         scheduleNextTimer()
     }
 
+    func rebuildTimeline(from projects: [Project]) {
+        allEntries().forEach { modelContext.delete($0) }
+        save()
+
+        for project in projects where !project.isArchived {
+            syncProject(project)
+            for milestone in project.milestones {
+                syncMilestone(milestone, project: project)
+                for subTask in milestone.subtasks {
+                    syncSubTask(subTask, project: project)
+                }
+            }
+        }
+    }
+
     func processDueEntries(now: Date = Date()) {
         let dueEntries = allEntries()
             .filter { $0.fireDate <= now }
