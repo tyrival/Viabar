@@ -240,7 +240,7 @@ struct MilestoneListView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .fill(ViabarColor.panelInputBackground)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)

@@ -493,7 +493,7 @@ private enum MemoTimelineStyle {
     static let searchFieldBackground = Color(nsColor: .controlBackgroundColor)
     static let searchFieldBorder = Color(nsColor: .separatorColor).opacity(0.45)
     static let inputPanelBackground = panelBackground
-    static let inputBackground = Color(nsColor: .controlBackgroundColor)
+    static let inputBackground = ViabarColor.panelInputBackground
     static let inputBorder = Color(nsColor: .separatorColor).opacity(0.55)
     static let separator = Color(nsColor: .separatorColor).opacity(0.5)
     static let copiedTagForeground = Color(nsColor: NSColor.systemGreen)

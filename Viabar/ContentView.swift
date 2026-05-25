@@ -257,7 +257,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
         .background {
             Capsule(style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(ViabarColor.panelInputBackground)
         }
         .overlay {
             Capsule(style: .continuous)
@@ -469,7 +469,7 @@ struct ContentView: View {
 
     private func toolbarButtonBackground(isHovered: Bool) -> some View {
         Circle()
-            .fill(Color(nsColor: .controlBackgroundColor))
+            .fill(ViabarColor.panelInputBackground)
             .overlay {
                 Circle()
                     .fill(.primary.opacity(isHovered ? 0.06 : 0))

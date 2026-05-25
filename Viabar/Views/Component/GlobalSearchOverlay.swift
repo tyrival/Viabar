@@ -62,7 +62,7 @@ struct GlobalSearchOverlay: View {
                 .frame(width: buttonSize, height: buttonSize)
                 .background {
                     Circle()
-                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .fill(ViabarColor.panelInputBackground)
                         .shadow(color: .black.opacity(0.12), radius: 14, y: 4)
                 }
                 .contentShape(Circle())
@@ -85,7 +85,7 @@ struct GlobalSearchOverlay: View {
         .frame(width: availableWidth, alignment: .trailing)
         .background {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(ViabarColor.panelInputBackground)
         }
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
@@ -140,7 +140,7 @@ struct GlobalSearchOverlay: View {
         }
         .padding(.horizontal, 12)
         .frame(height: buttonSize)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(ViabarColor.panelInputBackground)
     }
 
     @ViewBuilder

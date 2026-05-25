@@ -32,6 +32,13 @@ enum ViabarColor {
             : NSColor(calibratedWhite: 0.94, alpha: 1)
     })
 
+    /// 输入与搜索控件底色；浅色继续使用系统控件背景。
+    static let panelInputBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(calibratedRed: 11 / 255, green: 24 / 255, blue: 44 / 255, alpha: 1)
+            : NSColor.controlBackgroundColor
+    })
+
     // MARK: 状态色
 
     /// 危险 / 删除
