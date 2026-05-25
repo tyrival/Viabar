@@ -8,9 +8,11 @@ final class AppRuntimeController {
     private let globalShortcuts = AppGlobalShortcutController()
 
     private(set) var searchPresentationID = UUID()
+    private(set) var navigationPresentationID = UUID()
     private weak var mainWindow: NSWindow?
     private var openMainWindow: (() -> Void)?
     private var isSearchPresentationPending = false
+    private var pendingNavigationRequest: GlobalSearchNavigationRequest?
 
     init() {
         globalShortcuts.onCommand = { [weak self] command in
@@ -61,6 +63,17 @@ final class AppRuntimeController {
         guard isSearchPresentationPending else { return false }
         isSearchPresentationPending = false
         return true
+    }
+
+    func navigate(to request: GlobalSearchNavigationRequest) {
+        pendingNavigationRequest = request
+        showMainPanel()
+        navigationPresentationID = UUID()
+    }
+
+    func consumePendingNavigationRequest() -> GlobalSearchNavigationRequest? {
+        defer { pendingNavigationRequest = nil }
+        return pendingNavigationRequest
     }
 
     private func showMainPanel() {

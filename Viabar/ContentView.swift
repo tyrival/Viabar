@@ -89,9 +89,13 @@ struct ContentView: View {
                 openWindow(id: "main")
             }
             presentPendingGlobalSearchIfNeeded()
+            consumePendingNavigationIfNeeded()
         }
         .onChange(of: runtimeController.searchPresentationID) { _, _ in
             presentPendingGlobalSearchIfNeeded()
+        }
+        .onChange(of: runtimeController.navigationPresentationID) { _, _ in
+            consumePendingNavigationIfNeeded()
         }
         .onChange(of: selectedProject?.projectId) { _, projectID in
             guard let navigationRequest, projectID != navigationRequest.projectID else { return }
@@ -452,6 +456,20 @@ struct ContentView: View {
     private func presentPendingGlobalSearchIfNeeded() {
         guard runtimeController.consumePendingSearchPresentation() else { return }
         presentGlobalSearch()
+    }
+
+    private func consumePendingNavigationIfNeeded() {
+        guard let request = runtimeController.consumePendingNavigationRequest(),
+              let project = allProjects.first(where: { $0.projectId == request.projectID })
+        else { return }
+
+        navigationRequest = request
+        selection = .project(project)
+        if case .memo = request.destination {
+            resetMemoSearch()
+            isMemoDrawerVisible = true
+        }
+        dismissGlobalSearch()
     }
 
     private func toolbarButtonBackground(isHovered: Bool) -> some View {
@@ -840,7 +858,7 @@ struct OverviewProjectCard: View {
 
 private extension Reminder {
     var overviewFireDate: Date? {
-        fireTimestamp ?? nextOverviewRepeatingFireDate
+        displayFireDate
     }
 
     var isOverviewReminderOverdue: Bool {
@@ -853,26 +871,6 @@ private extension Reminder {
         return Calendar.current.isDateInToday(date) && date >= Date()
     }
 
-    private var nextOverviewRepeatingFireDate: Date? {
-        guard let fireTime else { return fireTimestamp }
-
-        let parts = fireTime.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2 else { return fireTimestamp }
-
-        let calendar = Calendar.current
-        let now = Date()
-        var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = parts[0]
-        components.minute = parts[1]
-        components.second = 0
-
-        guard let today = calendar.date(from: components) else { return fireTimestamp }
-        if today >= now {
-            return today
-        }
-
-        return calendar.date(byAdding: .day, value: repeatIntervalDays ?? 1, to: today)
-    }
 }
 
 #Preview {

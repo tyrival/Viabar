@@ -356,9 +356,7 @@ struct MilestoneListView: View {
             },
             set: { reminder in
                 guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
-                milestone.reminder = reminder
-                projectService?.save()
-                syncMilestoneReminder(milestone, project: project)
+                projectService?.updateReminder(reminder, for: milestone)
             }
         )
     }
@@ -376,9 +374,7 @@ struct MilestoneListView: View {
             set: { reminder in
                 for milestone in project.milestones {
                     if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
-                        subtask.reminder = reminder
-                        projectService?.save()
-                        syncSubTaskReminder(subtask, project: project)
+                        projectService?.updateReminder(reminder, for: subtask)
                         return
                     }
                 }
@@ -1216,7 +1212,7 @@ private struct ReminderStatusView: View {
                     postponeButton(for: reminder)
                 }
 
-                Text(reminder.inlineReminderSummary(dateFormatPattern: savedDateFormat, language: effectiveLanguage))
+                Text(reminder.displaySummary(dateFormatPattern: savedDateFormat, language: effectiveLanguage))
                     .font(textFont)
                     .foregroundStyle(summaryColor(for: reminder))
                     .lineLimit(1)
@@ -1238,11 +1234,11 @@ private struct ReminderStatusView: View {
             return AnyShapeStyle(.secondary)
         }
 
-        if reminder.isInlineReminderOverdue {
+        if reminder.isOverdue(at: Date()) {
             return AnyShapeStyle(.red)
         }
 
-        if reminder.isInlineReminderTodayPending {
+        if reminder.isTodayPending(at: Date()) {
             return AnyShapeStyle(.orange)
         }
 
@@ -1262,7 +1258,7 @@ private struct ReminderStatusView: View {
             return AnyShapeStyle(MilestoneListStyle.sendButtonActive)
         }
 
-        if reminder.isInlineReminderOverdue || reminder.isInlineReminderTodayPending {
+        if reminder.isOverdue(at: Date()) || reminder.isTodayPending(at: Date()) {
             return AnyShapeStyle(.blue)
         }
 
@@ -1734,109 +1730,6 @@ private enum MilestoneListStyle {
             : NSColor(calibratedRed: 0.32, green: 0.68, blue: 1.0, alpha: 1)
     })
     static let sendButtonInactive = Color(nsColor: .tertiaryLabelColor)
-}
-
-private extension Reminder {
-    var isRepeating: Bool {
-        type == "repeating"
-    }
-
-    var inlineFireDate: Date? {
-        fireTimestamp ?? nextRepeatingFireDate
-    }
-
-    func inlineReminderSummary(dateFormatPattern: String?, language: EffectiveAppLanguage) -> String {
-        let time = inlineFireDate.map {
-            AppDateFormatter.string(from: $0, pattern: dateFormatPattern)
-        } ?? "--"
-        guard isRepeating else { return time }
-        return "\(time) \(inlineRepeatTitle(language: language))"
-    }
-
-    var isInlineReminderOverdue: Bool {
-        guard let date = inlineFireDate else { return false }
-        return date < Date()
-    }
-
-    var isInlineReminderTodayPending: Bool {
-        guard let date = inlineFireDate else { return false }
-        return Calendar.current.isDateInToday(date) && date >= Date()
-    }
-
-    func inlineRepeatTitle(language: EffectiveAppLanguage) -> String {
-        guard isRepeating else { return "" }
-        let key: String
-        switch repeatIntervalDays {
-        case 0: key = "每小时"
-        case 1: key = "每天"
-        case 2: key = "每2天"
-        case 3: key = "每3天"
-        case -1: key = "工作日"
-        case 7: key = "每周"
-        case 14: key = "每两周"
-        case 30: key = "每月"
-        case 90: key = "每3个月"
-        case 180: key = "每6个月"
-        case 365: key = "每年"
-        default: key = "循环"
-        }
-        return AppLocalization.string(key, language: language)
-    }
-
-    var postponedByOneCycle: Date? {
-        guard isRepeating, let baseDate = inlineFireDate else { return nil }
-
-        let calendar = Calendar.current
-        switch repeatIntervalDays {
-        case 0:
-            return calendar.date(byAdding: .hour, value: 1, to: baseDate)
-        case -1:
-            return nextWeekday(after: baseDate)
-        case 30:
-            return calendar.date(byAdding: .month, value: 1, to: baseDate)
-        case 90:
-            return calendar.date(byAdding: .month, value: 3, to: baseDate)
-        case 180:
-            return calendar.date(byAdding: .month, value: 6, to: baseDate)
-        case 365:
-            return calendar.date(byAdding: .year, value: 1, to: baseDate)
-        default:
-            return calendar.date(byAdding: .day, value: repeatIntervalDays ?? 1, to: baseDate)
-        }
-    }
-
-    private var nextRepeatingFireDate: Date? {
-        guard let fireTime else { return fireTimestamp }
-
-        let parts = fireTime.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2 else { return fireTimestamp }
-
-        let calendar = Calendar.current
-        let now = Date()
-        var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = parts[0]
-        components.minute = parts[1]
-        components.second = 0
-
-        guard let today = calendar.date(from: components) else { return fireTimestamp }
-        if today >= now {
-            return today
-        }
-
-        return calendar.date(byAdding: .day, value: repeatIntervalDays ?? 1, to: today)
-    }
-
-    private func nextWeekday(after date: Date) -> Date? {
-        var candidate = Calendar.current.date(byAdding: .day, value: 1, to: date)
-        while let current = candidate {
-            let weekday = Calendar.current.component(.weekday, from: current)
-            if weekday != 1 && weekday != 7 {
-                return current
-            }
-            candidate = Calendar.current.date(byAdding: .day, value: 1, to: current)
-        }
-        return nil
-    }
 }
 
 private func formatCompletionTimestamp(_ date: Date, language: EffectiveAppLanguage) -> String {

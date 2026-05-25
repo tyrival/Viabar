@@ -33,10 +33,12 @@ protocol ProjectServiceProtocol: AnyObject {
     // Milestone
     func addMilestone(to project: Project, title: String, orderIndex: Int?) -> Milestone
     func deleteMilestone(_ milestone: Milestone)
+    func updateReminder(_ reminder: Reminder?, for milestone: Milestone)
 
     // SubTask
     func addSubTask(to milestone: Milestone, title: String, orderIndex: Int?) -> SubTask
     func deleteSubTask(_ subTask: SubTask)
+    func updateReminder(_ reminder: Reminder?, for subTask: SubTask)
 
     // Memo
     func addMemo(to project: Project, content: String) -> Memo
@@ -196,6 +198,13 @@ final class ProjectService: ProjectServiceProtocol {
         }
     }
 
+    func updateReminder(_ reminder: Reminder?, for milestone: Milestone) {
+        milestone.reminder = reminder
+        save()
+        guard let project = milestone.project else { return }
+        notificationScheduleService?.syncMilestone(milestone, project: project)
+    }
+
     func toggleMilestoneComplete(_ milestone: Milestone) {
         if milestone.subtasks.isEmpty {
             milestone.isCompleted.toggle()
@@ -243,6 +252,13 @@ final class ProjectService: ProjectServiceProtocol {
         if let project {
             syncProjectReminder(project)
         }
+    }
+
+    func updateReminder(_ reminder: Reminder?, for subTask: SubTask) {
+        subTask.reminder = reminder
+        save()
+        guard let project = subTask.milestone?.project else { return }
+        notificationScheduleService?.syncSubTask(subTask, project: project)
     }
 
     func toggleSubTaskComplete(_ subTask: SubTask) {

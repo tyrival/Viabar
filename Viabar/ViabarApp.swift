@@ -8,6 +8,8 @@ struct ViabarApp: App {
 
     @State private var serviceContainer: ServiceContainer
     @State private var runtimeController: AppRuntimeController
+    @State private var isMenuBarInserted: Bool
+    @State private var menuBarIcon: MenuBarIcon
     private let sharedModelContainer: ModelContainer
 
     // MARK: - Init
@@ -47,7 +49,7 @@ struct ViabarApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
 
-        AppSettingsStore.ensureDefaultSettings(in: sharedModelContainer.mainContext)
+        let settings = AppSettingsStore.ensureDefaultSettings(in: sharedModelContainer.mainContext)
 
         // 初始化服务容器并注册核心服务
         let container = ServiceContainer()
@@ -68,6 +70,8 @@ struct ViabarApp: App {
 
         _serviceContainer = State(initialValue: container)
         _runtimeController = State(initialValue: AppRuntimeController())
+        _isMenuBarInserted = State(initialValue: settings.menuBarComponentEnabled)
+        _menuBarIcon = State(initialValue: MenuBarIcon.resolve(settings.menuBarIcon))
     }
 
     // MARK: - Body
@@ -90,8 +94,21 @@ struct ViabarApp: App {
         .defaultSize(width: 1260, height: 820)
         .modelContainer(sharedModelContainer)
 
+        MenuBarExtra(isInserted: $isMenuBarInserted) {
+            MenuBarPanelView()
+                .environment(serviceContainer)
+                .environment(runtimeController)
+        } label: {
+            MenuBarStatusLabelView(icon: menuBarIcon)
+        }
+        .menuBarExtraStyle(.window)
+        .modelContainer(sharedModelContainer)
+
         Settings {
-            SettingsView()
+            SettingsView(
+                onMenuBarEnabledChange: { isMenuBarInserted = $0 },
+                onMenuBarIconChange: { menuBarIcon = $0 }
+            )
                 .environment(runtimeController)
                 .modelContainer(sharedModelContainer)
         }

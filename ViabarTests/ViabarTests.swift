@@ -131,6 +131,9 @@ struct AppSettingsTests {
 
         #expect(settings.launchAtLogin == false)
         #expect(settings.menuBarComponentEnabled == false)
+        #expect(settings.menuBarIcon == MenuBarIcon.bookmarkFill.rawValue)
+        #expect(settings.menuBarProjectScope == MenuBarProjectScope.allProjects.rawValue)
+        #expect(settings.menuBarContentMode == MenuBarContentMode.currentTask.rawValue)
         #expect(settings.theme == AppTheme.system.rawValue)
         #expect(settings.language == AppLanguage.system.rawValue)
         #expect(settings.overviewScope == OverviewScope.allProjects.rawValue)
@@ -143,6 +146,26 @@ struct AppSettingsTests {
         #expect(settings.backupEnabled == true)
         #expect(settings.backupPath == "~/Documents/Viabar")
         #expect(settings.automaticallyChecksForUpdates == true)
+    }
+
+    @Test func resolvesInvalidMenuBarSavedValuesToDocumentedDefaults() {
+        #expect(MenuBarIcon.resolve("not-a-symbol") == .bookmarkFill)
+        #expect(MenuBarProjectScope.resolve("not-a-scope") == .allProjects)
+        #expect(MenuBarContentMode.resolve("not-a-mode") == .currentTask)
+        #expect(MenuBarIcon.allCases.map(\.rawValue) == [
+            "bookmark",
+            "bookmark.fill",
+            "bookmark.circle",
+            "bookmark.circle.fill",
+            "star.rectangle",
+            "star.rectangle.fill",
+            "list.bullet.rectangle",
+            "list.bullet.rectangle.fill",
+            "checkmark.seal",
+            "checkmark.seal.fill",
+            "checkmark.rectangle",
+            "checkmark.rectangle.fill",
+        ])
     }
 
     @Test func formatsDatesUsingEverySupportedSelection() {
@@ -229,5 +252,172 @@ struct AppSettingsTests {
     @Test func rejectsDuplicateConfiguredShortcuts() {
         #expect(AppShortcutConfiguration(toggleMainPanel: "Option+V", openSearch: "Command+F").isValid)
         #expect(!AppShortcutConfiguration(toggleMainPanel: "Option+V", openSearch: "Option+V").isValid)
+    }
+}
+
+struct MenuBarContentTests {
+    @Test func currentModeReturnsFirstUnfinishedSubtaskOnly() {
+        let project = Project(title: "Release", orderIndex: 0)
+        let milestone = Milestone(title: "Prepare", orderIndex: 0)
+        let finished = SubTask(title: "Done", orderIndex: 0, isCompleted: true)
+        let target = SubTask(title: "Review", orderIndex: 1)
+        finished.milestone = milestone
+        target.milestone = milestone
+        milestone.project = project
+        milestone.subtasks = [finished, target]
+        project.milestones = [milestone]
+
+        let cards = MenuBarContentBuilder.cards(
+            from: [project],
+            scope: .allProjects,
+            mode: .currentTask,
+            now: Date()
+        )
+
+        #expect(cards.count == 1)
+        #expect(cards[0].entries.map(\.title) == ["Review"])
+        #expect(cards[0].entries[0].parentTitle == "Prepare")
+        #expect(
+            cards[0].entries[0].destination
+                == .subTask(milestoneID: milestone.milestoneId, subTaskID: target.taskId)
+        )
+    }
+
+    @Test func currentModeCarriesTheVisibleTasksReminderForInlinePresentation() {
+        let project = Project(title: "Release", orderIndex: 0)
+        let milestone = Milestone(title: "Prepare", orderIndex: 0)
+        let fireDate = Date().addingTimeInterval(3600)
+        milestone.reminder = Reminder(
+            type: "repeating",
+            fireTimestamp: fireDate,
+            repeatIntervalDays: 7
+        )
+        milestone.project = project
+        project.milestones = [milestone]
+
+        let cards = MenuBarContentBuilder.cards(
+            from: [project],
+            scope: .allProjects,
+            mode: .currentTask,
+            now: Date()
+        )
+
+        #expect(cards[0].entries[0].reminder?.fireTimestamp == fireDate)
+        #expect(cards[0].entries[0].reminder?.repeatIntervalDays == 7)
+    }
+
+    @Test func reminderModeFiltersByEndOfTodayAndOrdersMatchingRows() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = calendar.date(from: DateComponents(year: 2026, month: 5, day: 25, hour: 12))!
+        let project = Project(title: "Release")
+        let overdue = Milestone(title: "Overdue", orderIndex: 0)
+        let laterToday = Milestone(title: "Later Today", orderIndex: 1)
+        let tomorrow = Milestone(title: "Tomorrow", orderIndex: 2)
+        overdue.project = project
+        laterToday.project = project
+        tomorrow.project = project
+        overdue.reminder = Reminder(type: "single", fireTimestamp: now.addingTimeInterval(-3600))
+        laterToday.reminder = Reminder(type: "single", fireTimestamp: now.addingTimeInterval(3600))
+        tomorrow.reminder = Reminder(type: "single", fireTimestamp: now.addingTimeInterval(86400))
+        project.milestones = [overdue, laterToday, tomorrow]
+
+        let cards = MenuBarContentBuilder.cards(
+            from: [project],
+            scope: .allProjects,
+            mode: .reminderTask,
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(cards[0].entries.map(\.title) == ["Overdue", "Later Today"])
+    }
+
+    @Test func mapsProjectReminderAndFiltersArchivedOrUnstarredProjects() {
+        let now = Date()
+        let favorite = Project(title: "Favorite", orderIndex: 0)
+        favorite.isFavorite = true
+        let milestone = Milestone(title: "Mapped Task", orderIndex: 0)
+        milestone.project = favorite
+        favorite.milestones = [milestone]
+        favorite.reminder = Reminder(type: "single", fireTimestamp: now)
+        let unstarred = Project(title: "Other", orderIndex: 1)
+        let archived = Project(title: "Archived", orderIndex: 2)
+        archived.isFavorite = true
+        archived.isArchived = true
+
+        let cards = MenuBarContentBuilder.cards(
+            from: [favorite, unstarred, archived],
+            scope: .favoriteProjects,
+            mode: .reminderTask,
+            now: now
+        )
+
+        #expect(cards.map(\.project.title) == ["Favorite"])
+        #expect(cards[0].entries[0].source == .projectReminder)
+        #expect(cards[0].entries[0].destination == .milestone(milestone.milestoneId))
+    }
+}
+
+@MainActor
+struct NotificationScheduleLifecycleTests {
+    @Test func singleTaskReminderRemainsPersistedAfterNotificationIsConsumed() throws {
+        let (service, scheduleService, context) = try makeServices()
+        let project = service.createProject(title: "Release")
+        let milestone = service.addMilestone(to: project, title: "Review")
+        let firedAt = Date().addingTimeInterval(60)
+        service.updateReminder(Reminder(type: "single", fireTimestamp: firedAt), for: milestone)
+
+        scheduleService.processDueEntries(now: firedAt.addingTimeInterval(1))
+
+        #expect(milestone.reminder?.fireTimestamp == firedAt)
+        #expect(fetchEntries(in: context).isEmpty)
+    }
+
+    @Test func repeatingSubTaskReminderAdvancesToTheNextFutureFireDate() throws {
+        let (service, scheduleService, context) = try makeServices()
+        let project = service.createProject(title: "Release")
+        let milestone = service.addMilestone(to: project, title: "Prepare")
+        let subTask = service.addSubTask(to: milestone, title: "Review")
+        let firedAt = Date().addingTimeInterval(60)
+        let now = firedAt.addingTimeInterval(3 * 86_400)
+        service.updateReminder(
+            Reminder(type: "repeating", fireTimestamp: firedAt, repeatIntervalDays: 1),
+            for: subTask
+        )
+
+        scheduleService.processDueEntries(now: now)
+
+        let advancedDate = try #require(subTask.reminder?.fireTimestamp)
+        #expect(advancedDate > now)
+        #expect(fetchEntries(in: context).map(\.fireDate) == [advancedDate])
+    }
+
+    private func makeServices() throws -> (ProjectService, NotificationScheduleService, ModelContext) {
+        let schema = Schema([
+            Project.self,
+            Milestone.self,
+            SubTask.self,
+            Memo.self,
+            Reminder.self,
+            NotificationScheduleEntry.self,
+            ArchiveFolder.self,
+            ProjectTemplate.self,
+            TemplateMilestone.self,
+            TemplateSubTask.self,
+            AppSettings.self,
+        ])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let modelContainer = try ModelContainer(for: schema, configurations: [configuration])
+        let context = modelContainer.mainContext
+        let container = ServiceContainer()
+        let service = ProjectService(modelContext: context, container: container)
+        let scheduleService = NotificationScheduleService(modelContext: context, notificationPoster: { _, _ in })
+        container.register(service)
+        container.register(scheduleService)
+        return (service, scheduleService, context)
+    }
+
+    private func fetchEntries(in context: ModelContext) -> [NotificationScheduleEntry] {
+        (try? context.fetch(FetchDescriptor<NotificationScheduleEntry>())) ?? []
     }
 }

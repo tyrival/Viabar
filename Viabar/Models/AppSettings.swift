@@ -85,6 +85,63 @@ enum OverviewScope: String, CaseIterable, Identifiable {
     }
 }
 
+enum MenuBarIcon: String, CaseIterable, Identifiable {
+    case bookmark
+    case bookmarkFill = "bookmark.fill"
+    case bookmarkCircle = "bookmark.circle"
+    case bookmarkCircleFill = "bookmark.circle.fill"
+    case starRectangle = "star.rectangle"
+    case starRectangleFill = "star.rectangle.fill"
+    case listBulletRectangle = "list.bullet.rectangle"
+    case listBulletRectangleFill = "list.bullet.rectangle.fill"
+    case checkmarkSeal = "checkmark.seal"
+    case checkmarkSealFill = "checkmark.seal.fill"
+    case checkmarkRectangle = "checkmark.rectangle"
+    case checkmarkRectangleFill = "checkmark.rectangle.fill"
+
+    var id: String { rawValue }
+
+    static func resolve(_ storedValue: String?) -> MenuBarIcon {
+        MenuBarIcon(rawValue: storedValue ?? "") ?? .bookmarkFill
+    }
+}
+
+enum MenuBarProjectScope: String, CaseIterable, Identifiable {
+    case allProjects
+    case favoriteProjects
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .allProjects: "全部项目"
+        case .favoriteProjects: "星标项目"
+        }
+    }
+
+    static func resolve(_ storedValue: String?) -> MenuBarProjectScope {
+        MenuBarProjectScope(rawValue: storedValue ?? "") ?? .allProjects
+    }
+}
+
+enum MenuBarContentMode: String, CaseIterable, Identifiable {
+    case currentTask
+    case reminderTask
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .currentTask: "当前任务"
+        case .reminderTask: "提醒任务"
+        }
+    }
+
+    static func resolve(_ storedValue: String?) -> MenuBarContentMode {
+        MenuBarContentMode(rawValue: storedValue ?? "") ?? .currentTask
+    }
+}
+
 enum AppDateFormat: String, CaseIterable, Identifiable {
     case yearMonthDaySlashes = "yyyy/MM/dd HH:mm"
     case yearMonthDayDashes = "yyyy-MM-dd HH:mm"
@@ -106,6 +163,9 @@ final class AppSettings {
     var createdAt: Date
     var launchAtLogin: Bool
     var menuBarComponentEnabled: Bool
+    var menuBarIcon: String = MenuBarIcon.bookmarkFill.rawValue
+    var menuBarProjectScope: String = MenuBarProjectScope.allProjects.rawValue
+    var menuBarContentMode: String = MenuBarContentMode.currentTask.rawValue
     var theme: String
     var language: String
     var overviewScope: String
@@ -124,6 +184,9 @@ final class AppSettings {
         createdAt: Date = Date(),
         launchAtLogin: Bool = false,
         menuBarComponentEnabled: Bool = false,
+        menuBarIcon: String = MenuBarIcon.bookmarkFill.rawValue,
+        menuBarProjectScope: String = MenuBarProjectScope.allProjects.rawValue,
+        menuBarContentMode: String = MenuBarContentMode.currentTask.rawValue,
         theme: String = AppTheme.system.rawValue,
         language: String = AppLanguage.system.rawValue,
         overviewScope: String = OverviewScope.allProjects.rawValue,
@@ -141,6 +204,9 @@ final class AppSettings {
         self.createdAt = createdAt
         self.launchAtLogin = launchAtLogin
         self.menuBarComponentEnabled = menuBarComponentEnabled
+        self.menuBarIcon = menuBarIcon
+        self.menuBarProjectScope = menuBarProjectScope
+        self.menuBarContentMode = menuBarContentMode
         self.theme = theme
         self.language = language
         self.overviewScope = overviewScope

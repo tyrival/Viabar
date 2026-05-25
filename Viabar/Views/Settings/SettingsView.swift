@@ -23,6 +23,9 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    var onMenuBarEnabledChange: (Bool) -> Void = { _ in }
+    var onMenuBarIconChange: (MenuBarIcon) -> Void = { _ in }
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var selection: SettingsCategory = .general
@@ -36,7 +39,12 @@ struct SettingsView: View {
             if let settings = settingsRecords.first {
                 TabView(selection: $selection) {
                     ForEach(SettingsCategory.allCases) { category in
-                        SettingsDetailView(category: category, settings: settings)
+                        SettingsDetailView(
+                            category: category,
+                            settings: settings,
+                            onMenuBarEnabledChange: onMenuBarEnabledChange,
+                            onMenuBarIconChange: onMenuBarIconChange
+                        )
                             .tabItem {
                                 Label(LocalizedStringKey(category.rawValue), systemImage: category.icon)
                             }
@@ -64,6 +72,8 @@ private struct SettingsDetailView: View {
 
     let category: SettingsCategory
     @Bindable var settings: AppSettings
+    let onMenuBarEnabledChange: (Bool) -> Void
+    let onMenuBarIconChange: (MenuBarIcon) -> Void
     @Environment(AppRuntimeController.self) private var runtimeController
     @State private var recordingShortcut: ShortcutAction?
     @State private var settingsErrorMessage: LocalizedStringKey?
@@ -116,13 +126,50 @@ private struct SettingsDetailView: View {
     }
 
     private var generalPanel: some View {
-        SettingsGroup("启动") {
-            SettingsRow("开机启动") {
-                settingsSwitch(launchAtLoginBinding)
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsGroup("启动") {
+                SettingsRow("开机启动") {
+                    settingsSwitch(launchAtLoginBinding)
+                }
             }
-            SettingsDivider()
-            SettingsRow("启用菜单栏组件") {
-                settingsSwitch($settings.menuBarComponentEnabled)
+
+            SettingsGroup("菜单栏组件") {
+                SettingsRow("启用") {
+                    settingsSwitch(menuBarEnabledBinding)
+                }
+                SettingsDivider()
+                SettingsRow("图标") {
+                    Picker("图标", selection: menuBarIconBinding) {
+                        ForEach(MenuBarIcon.allCases) { icon in
+                            Label(icon.rawValue, systemImage: icon.rawValue).tag(icon)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 188, alignment: .trailing)
+                }
+                SettingsDivider()
+                SettingsRow("项目") {
+                    Picker("项目", selection: menuBarProjectScopeBinding) {
+                        ForEach(MenuBarProjectScope.allCases) { scope in
+                            Text(scope.title).tag(scope)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 150, alignment: .trailing)
+                }
+                SettingsDivider()
+                SettingsRow("功能") {
+                    Picker("功能", selection: menuBarContentModeBinding) {
+                        ForEach(MenuBarContentMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 150, alignment: .trailing)
+                }
             }
         }
     }
@@ -343,6 +390,16 @@ private struct SettingsDetailView: View {
         )
     }
 
+    private var menuBarEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.menuBarComponentEnabled },
+            set: { enabled in
+                settings.menuBarComponentEnabled = enabled
+                onMenuBarEnabledChange(enabled)
+            }
+        )
+    }
+
     private func recordShortcut(_ storedValue: String, for action: ShortcutAction) {
         let previousValue: String
         switch action {
@@ -389,6 +446,30 @@ private struct SettingsDetailView: View {
         Binding(
             get: { OverviewScope(rawValue: settings.overviewScope) ?? .allProjects },
             set: { settings.overviewScope = $0.rawValue }
+        )
+    }
+
+    private var menuBarIconBinding: Binding<MenuBarIcon> {
+        Binding(
+            get: { MenuBarIcon.resolve(settings.menuBarIcon) },
+            set: { icon in
+                settings.menuBarIcon = icon.rawValue
+                onMenuBarIconChange(icon)
+            }
+        )
+    }
+
+    private var menuBarProjectScopeBinding: Binding<MenuBarProjectScope> {
+        Binding(
+            get: { MenuBarProjectScope.resolve(settings.menuBarProjectScope) },
+            set: { settings.menuBarProjectScope = $0.rawValue }
+        )
+    }
+
+    private var menuBarContentModeBinding: Binding<MenuBarContentMode> {
+        Binding(
+            get: { MenuBarContentMode.resolve(settings.menuBarContentMode) },
+            set: { settings.menuBarContentMode = $0.rawValue }
         )
     }
 

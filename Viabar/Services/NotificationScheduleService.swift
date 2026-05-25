@@ -5,10 +5,12 @@ import UserNotifications
 @MainActor
 final class NotificationScheduleService: NSObject, UNUserNotificationCenterDelegate {
     private let modelContext: ModelContext
+    private let notificationPoster: (String, String) -> Void
     private var timer: Timer?
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, notificationPoster: ((String, String) -> Void)? = nil) {
         self.modelContext = modelContext
+        self.notificationPoster = notificationPoster ?? Self.deliverNotification
         super.init()
     }
 
@@ -69,8 +71,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         scheduleNextTimer()
     }
 
-    func processDueEntries() {
-        let now = Date()
+    func processDueEntries(now: Date = Date()) {
         let dueEntries = allEntries()
             .filter { $0.fireDate <= now }
             .sorted { $0.fireDate < $1.fireDate }
@@ -81,10 +82,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
                 continue
             }
 
-            if let notification = notificationContent(for: entry) {
-                postNotification(title: notification.title, body: notification.body)
-            }
-            modelContext.delete(entry)
+            handleDueTaskEntry(entry, now: now)
         }
 
         save()
@@ -128,7 +126,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         processDueEntries()
     }
 
-    private func postNotification(title: String, body: String) {
+    private static func deliverNotification(title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -153,15 +151,16 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
               let nextTaskTitle = project.topUnfinishedTitle
         else { return }
 
-        postNotification(title: project.title, body: nextStepBody(for: nextTaskTitle))
+        notificationPoster(project.title, nextStepBody(for: nextTaskTitle))
 
         guard let reminder = project.reminder else { return }
+        reminder.lastTriggeredTimestamp = entry.fireDate
         guard reminder.type == "repeating" else {
             project.reminder = nil
             return
         }
 
-        guard let nextDate = nextProjectRepeatFireDate(after: entry.fireDate, reminder: reminder, now: now) else {
+        guard let nextDate = reminder.nextFutureFireDate(after: entry.fireDate, now: now) else {
             return
         }
 
@@ -169,20 +168,35 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         insertProjectEntry(for: project, fireDate: nextDate)
     }
 
-    private func notificationContent(for entry: NotificationScheduleEntry) -> (title: String, body: String)? {
-        guard entry.ownerKind == "project" else {
-            guard let project = project(id: entry.projectId),
-                  !project.isArchived
-            else { return nil }
-            return (project.title, entry.body)
+    private func handleDueTaskEntry(_ entry: NotificationScheduleEntry, now: Date) {
+        defer {
+            modelContext.delete(entry)
         }
 
-        guard let project = project(id: entry.projectId),
-              !project.isArchived,
-              let nextTaskTitle = project.topUnfinishedTitle
-        else { return nil }
+        guard let project = project(id: entry.projectId), !project.isArchived,
+              let owner = taskOwner(for: entry),
+              !owner.isCompleted,
+              let reminder = owner.reminder
+        else { return }
 
-        return (project.title, nextStepBody(for: nextTaskTitle))
+        notificationPoster(project.title, owner.title)
+        reminder.lastTriggeredTimestamp = entry.fireDate
+
+        guard reminder.isRepeating,
+              let nextDate = reminder.nextFutureFireDate(after: entry.fireDate, now: now)
+        else { return }
+
+        reminder.fireTimestamp = nextDate
+        modelContext.insert(
+            NotificationScheduleEntry(
+                ownerId: entry.ownerId,
+                ownerKind: entry.ownerKind,
+                projectId: project.projectId,
+                projectTitle: project.title,
+                body: owner.title,
+                fireDate: nextDate
+            )
+        )
     }
 
     private func insertProjectEntry(for project: Project, fireDate: Date) {
@@ -196,54 +210,6 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
             fireDate: fireDate
         )
         modelContext.insert(entry)
-    }
-
-    private func nextProjectRepeatFireDate(after firedDate: Date, reminder: Reminder, now: Date) -> Date? {
-        var candidate = firedDate
-        for _ in 0..<10000 {
-            guard let nextDate = nextRepeatFireDate(after: candidate, repeatIntervalDays: reminder.repeatIntervalDays) else {
-                return nil
-            }
-
-            if nextDate > now {
-                return nextDate
-            }
-
-            candidate = nextDate
-        }
-        return nil
-    }
-
-    private func nextRepeatFireDate(after date: Date, repeatIntervalDays: Int?) -> Date? {
-        let calendar = Calendar.current
-        switch repeatIntervalDays {
-        case 0:
-            return calendar.date(byAdding: .hour, value: 1, to: date)
-        case -1:
-            return nextWeekday(after: date)
-        case 30:
-            return calendar.date(byAdding: .month, value: 1, to: date)
-        case 90:
-            return calendar.date(byAdding: .month, value: 3, to: date)
-        case 180:
-            return calendar.date(byAdding: .month, value: 6, to: date)
-        case 365:
-            return calendar.date(byAdding: .year, value: 1, to: date)
-        default:
-            return calendar.date(byAdding: .day, value: repeatIntervalDays ?? 1, to: date)
-        }
-    }
-
-    private func nextWeekday(after date: Date) -> Date? {
-        var candidate = Calendar.current.date(byAdding: .day, value: 1, to: date)
-        while let current = candidate {
-            let weekday = Calendar.current.component(.weekday, from: current)
-            if weekday != 1 && weekday != 7 {
-                return current
-            }
-            candidate = Calendar.current.date(byAdding: .day, value: 1, to: current)
-        }
-        return nil
     }
 
     private func scheduleNextTimer() {
@@ -289,6 +255,32 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
             predicate: #Predicate { $0.projectId == projectId }
         )
         return (try? modelContext.fetch(descriptor))?.first
+    }
+
+    private func taskOwner(for entry: NotificationScheduleEntry) -> (
+        title: String,
+        isCompleted: Bool,
+        reminder: Reminder?
+    )? {
+        if entry.ownerKind == "milestone" {
+            let ownerID = entry.ownerId
+            let descriptor = FetchDescriptor<Milestone>(
+                predicate: #Predicate { $0.milestoneId == ownerID }
+            )
+            guard let milestone = (try? modelContext.fetch(descriptor))?.first else { return nil }
+            return (milestone.title, milestone.isCompleted, milestone.reminder)
+        }
+
+        if entry.ownerKind == "subtask" {
+            let ownerID = entry.ownerId
+            let descriptor = FetchDescriptor<SubTask>(
+                predicate: #Predicate { $0.taskId == ownerID }
+            )
+            guard let subTask = (try? modelContext.fetch(descriptor))?.first else { return nil }
+            return (subTask.title, subTask.isCompleted, subTask.reminder)
+        }
+
+        return nil
     }
 
     private func save() {
