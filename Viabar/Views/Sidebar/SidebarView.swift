@@ -509,7 +509,7 @@ private enum ActiveProjectRowMetrics {
     static let progressTrackColor = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
-            ? NSColor(calibratedWhite: 0.22, alpha: 1)
+            ? NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.74)
             : NSColor(calibratedWhite: 0.92, alpha: 1)
     })
     static let progressPercentColor = Color(nsColor: NSColor(name: nil) { appearance in

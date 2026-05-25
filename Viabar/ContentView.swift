@@ -644,7 +644,9 @@ struct OverviewProjectCard: View {
     }
 
     private var cardBackground: Color {
-        colorScheme == .dark ? Color.white.opacity(0.05) : Color(nsColor: .controlBackgroundColor)
+        colorScheme == .dark
+            ? Color(nsColor: NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.54))
+            : Color(nsColor: NSColor(calibratedWhite: 0.97, alpha: 0.32))
     }
 
     private var headerBackground: Color {
