@@ -480,11 +480,16 @@ private enum MemoTimelineStyle {
     static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
-            ? NSColor(calibratedWhite: 0.16, alpha: 1)
+            ? NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.54)
             : NSColor.white
     })
 
-    static let cardBorder = Color(nsColor: NSColor.separatorColor).opacity(0.35)
+    static let cardBorder = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 0.52, alpha: 0.36)
+            : NSColor.separatorColor.withAlphaComponent(0.35)
+    })
     static let searchFieldBackground = Color(nsColor: .controlBackgroundColor)
     static let searchFieldBorder = Color(nsColor: .separatorColor).opacity(0.45)
     static let inputPanelBackground = panelBackground
