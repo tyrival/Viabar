@@ -277,6 +277,7 @@ struct MemoCardView: View {
     var highlightRequestID: UUID? = nil
 
     @Environment(ServiceContainer.self) private var container
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var showsCopiedTag = false
     @State private var isCopyButtonHovered = false
 
@@ -287,7 +288,7 @@ struct MemoCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
-                Text(formatTimestamp(memo.createdAt))
+                Text(AppDateFormatter.string(from: memo.createdAt, pattern: settingsRecords.first?.dateFormat))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
 
@@ -356,24 +357,6 @@ struct MemoCardView: View {
                 projectService?.deleteMemo(memo)
             }
         }
-    }
-
-    private func formatTimestamp(_ date: Date) -> String {
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-
-        if calendar.isDateInToday(date) {
-            formatter.dateFormat = "HH:mm"
-            return "今天 \(formatter.string(from: date))"
-        }
-
-        if calendar.isDateInYesterday(date) {
-            formatter.dateFormat = "HH:mm"
-            return "昨天 \(formatter.string(from: date))"
-        }
-
-        formatter.dateFormat = "yyyy年M月d日 HH:mm"
-        return formatter.string(from: date)
     }
 
     private func copyMemoContent() {
@@ -627,4 +610,5 @@ private struct ShiftReturnMemoEditor: NSViewRepresentable {
     )
         .frame(width: 400, height: 500)
         .environment(ServiceContainer())
+        .modelContainer(for: AppSettings.self, inMemory: true)
 }

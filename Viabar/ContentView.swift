@@ -484,6 +484,7 @@ struct OverviewProjectCard: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ServiceContainer.self) private var container
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var isHovering = false
 
     private let cardHorizontalPadding: CGFloat = 18
@@ -527,6 +528,10 @@ struct OverviewProjectCard: View {
 
     private var reminderDate: Date? {
         displayedMilestoneReminder?.overviewFireDate
+    }
+
+    private var savedDateFormat: String? {
+        settingsRecords.first?.dateFormat
     }
 
     private var filledStepCount: Int {
@@ -655,7 +660,7 @@ struct OverviewProjectCard: View {
                             .foregroundStyle(reminderForegroundColor)
                             .frame(width: iconFrameSize, height: 18, alignment: .center)
 
-                        Text(reminderDate.formattedOverviewReminder(relativeTo: Date()))
+                        Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
                             .font(.callout)
                             .foregroundStyle(reminderForegroundColor)
                     }
@@ -784,27 +789,6 @@ private extension Reminder {
     }
 }
 
-private extension Date {
-    func formattedOverviewReminder(relativeTo now: Date) -> String {
-        let calendar = Calendar.current
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm:ss"
-
-        if calendar.isDate(self, inSameDayAs: now) {
-            return "今天 \(timeFormatter.string(from: self))"
-        }
-
-        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
-           calendar.isDate(self, inSameDayAs: tomorrow) {
-            return "明天 \(timeFormatter.string(from: self))"
-        }
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter.string(from: self)
-    }
-}
-
 #Preview {
     ContentView()
         .environment(ServiceContainer())
@@ -819,6 +803,7 @@ private extension Date {
                 ProjectTemplate.self,
                 TemplateMilestone.self,
                 TemplateSubTask.self,
+                AppSettings.self,
             ],
             inMemory: true
         )

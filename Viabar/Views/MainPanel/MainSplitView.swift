@@ -27,5 +27,5 @@ struct MainSplitView: View {
 #Preview {
     MainSplitView(project: Project(title: "示例项目"), reservesMemoDrawer: true)
         .environment(ServiceContainer())
-        .modelContainer(for: Project.self, inMemory: true)
+        .modelContainer(for: [Project.self, AppSettings.self], inMemory: true)
 }

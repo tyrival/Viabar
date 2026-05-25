@@ -23,6 +23,7 @@ struct ViabarApp: App {
             ProjectTemplate.self,
             TemplateMilestone.self,
             TemplateSubTask.self,
+            AppSettings.self,
         ])
 
         // iCloud sync 预留：替换为以下配置即可启用 CloudKit 同步
@@ -44,6 +45,8 @@ struct ViabarApp: App {
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
+
+        AppSettingsStore.ensureDefaultSettings(in: sharedModelContainer.mainContext)
 
         // 初始化服务容器并注册核心服务
         let container = ServiceContainer()
@@ -70,9 +73,22 @@ struct ViabarApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .frame(minWidth: 1080, minHeight: 700)
                 .environment(serviceContainer)
+                .task {
+                    let settings = AppSettingsStore.ensureDefaultSettings(
+                        in: sharedModelContainer.mainContext
+                    )
+                    AppAppearanceController.apply(storedTheme: settings.theme)
+                }
         }
         .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1260, height: 820)
         .modelContainer(sharedModelContainer)
+
+        Settings {
+            SettingsView()
+                .modelContainer(sharedModelContainer)
+        }
     }
 }

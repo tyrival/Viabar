@@ -1,0 +1,76 @@
+<style>
+  .floating-wrap { margin-top:20px; display:flex; justify-content:center; }
+  .floating-window { width:min(990px, 100%); height:605px; box-sizing:border-box; padding:13px; border-radius:30px; border:1px solid rgba(255,255,255,.18); background:#262a2c; color:#f3f5f6; box-shadow:0 22px 50px rgba(0,0,0,.34); font:14px -apple-system, BlinkMacSystemFont, sans-serif; display:flex; gap:19px; }
+  .floating-sidebar { width:241px; flex-shrink:0; box-sizing:border-box; padding:13px 13px 18px; border-radius:22px; background:rgba(33,37,39,.72); border:1px solid rgba(255,255,255,.07); }
+  .traffic { display:flex; gap:12px; height:47px; padding:0 7px 16px; align-items:center; }
+  .traffic span { width:16px; height:16px; border-radius:50%; background:rgba(255,255,255,.26); border:1px solid rgba(255,255,255,.06); }
+  .native-nav { display:flex; flex-direction:column; gap:5px; }
+  .native-item { height:47px; border-radius:12px; display:flex; align-items:center; gap:13px; padding:0 14px; color:#e6e8e8; font-size:16px; font-weight:500; }
+  .native-item.active { background:rgba(118,118,119,.46); color:white; }
+  .native-icon { width:20px; font-size:19px; text-align:center; color:#f3f5f5; }
+  .detail { min-width:0; flex:1; background:transparent; }
+  .detail-titlebar { height:69px; display:flex; align-items:center; padding:0 18px; }
+  .detail-titlebar h3 { margin:0; font-size:25px; font-weight:650; letter-spacing:-.02em; }
+  .detail-scroll { padding:13px 18px 0; }
+  .section-title { font-size:18px; font-weight:620; margin:0 0 13px 6px; }
+  .native-group { background:#303538; border-radius:17px; overflow:hidden; margin-bottom:29px; }
+  .native-row { min-height:55px; box-sizing:border-box; padding:11px 18px; display:flex; align-items:center; justify-content:space-between; gap:14px; border-bottom:1px solid rgba(255,255,255,.08); }
+  .native-row:last-child { border-bottom:0; }
+  .copy strong { display:block; font-size:15px; font-weight:510; line-height:1.3; }
+  .copy small { display:block; margin-top:4px; font-size:12px; color:#9ba4ad; }
+  .keycap { border-radius:8px; background:#252a2c; border:1px solid rgba(255,255,255,.12); padding:7px 12px; min-width:88px; text-align:center; font-weight:600; }
+  .keycap.recording { color:#98caff; border-color:#2f84ea; background:rgba(28,78,139,.34); }
+  .toggle { width:38px; height:22px; border-radius:12px; background:#1182ed; position:relative; }
+  .toggle:after { content:''; position:absolute; width:18px; height:18px; border-radius:50%; right:2px; top:2px; background:#f4f5f5; }
+  .notes { max-width:990px; margin:18px auto 0; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .note { border:1px solid #303942; border-radius:11px; background:#1c2023; padding:10px 12px; color:#bfc6cd; font-size:12px; }
+  .note b { display:block; color:#eef1f2; font-size:13px; margin-bottom:3px; }
+</style>
+
+<h2>修订方向：内嵌圆角侧栏</h2>
+<p class="subtitle">侧栏不是分割窗口的一列，而是窗口内的独立圆角矩形：四周留白、含原生红黄绿按钮、始终展开。详情区不提供折叠入口或前进后退。</p>
+
+<div class="floating-wrap">
+  <div class="floating-window">
+    <aside class="floating-sidebar">
+      <div class="traffic"><span></span><span></span><span></span></div>
+      <div class="native-nav">
+        <div class="native-item"><div class="native-icon">⚙</div>通用</div>
+        <div class="native-item"><div class="native-icon">▣</div>显示</div>
+        <div class="native-item active"><div class="native-icon">⌨</div>快捷键</div>
+        <div class="native-item"><div class="native-icon">↻</div>数据</div>
+        <div class="native-item"><div class="native-icon">ⓘ</div>关于</div>
+      </div>
+    </aside>
+    <main class="detail">
+      <div class="detail-titlebar">
+        <h3>快捷键</h3>
+      </div>
+      <div class="detail-scroll">
+        <div class="section-title">应用操作</div>
+        <section class="native-group">
+          <div class="native-row">
+            <div class="copy"><strong>显示 / 隐藏主面板</strong><small>点击快捷键区域后按新的组合键</small></div>
+            <div class="keycap">⌥ V</div>
+          </div>
+          <div class="native-row">
+            <div class="copy"><strong>打开搜索框</strong><small>按 Esc 取消录制</small></div>
+            <div class="keycap recording">请按键...</div>
+          </div>
+        </section>
+        <div class="section-title">关于页新增项预览</div>
+        <section class="native-group">
+          <div class="native-row"><div class="copy"><strong>版本号</strong></div><span style="color:#a5afb7">1.0</span></div>
+          <div class="native-row"><div class="copy"><strong>自动更新</strong><small>保持 Viabar 为最新版本</small></div><div class="toggle"></div></div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="notes">
+  <div class="note"><b>侧栏形态</b>窗口内独立圆角矩形</div>
+  <div class="note"><b>侧栏行为</b>固定显示，不可收起</div>
+  <div class="note"><b>详情头部</b>仅当前分类标题</div>
+  <div class="note"><b>新增设置</b>数据改名，自动更新开启</div>
+</div>

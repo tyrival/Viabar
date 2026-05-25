@@ -1152,11 +1152,16 @@ private struct ReminderStatusView: View {
     var usesInvertedForeground: Bool = false
     let onReminderChange: (Reminder?) -> Void
 
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var isReminderPopoverPresented = false
     @State private var isPostponeButtonHovered = false
 
     private var hasReminder: Bool {
         reminder != nil
+    }
+
+    private var savedDateFormat: String? {
+        settingsRecords.first?.dateFormat
     }
 
     private var alarmColor: AnyShapeStyle {
@@ -1207,7 +1212,7 @@ private struct ReminderStatusView: View {
                     postponeButton(for: reminder)
                 }
 
-                Text(reminder.inlineReminderSummary)
+                Text(reminder.inlineReminderSummary(dateFormatPattern: savedDateFormat))
                     .font(textFont)
                     .foregroundStyle(summaryColor(for: reminder))
                     .lineLimit(1)
@@ -1734,8 +1739,10 @@ private extension Reminder {
         fireTimestamp ?? nextRepeatingFireDate
     }
 
-    var inlineReminderSummary: String {
-        let time = formattedInlineReminderTime
+    func inlineReminderSummary(dateFormatPattern: String?) -> String {
+        let time = inlineFireDate.map {
+            AppDateFormatter.string(from: $0, pattern: dateFormatPattern)
+        } ?? "--"
         guard isRepeating else { return time }
         return "\(time) \(inlineRepeatTitle)"
     }
@@ -1748,24 +1755,6 @@ private extension Reminder {
     var isInlineReminderTodayPending: Bool {
         guard let date = inlineFireDate else { return false }
         return Calendar.current.isDateInToday(date) && date >= Date()
-    }
-
-    var formattedInlineReminderTime: String {
-        guard let date = inlineFireDate else { return "--" }
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-
-        if calendar.isDateInToday(date) {
-            return "今天 \(formatter.string(from: date))"
-        }
-
-        if calendar.isDateInTomorrow(date) {
-            return "明天 \(formatter.string(from: date))"
-        }
-
-        formatter.dateFormat = "M/d/yy HH:mm"
-        return formatter.string(from: date)
     }
 
     var inlineRepeatTitle: String {
@@ -1882,4 +1871,5 @@ private func formatCompletionTimestamp(_ date: Date) -> String {
     return MilestoneListView(project: project)
         .frame(width: 400, height: 500)
         .environment(ServiceContainer())
+        .modelContainer(for: AppSettings.self, inMemory: true)
 }

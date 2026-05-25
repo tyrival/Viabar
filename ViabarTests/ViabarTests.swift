@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import SwiftData
 @testable import Viabar
@@ -121,5 +122,74 @@ struct ProjectTemplateAndFavoriteTests {
         let service = ProjectService(modelContext: modelContainer.mainContext, container: container)
         container.register(service)
         return (service, modelContainer.mainContext)
+    }
+}
+
+struct AppSettingsTests {
+    @Test func initializesDocumentedDefaults() {
+        let settings = AppSettings()
+
+        #expect(settings.launchAtLogin == false)
+        #expect(settings.menuBarComponentEnabled == false)
+        #expect(settings.theme == AppTheme.system.rawValue)
+        #expect(settings.language == AppLanguage.system.rawValue)
+        #expect(settings.overviewScope == OverviewScope.allProjects.rawValue)
+        #expect(settings.weekdayFilterEnabled == false)
+        #expect(settings.dateFormat == AppDateFormat.yearMonthDaySlashes.rawValue)
+        #expect(settings.toggleMainPanelShortcut == "Option+V")
+        #expect(settings.openSearchShortcut == "Command+F")
+        #expect(settings.syncEnabled == true)
+        #expect(settings.lastSyncAt == nil)
+        #expect(settings.backupEnabled == true)
+        #expect(settings.backupPath == "~/Documents/Viabar")
+        #expect(settings.automaticallyChecksForUpdates == true)
+    }
+
+    @Test func formatsDatesUsingEverySupportedSelection() {
+        let date = Calendar(identifier: .gregorian).date(
+            from: DateComponents(year: 2026, month: 5, day: 24, hour: 14, minute: 30)
+        )!
+
+        #expect(AppDateFormatter.string(from: date, pattern: "yyyy/MM/dd HH:mm") == "2026/05/24 14:30")
+        #expect(AppDateFormatter.string(from: date, pattern: "yyyy-MM-dd HH:mm") == "2026-05-24 14:30")
+        #expect(AppDateFormatter.string(from: date, pattern: "MM/dd HH:mm") == "05/24 14:30")
+        #expect(AppDateFormatter.string(from: date, pattern: "dd/MM/yyyy HH:mm") == "24/05/2026 14:30")
+    }
+
+    @Test func fallsBackToDefaultDateFormatForUnknownSavedValue() {
+        let date = Calendar(identifier: .gregorian).date(
+            from: DateComponents(year: 2026, month: 5, day: 24, hour: 14, minute: 30)
+        )!
+
+        #expect(AppDateFormatter.string(from: date, pattern: "invalid") == "2026/05/24 14:30")
+    }
+
+    @Test func rendersStoredShortcutValuesWithMacSymbols() {
+        #expect(ShortcutKeyCombination.displayString(for: "Option+V") == "⌥ V")
+        #expect(ShortcutKeyCombination.displayString(for: "Command+F") == "⌘ F")
+        #expect(
+            ShortcutKeyCombination.displayString(for: "Control+Option+Shift+Command+Left")
+                == "⌃ ⌥ ⇧ ⌘ ←"
+        )
+    }
+
+    @Test func createsCanonicalStoredShortcutValues() {
+        #expect(
+            ShortcutKeyCombination(
+                modifiers: [.command, .shift],
+                key: .character("f")
+            )?.storedValue == "Shift+Command+F"
+        )
+        #expect(
+            ShortcutKeyCombination(
+                modifiers: [.option],
+                key: .space
+            )?.storedValue == "Option+Space"
+        )
+    }
+
+    @Test func rejectsShortcutWithoutModifiersOrWithEscape() {
+        #expect(ShortcutKeyCombination(modifiers: [], key: .character("V")) == nil)
+        #expect(ShortcutKeyCombination(modifiers: [.command], key: .escape) == nil)
     }
 }

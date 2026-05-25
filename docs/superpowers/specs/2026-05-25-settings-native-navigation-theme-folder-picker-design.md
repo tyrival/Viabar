@@ -1,63 +1,50 @@
-# Settings Native Navigation, Theme, And Folder Picker Design
+# Native Tabbed Settings, Theme, And Folder Picker Design
 
 ## Goal
 
-Correct the Settings window implementation by using macOS 26 native window
-and sidebar structure, then add live whole-app theme application and a native
-backup-folder picker. This design supersedes only the layout implementation
-choices in the prior settings-sidebar design; persisted settings, shortcut
-recording, and automatic-update requirements remain in scope.
+Replace the failed sidebar-based Settings experiment with Finder-style native
+macOS Settings tabs, while retaining aligned settings controls, shortcut
+recording, the folder picker, and whole-app theme selection.
 
 ## Official API Basis
 
-The implementation follows Apple platform facilities rather than recreating
-the macOS 26 Settings appearance manually:
+The implementation now follows the standard Finder preferences model:
 
-- `NavigationSplitView` is the native sidebar/detail structure and receives
-  the new macOS 26 Liquid Glass sidebar appearance.
-- `toolbar(removing: .sidebarToggle)` removes the sidebar-collapse control
-  supplied by `NavigationSplitView`.
-- `toolbar(removing: .title)` hides the visible title presentation while
-  preserving a logical window title for system use.
-- `toolbarBackgroundVisibility(.hidden, for: .windowToolbar)` removes the
-  visible toolbar background so the sidebar/content presentation reaches the
-  top of the window around the system traffic-light controls.
-
-The prior custom `HStack` plus hand-built glass sidebar is replaced. The
-application must not draw imitation traffic-light controls.
+- Use SwiftUI's native `Settings` scene, which supplies the conventional app
+  menu entry, `Command+,`, system traffic-light controls, and system window
+  shape.
+- Use `TabView` with icon-and-title tab items across the top for `通用`,
+  `显示`, `快捷键`, `数据`, and `关于`.
+- Remove the custom `Window`, custom sidebar, custom traffic-light controls,
+  draggable header, transparent-background window bridge, and custom outer
+  corner clipping.
+- Keep standard SwiftUI controls within each tab, with aligned trailing
+  control columns and compact configuration groups.
 
 Relevant Apple references:
 
-- <https://developer.apple.com/documentation/swiftui/navigationsplitview>
-- <https://developer.apple.com/documentation/SwiftUI/View/toolbar%28removing%3A%29>
-- <https://developer.apple.com/documentation/SwiftUI/Customizing-window-styles-and-state-restoration-behavior-in-macOS>
+- <https://developer.apple.com/documentation/swiftui/settings>
+- <https://developer.apple.com/documentation/swiftui/tabview>
+- <https://developer.apple.com/documentation/appkit/nsapplication/appearance>
 - <https://developer.apple.com/videos/play/wwdc2025/323>
 
-## Window And Sidebar Structure
+## Window And Tab Structure
 
-The Settings root returns to a native two-column `NavigationSplitView`:
-
-- the left column contains `通用`, `显示`, `快捷键`, `数据`, and `关于`;
-- the detail column displays the currently selected category;
-- the sidebar is shown by default and the sidebar-toggle toolbar item is
-  removed;
-- no forward/back controls or visible title label appear in the top toolbar;
-- native traffic-light controls remain system-owned and should visually sit
-  within the top-left sidebar region once toolbar title/background are hidden.
-
-The sidebar rows retain standard macOS selection appearance. Their full
-available row bounds must be hit-testable so clicks to the empty trailing
-space still select the row.
+The Settings scene presents a fixed-size, native preference window. The
+top-level `TabView` renders icon-and-title category selectors at the top in
+the style of Finder settings. Each category displays its existing settings
+groups beneath the tab strip. System window chrome, traffic-light controls,
+dragging, and window rounding are left entirely to macOS.
 
 ## Detail Layout And Control Alignment
 
 The detail pane keeps compact grouped configuration sections. It changes in
 these ways:
 
-- in light mode, a settings group uses a lightly gray semantic surface instead
-  of rendering as visually white against the window background;
-- in dark mode, it remains system adaptive rather than hardcoding a fixed
-  palette;
+- in light mode, a settings group uses the explicit `#ECECEC` requested
+  surface instead of rendering as white or too dark against the window;
+- in dark mode, a moderately elevated gray surface separates each settings
+  group from the dark detail background;
 - every row allocates a consistent trailing control column, so switches,
   menus, text fields, buttons, and shortcut recorders share right alignment;
 - the shortcut recorder adopts the same small control height as a standard
@@ -93,10 +80,30 @@ the whole Viabar application:
   the main window and Settings window;
 - reopening the application continues to use the persisted selected value.
 
-The shared settings record remains the source of truth. A small root wrapper
-queries that record and applies the resolved `ColorScheme?` via
-`preferredColorScheme` to each scene's root content rather than duplicating
-theme state in individual views.
+The shared settings record remains the source of truth. One application-level
+`AppAppearanceController` applies its value through
+`NSApplication.shared.appearance`: light maps to `.aqua`, dark maps to
+`.darkAqua`, and system clears the override with `nil`. AppKit then propagates
+one effective appearance to all application windows, panels, controls, and
+SwiftUI-hosted content.
+
+The controller is called from the main scene's first mounted content task,
+after AppKit has established the application object and the shared settings
+record can be read safely. It is also called immediately when the theme picker
+changes. It must not be called from `ViabarApp.init()`, where the `NSApp`
+implicit application reference is not yet guaranteed to exist. No root-content
+`.preferredColorScheme(...)`, `NSWindow.appearance` bridge, or per-window
+observer remains. This follows Apple's application appearance inheritance
+model and ensures the native Settings scene and main window use the same
+source of appearance truth.
+
+Runtime investigation rejected both partial approaches: content-only
+`.preferredColorScheme(...)` left SwiftUI content dark after its window had
+returned to Aqua until focus changed; window-level appearance writes then
+caused lagging mixed surfaces and a re-entrant SwiftUI update hang when
+selecting dark mode. Both paths are removed rather than patched further.
+Applying `NSApp.appearance` from `ViabarApp.init()` was also rejected after it
+crashed on launch while the implicit AppKit application reference was nil.
 
 This change applies only color appearance. It does not implement language,
 overview filtering, launch-at-login, menu-bar components, sync execution, or
@@ -114,43 +121,40 @@ The following already-approved behavior remains required:
 
 ## View And Code Boundaries
 
-- `Viabar/Views/Settings/SettingsView.swift` returns to native
-  `NavigationSplitView`, defines compact detail groups and aligned trailing
-  controls, and invokes the folder chooser from the backup path row.
+- `Viabar/Views/Settings/SettingsView.swift` defines the native top-tab
+  selection layout, compact detail groups, aligned trailing controls, and
+  invokes the folder chooser from the backup path row.
 - `Viabar/Views/Settings/ShortcutRecorderField.swift` remains the scoped
   AppKit first-responder bridge for shortcut recording, with reduced standard
   control sizing.
 - A narrowly scoped native folder-picker helper, either within the settings
   file or beside it, owns the open-panel interaction and returns a selected
   path through a callback.
-- `Viabar/Models/AppSettings.swift` provides a pure mapping from saved theme
-  choice to `ColorScheme?`.
-- `Viabar/ViabarApp.swift` wraps both root scene contents with the shared
-  theme-applier view and configures the Settings toolbar presentation.
-- `ViabarTests/ViabarTests.swift` covers the pure theme-to-color-scheme mapping
-  in addition to existing settings and shortcut tests.
+- `Viabar/Models/AppSettings.swift` stores the selected theme choice and
+  returns the shared settings record during startup bootstrap.
+- `Viabar/System/AppAppearanceController.swift` is the sole runtime theme
+  applier and maps persisted choices to `NSApplication.shared.appearance`.
+- `Viabar/ViabarApp.swift` applies the saved theme during application startup,
+  gives the main window a normal default launch size and useful minimum content
+  size, and declares the native `Settings` scene without theme wrappers.
+- `Viabar/Views/Settings/SettingsView.swift` persists a changed theme and
+  immediately delegates its live application to `AppAppearanceController`.
 
 ## Verification
 
-Use tests first for the pure theme mapping when compile authorization is
-available:
-
-- system returns `nil`;
-- light returns `.light`;
-- dark returns `.dark`;
-- unsupported saved input resolves to system behavior.
-
 Use runtime visual checking when the user authorizes compilation and launch:
 
-- Settings displays the native macOS 26 sidebar reaching the traffic-light
-  region without a visible title row;
-- no sidebar toggle appears;
-- clicking anywhere in a sidebar row selects it;
-- light-mode setting groups are visibly gray against the window background;
+- Settings presents native system window chrome and Finder-style top tabs;
+- switching among `通用`, `显示`, `快捷键`, `数据`, and `关于` changes the
+  visible tab content;
+- light-mode setting groups use `#ECECEC`, and dark-mode groups remain visibly
+  separated from the detail background;
 - trailing controls align consistently;
 - shortcut fields are compact;
 - the browse button updates backup path after choosing a folder;
-- switching theme immediately changes both the main window and Settings.
+- switching dark -> system immediately applies a coherent appearance rather
+  than mixed light/dark content, without requiring focus to move to another
+  application.
 
 Per repository instruction, do not compile, test, or launch until the user
 explicitly requests that verification.
