@@ -1,12 +1,18 @@
+import SwiftData
 import SwiftUI
 
 struct ReminderSettingsPopover: View {
     @Binding var reminder: Reminder?
     var onReminderChange: (Reminder?) -> Void = { _ in }
 
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var selectedDate = Date()
     @State private var selectedTime = Date()
     @State private var repeatOption: ReminderRepeatOption = .never
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -44,6 +50,7 @@ struct ReminderSettingsPopover: View {
         }
         .padding(16)
         .frame(width: 440)
+        .environment(\.locale, effectiveLanguage.locale)
         .onAppear(perform: loadReminder)
         .onChange(of: selectedDate) { _, _ in updateReminder() }
         .onChange(of: selectedTime) { _, _ in updateReminder() }
@@ -240,4 +247,5 @@ private extension Date {
 
 #Preview {
     ReminderSettingsPopover(reminder: .constant(nil))
+        .modelContainer(for: AppSettings.self, inMemory: true)
 }

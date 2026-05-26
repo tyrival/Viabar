@@ -8,6 +8,7 @@ struct NewProjectView: View {
     @Environment(ServiceContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ProjectTemplate.orderIndex) private var templates: [ProjectTemplate]
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
 
     let editingProject: Project?
 
@@ -32,6 +33,10 @@ struct NewProjectView: View {
 
     private var projectService: ProjectService? {
         container.projectService
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
     }
 
     private var selectedTemplate: ProjectTemplate? {
@@ -105,6 +110,7 @@ struct NewProjectView: View {
             .padding()
         }
         .frame(width: 520, height: 620)
+        .environment(\.locale, effectiveLanguage.locale)
         .sheet(isPresented: $showingTemplateManager) {
             ProjectTemplateManagementView()
         }
@@ -519,7 +525,7 @@ let commonSymbols: [String] = [
     NewProjectView()
         .environment(ServiceContainer())
         .modelContainer(
-            for: [ProjectTemplate.self, TemplateMilestone.self, TemplateSubTask.self],
+            for: [ProjectTemplate.self, TemplateMilestone.self, TemplateSubTask.self, AppSettings.self],
             inMemory: true
         )
 }

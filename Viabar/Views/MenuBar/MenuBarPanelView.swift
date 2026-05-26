@@ -175,10 +175,7 @@ struct MenuBarPanelView: View {
                 }
 
                 if draftHasText {
-                    HStack(spacing: 7) {
-                        projectPickerTag
-                        reminderTag
-                    }
+                    quickAddTags
                 }
             }
             .padding(.horizontal, 9)
@@ -201,6 +198,20 @@ struct MenuBarPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .help(Text(selectedProject == nil ? LocalizedStringKey("请选择项目") : LocalizedStringKey("添加任务")))
+            }
+        }
+    }
+
+    private var quickAddTags: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 7) {
+                projectPickerTag
+                reminderTag
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                projectPickerTag
+                reminderTag
             }
         }
     }

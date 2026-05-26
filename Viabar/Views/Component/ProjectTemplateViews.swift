@@ -7,6 +7,7 @@ struct ProjectTemplateManagementView: View {
     @Environment(ServiceContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ProjectTemplate.orderIndex) private var templates: [ProjectTemplate]
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
 
     @State private var showingCreateEditor = false
     @State private var editingTemplate: ProjectTemplate?
@@ -14,6 +15,10 @@ struct ProjectTemplateManagementView: View {
 
     private var projectService: ProjectService? {
         container.projectService
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
     }
 
     var body: some View {
@@ -46,7 +51,7 @@ struct ProjectTemplateManagementView: View {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(templates) { template in
-                            TemplateManagementRow(template: template)
+                            TemplateManagementRow(template: template, language: effectiveLanguage)
                                 .contextMenu {
                                     Button {
                                         editingTemplate = template
@@ -74,11 +79,14 @@ struct ProjectTemplateManagementView: View {
             .padding()
         }
         .frame(width: 470, height: 500)
+        .environment(\.locale, effectiveLanguage.locale)
         .sheet(isPresented: $showingCreateEditor) {
             ProjectTemplateEditorView()
+                .environment(\.locale, effectiveLanguage.locale)
         }
         .sheet(item: $editingTemplate) { template in
             ProjectTemplateEditorView(template: template)
+                .environment(\.locale, effectiveLanguage.locale)
         }
         .alert(
             "删除模板？",
@@ -104,6 +112,7 @@ struct ProjectTemplateManagementView: View {
 
 private struct TemplateManagementRow: View {
     let template: ProjectTemplate
+    let language: EffectiveAppLanguage
 
     var body: some View {
         let taskCount = template.milestones.count
@@ -119,7 +128,14 @@ private struct TemplateManagementRow: View {
                 Text(template.name)
                     .font(.headline)
                     .lineLimit(1)
-                Text("\(taskCount) 项任务 / \(subtaskCount) 项子任务")
+                Text(
+                    AppLocalization.format(
+                        "%lld 项任务 / %lld 项子任务",
+                        language: language,
+                        Int64(taskCount),
+                        Int64(subtaskCount)
+                    )
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

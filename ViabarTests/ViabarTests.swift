@@ -531,7 +531,27 @@ struct NotificationScheduleLifecycleTests {
         #expect(fetchEntries(in: context).map(\.fireDate) == [advancedDate])
     }
 
-    private func makeServices() throws -> (ProjectService, NotificationScheduleService, ModelContext) {
+    @Test func projectNotificationUsesSelectedEnglishLanguageForBuiltInBody() throws {
+        var deliveredNotification: (title: String, body: String)?
+        let (service, scheduleService, context) = try makeServices { title, body in
+            deliveredNotification = (title, body)
+        }
+        context.insert(AppSettings(language: AppLanguage.english.rawValue))
+        let project = service.createProject(title: "Release")
+        _ = service.addMilestone(to: project, title: "Review")
+        let firedAt = Date().addingTimeInterval(60)
+        project.reminder = Reminder(type: "single", fireTimestamp: firedAt)
+        scheduleService.syncProject(project)
+
+        scheduleService.processDueEntries(now: firedAt.addingTimeInterval(1))
+
+        #expect(deliveredNotification?.title == "Release")
+        #expect(deliveredNotification?.body == "Next: Review")
+    }
+
+    private func makeServices(
+        notificationPoster: @escaping (String, String) -> Void = { _, _ in }
+    ) throws -> (ProjectService, NotificationScheduleService, ModelContext) {
         let schema = Schema([
             Project.self,
             Milestone.self,
@@ -550,7 +570,7 @@ struct NotificationScheduleLifecycleTests {
         let context = modelContainer.mainContext
         let container = ServiceContainer()
         let service = ProjectService(modelContext: context, container: container)
-        let scheduleService = NotificationScheduleService(modelContext: context, notificationPoster: { _, _ in })
+        let scheduleService = NotificationScheduleService(modelContext: context, notificationPoster: notificationPoster)
         container.register(service)
         container.register(scheduleService)
         return (service, scheduleService, context)

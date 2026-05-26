@@ -48,7 +48,7 @@
 "数据备份" = "Data Backup";
 "备份路径" = "Backup Path";
 "Backup" = "Backup";
-"立即备份" = "Back Up Now";
+"立即备份" = "Backup Now";
 "浏览备份" = "Browse Backups";
 "Viabar 自动保存各级备份" = "Viabar keeps backups automatically";
 "• 过去 24 小时每小时备份" = "• Hourly backups for the past 24 hours";
