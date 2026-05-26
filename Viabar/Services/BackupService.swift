@@ -7,6 +7,7 @@ enum BackupServiceError: LocalizedError {
     case missingPayload
     case commandFailed(String)
     case invalidPath
+    case authorizationRequired
 
     var errorDescription: String? {
         switch self {
@@ -18,6 +19,8 @@ enum BackupServiceError: LocalizedError {
             return output.isEmpty ? "Backup archive operation failed." : output
         case .invalidPath:
             return "The selected backup path is invalid."
+        case .authorizationRequired:
+            return "Select a backup folder to grant write access before creating backups."
         }
     }
 }
@@ -48,8 +51,25 @@ final class BackupService {
         setAutomaticBackupEnabled(settings.backupEnabled, settings: settings)
     }
 
-    func refreshBackups(path: String) throws {
-        let directory = try directoryURL(for: path)
+    func authorizeBackupDirectory(_ directory: URL, settings: AppSettings) throws {
+        let bookmarkData = try directory.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        settings.backupPath = directory.path
+        settings.backupBookmarkData = bookmarkData
+        try modelContext.save()
+        try refreshBackups(settings: settings)
+    }
+
+    func refreshBackups(settings: AppSettings) throws {
+        try withAuthorizedDirectory(settings: settings) { directory in
+            try refreshBackups(in: directory)
+        }
+    }
+
+    private func refreshBackups(in directory: URL) throws {
         guard fileManager.fileExists(atPath: directory.path) else {
             availableBackups = []
             latestBackup = nil
@@ -67,31 +87,34 @@ final class BackupService {
 
     @discardableResult
     func createBackup(settings: AppSettings, now: Date = Date()) throws -> BackupFileMetadata {
-        let directory = try directoryURL(for: settings.backupPath)
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let snapshot = try makeSnapshot(settings: settings, now: now)
-        let archiveURL = uniqueArchiveURL(in: directory, date: now)
-        let temporaryDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("viabar-backup-\(UUID().uuidString)", isDirectory: true)
-        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+        try withAuthorizedDirectory(settings: settings) { directory in
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            let snapshot = try makeSnapshot(settings: settings, now: now)
+            let archiveURL = uniqueArchiveURL(in: directory, date: now)
+            let temporaryDirectory = fileManager.temporaryDirectory
+                .appendingPathComponent("viabar-backup-\(UUID().uuidString)", isDirectory: true)
+            defer { try? fileManager.removeItem(at: temporaryDirectory) }
 
-        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        let payloadURL = temporaryDirectory.appendingPathComponent("backup.json")
-        let zipURL = temporaryDirectory.appendingPathComponent("archive.zip")
-        try JSONEncoder.backupEncoder.encode(snapshot).write(to: payloadURL, options: .atomic)
-        try runDitto(["-c", "-k", "--sequesterRsrc", payloadURL.path, zipURL.path])
-        try fileManager.moveItem(at: zipURL, to: archiveURL)
+            try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+            let payloadURL = temporaryDirectory.appendingPathComponent("backup.json")
+            let zipURL = temporaryDirectory.appendingPathComponent("archive.zip")
+            try JSONEncoder.backupEncoder.encode(snapshot).write(to: payloadURL, options: .atomic)
+            try runDitto(["-c", "-k", "--sequesterRsrc", payloadURL.path, zipURL.path])
+            try fileManager.moveItem(at: zipURL, to: archiveURL)
 
-        try refreshBackups(path: settings.backupPath)
-        try applyRetention(settings: settings, now: now)
-        let metadata = BackupFileMetadata(url: archiveURL) ?? BackupFileMetadata(url: archiveURL, createdAt: now)
-        latestBackup = availableBackups.first
-        lastError = nil
-        return metadata
+            try refreshBackups(in: directory)
+            try applyRetention(in: directory, now: now)
+            let metadata = BackupFileMetadata(url: archiveURL) ?? BackupFileMetadata(url: archiveURL, createdAt: now)
+            latestBackup = availableBackups.first
+            lastError = nil
+            return metadata
+        }
     }
 
-    func restore(file: BackupFileMetadata) throws {
-        try restore(snapshot: decodeSnapshot(from: file.url))
+    func restore(file: BackupFileMetadata, settings: AppSettings) throws {
+        try withAuthorizedDirectory(settings: settings) { _ in
+            try restore(snapshot: decodeSnapshot(from: file.url))
+        }
     }
 
     func restore(snapshot: BackupSnapshot) throws {
@@ -107,7 +130,7 @@ final class BackupService {
         let projects = restoreProjects(snapshot.projects, folders: folders)
         try modelContext.save()
         notificationScheduleService.rebuildTimeline(from: projects)
-        try refreshBackups(path: settings.backupPath)
+        try? refreshBackups(settings: settings)
         setAutomaticBackupEnabled(settings.backupEnabled, settings: settings)
         lastError = nil
     }
@@ -144,7 +167,7 @@ final class BackupService {
 
     private func createAutomaticBackupIfNeeded(settings: AppSettings, now: Date = Date()) {
         do {
-            try refreshBackups(path: settings.backupPath)
+            try refreshBackups(settings: settings)
             if let latestBackup, Calendar.current.isDate(latestBackup.createdAt, equalTo: now, toGranularity: .hour) {
                 return
             }
@@ -154,12 +177,12 @@ final class BackupService {
         }
     }
 
-    private func applyRetention(settings: AppSettings, now: Date) throws {
+    private func applyRetention(in directory: URL, now: Date) throws {
         let deletes = BackupRetentionPolicy.urlsToDelete(from: availableBackups, now: now)
         for url in deletes {
             try fileManager.removeItem(at: url)
         }
-        try refreshBackups(path: settings.backupPath)
+        try refreshBackups(in: directory)
     }
 
     private func makeSnapshot(settings: AppSettings, now: Date) throws -> BackupSnapshot {
@@ -259,7 +282,9 @@ final class BackupService {
         defer { try? fileManager.removeItem(at: temporaryDirectory) }
 
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        try runDitto(["-x", "-k", archiveURL.path, temporaryDirectory.path])
+        let localArchiveURL = temporaryDirectory.appendingPathComponent(archiveURL.lastPathComponent)
+        try fileManager.copyItem(at: archiveURL, to: localArchiveURL)
+        try runDitto(["-x", "-k", localArchiveURL.path, temporaryDirectory.path])
         let payloadURL = temporaryDirectory.appendingPathComponent("backup.json")
         guard fileManager.fileExists(atPath: payloadURL.path) else {
             throw BackupServiceError.missingPayload
@@ -419,14 +444,41 @@ final class BackupService {
         settings.syncEnabled = snapshot.syncEnabled
         settings.lastSyncAt = snapshot.lastSyncAt
         settings.backupEnabled = snapshot.backupEnabled
-        settings.backupPath = snapshot.backupPath
+        // The authorized backup destination is local to this Mac and is not restored from an archive.
         settings.automaticallyChecksForUpdates = snapshot.automaticallyChecksForUpdates
     }
 
-    private func directoryURL(for storedPath: String) throws -> URL {
-        let expanded = NSString(string: storedPath).expandingTildeInPath
-        guard !expanded.isEmpty else { throw BackupServiceError.invalidPath }
-        return URL(fileURLWithPath: expanded, isDirectory: true)
+    private func withAuthorizedDirectory<Result>(
+        settings: AppSettings,
+        operation: (URL) throws -> Result
+    ) throws -> Result {
+        guard let bookmarkData = settings.backupBookmarkData else {
+            throw BackupServiceError.authorizationRequired
+        }
+
+        var isStale = false
+        let directory = try URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        )
+        guard directory.startAccessingSecurityScopedResource() else {
+            throw BackupServiceError.authorizationRequired
+        }
+        defer { directory.stopAccessingSecurityScopedResource() }
+
+        if isStale {
+            settings.backupBookmarkData = try directory.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+            settings.backupPath = directory.path
+            try modelContext.save()
+        }
+
+        return try operation(directory)
     }
 
     private func uniqueArchiveURL(in directory: URL, date: Date) -> URL {

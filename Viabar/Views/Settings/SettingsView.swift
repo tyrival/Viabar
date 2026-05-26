@@ -109,7 +109,7 @@ private struct SettingsDetailView: View {
                 settings.launchAtLogin = runtimeController.launchAtLogin.isEnabled
             }
             if category == .data {
-                try? backupService?.refreshBackups(path: settings.backupPath)
+                try? backupService?.refreshBackups(settings: settings)
             }
         }
         .alert("无法应用设置", isPresented: settingsErrorBinding) {
@@ -305,7 +305,7 @@ private struct SettingsDetailView: View {
                             createBackup()
                         }
                         Button("浏览备份") {
-                            showsBackupBrowser = true
+                            browseBackups()
                         }
                     }
                     .controlSize(.small)
@@ -371,9 +371,8 @@ private struct SettingsDetailView: View {
         panel.canCreateDirectories = true
 
         guard panel.runModal() == .OK, let directoryURL = panel.url else { return }
-        settings.backupPath = directoryURL.path
         do {
-            try backupService?.refreshBackups(path: settings.backupPath)
+            try backupService?.authorizeBackupDirectory(directoryURL, settings: settings)
             backupService?.setAutomaticBackupEnabled(settings.backupEnabled, settings: settings)
         } catch {
             settingsErrorMessage = "无法读取备份路径，请检查文件夹权限。"
@@ -514,8 +513,21 @@ private struct SettingsDetailView: View {
     private func createBackup() {
         do {
             try backupService?.createBackup(settings: settings)
+        } catch BackupServiceError.authorizationRequired {
+            settingsErrorMessage = "请先选择备份文件夹以授予写入权限。"
         } catch {
             settingsErrorMessage = "无法创建备份，请检查备份路径权限。"
+        }
+    }
+
+    private func browseBackups() {
+        do {
+            try backupService?.refreshBackups(settings: settings)
+            showsBackupBrowser = true
+        } catch BackupServiceError.authorizationRequired {
+            settingsErrorMessage = "请先选择备份文件夹以授予写入权限。"
+        } catch {
+            settingsErrorMessage = "无法读取备份路径，请检查文件夹权限。"
         }
     }
 

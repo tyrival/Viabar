@@ -35,7 +35,7 @@ struct BackupBrowserView: View {
         .padding(20)
         .frame(width: 510, height: 420)
         .onAppear {
-            try? backupService.refreshBackups(path: settings.backupPath)
+            try? backupService.refreshBackups(settings: settings)
         }
         .alert("恢复当前备份？", isPresented: $showsFirstConfirmation) {
             Button("取消", role: .cancel) {}
@@ -99,7 +99,7 @@ struct BackupBrowserView: View {
     private func restoreSelectedBackup() {
         guard let selectedBackup else { return }
         do {
-            try backupService.restore(file: selectedBackup)
+            try backupService.restore(file: selectedBackup, settings: settings)
             dismiss()
         } catch {
             showsRestoreFailure = true

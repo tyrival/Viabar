@@ -179,6 +179,7 @@ final class AppSettings {
     var lastSyncAt: Date?
     var backupEnabled: Bool
     var backupPath: String
+    var backupBookmarkData: Data?
     var automaticallyChecksForUpdates: Bool = true
 
     init(
@@ -200,6 +201,7 @@ final class AppSettings {
         lastSyncAt: Date? = nil,
         backupEnabled: Bool = true,
         backupPath: String = "~/Documents/Viabar",
+        backupBookmarkData: Data? = nil,
         automaticallyChecksForUpdates: Bool = true
     ) {
         self.settingsId = settingsId
@@ -220,6 +222,7 @@ final class AppSettings {
         self.lastSyncAt = lastSyncAt
         self.backupEnabled = backupEnabled
         self.backupPath = backupPath
+        self.backupBookmarkData = backupBookmarkData
         self.automaticallyChecksForUpdates = automaticallyChecksForUpdates
     }
 }

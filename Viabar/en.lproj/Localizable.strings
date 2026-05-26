@@ -69,6 +69,7 @@
 "无法恢复备份" = "Unable to Restore Backup";
 "备份文件已损坏、不可读取或版本不受支持。当前数据未被修改。" = "The backup is damaged, unreadable, or unsupported. Current data was not changed.";
 "无法创建备份，请检查备份路径权限。" = "Unable to create a backup. Check access to the backup folder.";
+"请先选择备份文件夹以授予写入权限。" = "Choose a backup folder first to grant write access.";
 "无法读取备份路径，请检查文件夹权限。" = "Unable to read the backup folder. Check folder access.";
 "选择..." = "Choose...";
 "选择" = "Choose";

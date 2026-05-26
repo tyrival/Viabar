@@ -145,6 +145,7 @@ struct AppSettingsTests {
         #expect(settings.lastSyncAt == nil)
         #expect(settings.backupEnabled == true)
         #expect(settings.backupPath == "~/Documents/Viabar")
+        #expect(settings.backupBookmarkData == nil)
         #expect(settings.automaticallyChecksForUpdates == true)
     }
 
