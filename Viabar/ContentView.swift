@@ -5,9 +5,11 @@ import AppKit
 struct ContentView: View {
     @Query(sort: \Project.orderIndex) private var allProjects: [Project]
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
+    @Query(sort: \NotificationScheduleEntry.fireDate) private var notificationScheduleEntries: [NotificationScheduleEntry]
 
     @State private var selection: SidebarSelection? = .overview
     @State private var isMemoDrawerVisible: Bool = true
+    @State private var isOverviewReportDrawerVisible: Bool = true
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
     @State private var hoveredToolbarButton: ToolbarButtonKind?
     @State private var overviewArchiveProject: Project?
@@ -50,7 +52,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(alignment: .top) {
                         toolbarGradientMask
-                            .padding(.trailing, selectedProject != nil && isMemoDrawerVisible ? memoDrawerWidth : 0)
+                            .padding(.trailing, visibleRightPanelWidth)
                             .ignoresSafeArea(.container, edges: .top)
                     }
                     .toolbarBackground(.hidden, for: .automatic)
@@ -59,6 +61,11 @@ struct ContentView: View {
 
             if let project = selectedProject, isMemoDrawerVisible {
                 memoDrawer(project: project)
+                    .transition(.move(edge: .trailing))
+            }
+
+            if isOverviewSelected, isOverviewReportDrawerVisible {
+                overviewReportDrawer
                     .transition(.move(edge: .trailing))
             }
 
@@ -78,6 +85,7 @@ struct ContentView: View {
             mainToolbarLayer
         }
         .animation(.easeInOut(duration: 0.2), value: isMemoDrawerVisible)
+        .animation(.easeInOut(duration: 0.2), value: isOverviewReportDrawerVisible)
         .background {
             MainWindowReader { window in
                 runtimeController.registerMainWindow(window)
@@ -152,6 +160,7 @@ struct ContentView: View {
             OverviewDashboardView(
                 projects: allProjects,
                 overviewScope: settingsRecords.first?.overviewScope,
+                trailingPanelWidth: isOverviewReportDrawerVisible ? memoDrawerWidth : 0,
                 onSelectProject: { selection = .project($0) },
                 onEditProject: { overviewEditProject = $0 },
                 onArchiveProject: { overviewArchiveProject = $0 },
@@ -182,6 +191,15 @@ struct ContentView: View {
         splitVisibility == .detailOnly
     }
 
+    private var isOverviewSelected: Bool {
+        switch selection {
+        case .overview, .none:
+            return true
+        case .project:
+            return false
+        }
+    }
+
     private var projectService: ProjectService? {
         container.projectService
     }
@@ -192,6 +210,14 @@ struct ContentView: View {
             projects: allProjects,
             archiveLabel: AppLocalization.string("归档", language: effectiveLanguage),
             memoLabel: AppLocalization.string("备忘录", language: effectiveLanguage)
+        )
+    }
+
+    private var overviewReport: OverviewReport {
+        OverviewReportBuilder.makeReport(
+            projects: allProjects,
+            scheduleEntries: notificationScheduleEntries,
+            now: Date()
         )
     }
 
@@ -226,6 +252,24 @@ struct ContentView: View {
 
     private var memoDrawerPanelBackground: Color {
         ViabarColor.mainPanelMemoBackground
+    }
+
+    private var overviewReportDrawer: some View {
+        HStack(spacing: 0) {
+            Divider()
+            OverviewReportDrawerView(
+                report: overviewReport,
+                onToggleVisibility: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isOverviewReportDrawerVisible = false
+                    }
+                }
+            )
+            .frame(width: memoDrawerWidth)
+        }
+        .frame(maxHeight: .infinity)
+        .background(ViabarColor.mainPanelBackground)
+        .ignoresSafeArea(.container, edges: [.top, .bottom])
     }
 
     private var memoSearchField: some View {
@@ -354,6 +398,10 @@ struct ContentView: View {
                         if let project = selectedProject {
                             hideCompletedButton(project: project)
                         }
+
+                        if isOverviewSelected, !isOverviewReportDrawerVisible {
+                            overviewReportRevealButton
+                        }
                     }
                     .padding(.trailing, toolbarTrailingPadding)
                     .padding(.top, toolbarEdgeInset)
@@ -368,16 +416,27 @@ struct ContentView: View {
     }
 
     private var toolbarTrailingPadding: CGFloat {
-        guard selectedProject != nil else { return toolbarEdgeInset }
-        return isMemoDrawerVisible
-            ? memoDrawerWidth + toolbarEdgeInset
-            : collapsedProjectToolbarTrailing
+        if visibleRightPanelWidth > 0 {
+            return visibleRightPanelWidth + toolbarEdgeInset
+        }
+        return selectedProject != nil ? collapsedProjectToolbarTrailing : toolbarEdgeInset
+    }
+
+    private var visibleRightPanelWidth: CGFloat {
+        if selectedProject != nil, isMemoDrawerVisible {
+            return memoDrawerWidth
+        }
+        if isOverviewSelected, isOverviewReportDrawerVisible {
+            return memoDrawerWidth
+        }
+        return 0
     }
 
     private func globalSearchWidth(for toolbarWidth: CGFloat) -> CGFloat {
         let preferredWidth: CGFloat = isSidebarHidden ? 520 : 420
         let titleReservation: CGFloat = isSidebarHidden && selectedProject != nil ? 500 : 120
-        let projectControls = selectedProject == nil ? 0 : toolbarButtonSize + 12
+        let hasAdjacentControl = selectedProject != nil || (isOverviewSelected && !isOverviewReportDrawerVisible)
+        let projectControls = hasAdjacentControl ? toolbarButtonSize + 12 : 0
         let usableWidth = toolbarWidth - toolbarTrailingPadding - titleReservation - projectControls
         return min(preferredWidth, max(260, usableWidth))
     }
@@ -412,6 +471,24 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .help(project.hideCompleted ? Text("显示已完成里程碑") : Text("隐藏已完成里程碑"))
         .onHover { hoveredToolbarButton = $0 ? .hideCompleted : nil }
+    }
+
+    private var overviewReportRevealButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isOverviewReportDrawerVisible = true
+            }
+        } label: {
+            Image(systemName: "sidebar.right")
+                .font(.system(size: toolbarButtonIconSize, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: toolbarButtonSize, height: toolbarButtonSize)
+                .background(toolbarButtonBackground(isHovered: hoveredToolbarButton == .overviewReport))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("展开汇总面板")
+        .onHover { hoveredToolbarButton = $0 ? .overviewReport : nil }
     }
 
     private func openSearchResult(_ result: GlobalSearchResult) {
@@ -480,12 +557,14 @@ struct ContentView: View {
 
 private enum ToolbarButtonKind: Equatable {
     case memoDrawer
+    case overviewReport
     case hideCompleted
 }
 
 struct OverviewDashboardView: View {
     let projects: [Project]
     let overviewScope: String?
+    let trailingPanelWidth: CGFloat
     let onSelectProject: (Project) -> Void
     let onEditProject: (Project) -> Void
     let onArchiveProject: (Project) -> Void
@@ -501,7 +580,7 @@ struct OverviewDashboardView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let columns = overviewColumns(for: proxy.size.width)
+            let columns = overviewColumns(for: proxy.size.width - trailingPanelWidth)
 
             ScrollView {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: cardSpacing) {
@@ -517,6 +596,7 @@ struct OverviewDashboardView: View {
                 }
                 .padding(contentPadding)
             }
+            .padding(.trailing, trailingPanelWidth)
         }
         .background(ViabarColor.mainPanelBackground)
     }
@@ -641,7 +721,7 @@ struct OverviewProjectCard: View {
     private var cardBackground: Color {
         colorScheme == .dark
             ? Color(nsColor: NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.54))
-            : Color(nsColor: NSColor(calibratedWhite: 0.97, alpha: 0.32))
+            : Color(nsColor: NSColor(calibratedWhite: 1, alpha: 1))
     }
 
     private var headerBackground: Color {

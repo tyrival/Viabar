@@ -149,6 +149,18 @@
 "已复制" = "Copied";
 "复制备忘录" = "Copy Memo";
 "复制" = "Copy";
+"本周完成" = "Completed This Week";
+"下周待办" = "Next Week";
+"本月完成" = "Completed This Month";
+"已归档" = "Archived";
+"复制本周完成" = "Copy Completed This Week";
+"复制下周待办" = "Copy Next Week";
+"复制本月完成" = "Copy Completed This Month";
+"本周暂无完成内容" = "Nothing completed this week";
+"下周暂无待办提醒" = "No reminders next week";
+"本月暂无完成内容" = "Nothing completed this month";
+"收起汇总面板" = "Hide Summary";
+"展开汇总面板" = "Show Summary";
 
 "新建" = "New";
 "保存" = "Save";

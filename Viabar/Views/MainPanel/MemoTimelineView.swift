@@ -488,7 +488,7 @@ private enum MemoTimelineStyle {
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
             ? NSColor(calibratedWhite: 0.52, alpha: 0.36)
-            : NSColor.separatorColor.withAlphaComponent(0.18)
+            : NSColor.separatorColor.withAlphaComponent(0.1)
     })
     static let searchFieldBackground = Color(nsColor: .controlBackgroundColor)
     static let searchFieldBorder = Color(nsColor: .separatorColor).opacity(0.45)

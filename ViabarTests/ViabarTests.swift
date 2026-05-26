@@ -361,6 +361,176 @@ struct MenuBarContentTests {
     }
 }
 
+struct OverviewReportTests {
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private var now: Date {
+        calendar.date(from: DateComponents(year: 2026, month: 5, day: 26, hour: 12))!
+    }
+
+    @Test func completedSectionsIncludeOnlyTasksCompletedInTheirPeriod() {
+        let project = Project(title: "Website", orderIndex: 0)
+        project.isArchived = true
+
+        let standalone = Milestone(title: "Launch", orderIndex: 0, isCompleted: true)
+        standalone.completedAt = calendar.date(
+            from: DateComponents(year: 2026, month: 5, day: 25, hour: 9)
+        )
+        standalone.project = project
+
+        let parent = Milestone(title: "Design System", orderIndex: 1, isCompleted: true)
+        parent.project = project
+        let thisWeek = SubTask(title: "Tokens", orderIndex: 0, isCompleted: true)
+        thisWeek.completedAt = calendar.date(
+            from: DateComponents(year: 2026, month: 5, day: 26, hour: 10)
+        )
+        thisWeek.milestone = parent
+        let earlierThisMonth = SubTask(title: "Typography", orderIndex: 1, isCompleted: true)
+        earlierThisMonth.completedAt = calendar.date(
+            from: DateComponents(year: 2026, month: 5, day: 5, hour: 10)
+        )
+        earlierThisMonth.milestone = parent
+        parent.subtasks = [thisWeek, earlierThisMonth]
+        project.milestones = [standalone, parent]
+
+        let report = OverviewReportBuilder.makeReport(
+            projects: [project],
+            scheduleEntries: [],
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(report.thisWeek.cards[0].project.isArchived)
+        #expect(report.thisWeek.cards[0].groups.map(\.title) == ["Launch", "Design System"])
+        #expect(report.thisWeek.cards[0].groups[1].subtasks.map(\.title) == ["Tokens"])
+        #expect(report.thisMonth.cards[0].groups[1].subtasks.map(\.title) == ["Tokens", "Typography"])
+        #expect(report.thisWeek.copyText == """
+        1. Website
+        - Launch
+        - Design System
+          - Tokens
+        """)
+    }
+
+    @Test func completionIntervalUsesExclusiveEndBoundary() {
+        let project = Project(title: "Boundary")
+        let task = Milestone(title: "Next Month", isCompleted: true)
+        task.completedAt = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1))
+        task.project = project
+        project.milestones = [task]
+
+        let report = OverviewReportBuilder.makeReport(
+            projects: [project],
+            scheduleEntries: [],
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(report.thisWeek.cards.isEmpty)
+        #expect(report.thisMonth.cards.isEmpty)
+    }
+
+    @Test func nextWeekExpandsProjectReminderAndDeduplicatesSubtaskReminder() {
+        let project = Project(title: "App", orderIndex: 0)
+        let parent = Milestone(title: "Store Review", orderIndex: 0)
+        parent.project = project
+        let screenshots = SubTask(title: "Screenshots", orderIndex: 0)
+        let copy = SubTask(title: "Localized Copy", orderIndex: 1)
+        screenshots.milestone = parent
+        copy.milestone = parent
+        parent.subtasks = [screenshots, copy]
+        project.milestones = [parent]
+
+        let nextWeek = calendar.date(
+            from: DateComponents(year: 2026, month: 6, day: 2, hour: 9)
+        )!
+        let entries = [
+            NotificationScheduleEntry(
+                ownerId: project.projectId,
+                ownerKind: "project",
+                projectId: project.projectId,
+                projectTitle: project.title,
+                body: "",
+                fireDate: nextWeek
+            ),
+            NotificationScheduleEntry(
+                ownerId: screenshots.taskId,
+                ownerKind: "subtask",
+                projectId: project.projectId,
+                projectTitle: project.title,
+                body: screenshots.title,
+                fireDate: nextWeek
+            ),
+        ]
+
+        let report = OverviewReportBuilder.makeReport(
+            projects: [project],
+            scheduleEntries: entries,
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(report.nextWeek.cards[0].groups[0].title == "Store Review")
+        #expect(report.nextWeek.cards[0].groups[0].subtasks.map(\.title) == ["Screenshots", "Localized Copy"])
+        #expect(report.nextWeek.copyText == """
+        1. App
+        - Store Review
+          - Screenshots
+          - Localized Copy
+        """)
+    }
+
+    @Test func nextWeekIncludesDirectRemindersButExcludesArchivedProjects() {
+        let active = Project(title: "Active", orderIndex: 0)
+        let activeTask = Milestone(title: "Prepare", orderIndex: 0)
+        activeTask.project = active
+        active.milestones = [activeTask]
+
+        let archived = Project(title: "Archived", orderIndex: 1)
+        archived.isArchived = true
+        let archivedTask = Milestone(title: "Hidden Task", orderIndex: 0)
+        archivedTask.project = archived
+        archived.milestones = [archivedTask]
+        archived.reminder = Reminder(type: "single", fireTimestamp: now)
+
+        let nextWeek = calendar.date(
+            from: DateComponents(year: 2026, month: 6, day: 2, hour: 9)
+        )!
+        let entries = [
+            NotificationScheduleEntry(
+                ownerId: activeTask.milestoneId,
+                ownerKind: "milestone",
+                projectId: active.projectId,
+                projectTitle: active.title,
+                body: activeTask.title,
+                fireDate: nextWeek
+            ),
+            NotificationScheduleEntry(
+                ownerId: archivedTask.milestoneId,
+                ownerKind: "milestone",
+                projectId: archived.projectId,
+                projectTitle: archived.title,
+                body: archivedTask.title,
+                fireDate: nextWeek
+            ),
+        ]
+
+        let report = OverviewReportBuilder.makeReport(
+            projects: [archived, active],
+            scheduleEntries: entries,
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(report.nextWeek.cards.map(\.project.title) == ["Active"])
+        #expect(report.nextWeek.cards[0].groups.map(\.title) == ["Prepare"])
+    }
+}
+
 struct BackupMetadataTests {
     @Test func parsesAndSortsBackupFilesNewestFirst() throws {
         let older = try #require(
