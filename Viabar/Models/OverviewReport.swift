@@ -1,19 +1,9 @@
 import Foundation
 
 enum OverviewReportSectionKind: CaseIterable, Hashable {
-    case thisWeek
-    case nextWeek
-    case thisMonth
-}
-
-struct OverviewReport {
-    let thisWeek: OverviewReportSection
-    let nextWeek: OverviewReportSection
-    let thisMonth: OverviewReportSection
-
-    var sections: [OverviewReportSection] {
-        [thisWeek, nextWeek, thisMonth]
-    }
+    case weekTodo
+    case weekDone
+    case monthDone
 }
 
 struct OverviewReportSection: Identifiable {
@@ -35,6 +25,7 @@ struct OverviewReportSection: Identifiable {
 struct OverviewReportProjectCard: Identifiable {
     let project: Project
     let groups: [OverviewReportTaskGroup]
+    let projectReminderDate: Date?
 
     var id: UUID { project.projectId }
 
@@ -49,6 +40,7 @@ struct OverviewReportTaskGroup: Identifiable {
     let milestoneID: UUID
     let title: String
     let subtasks: [OverviewReportSubTaskRow]
+    let reminderDate: Date?
 
     var id: UUID { milestoneID }
 }
@@ -56,54 +48,75 @@ struct OverviewReportTaskGroup: Identifiable {
 struct OverviewReportSubTaskRow: Identifiable {
     let taskID: UUID
     let title: String
+    let reminderDate: Date?
 
     var id: UUID { taskID }
 }
 
+// MARK: - Builder
+
 enum OverviewReportBuilder {
+    /// weekOffset: 0 = 本周, 1 = 下周   (for weekTodo)
+    /// weekDoneOffset: 0 = 本周, -1 = 上周
+    /// monthDoneOffset: 0 = 本月, -1 = 上月
     static func makeReport(
         projects: [Project],
         scheduleEntries: [NotificationScheduleEntry],
-        now: Date,
+        weekTodoOffset: Int = 0,
+        weekDoneOffset: Int = 0,
+        monthDoneOffset: Int = -1,
+        now: Date = Date(),
         calendar: Calendar = .current
-    ) -> OverviewReport {
-        guard let week = calendar.dateInterval(of: .weekOfYear, for: now),
-              let month = calendar.dateInterval(of: .month, for: now),
-              let nextWeekEnd = calendar.date(byAdding: .weekOfYear, value: 1, to: week.end)
-        else {
-            return emptyReport
-        }
+    ) -> [OverviewReportSection] {
+        let weekTodoInterval = weekInterval(offset: weekTodoOffset, now: now, calendar: calendar)
+        let weekDoneInterval = weekInterval(offset: weekDoneOffset, now: now, calendar: calendar)
+        let monthDoneInterval = monthInterval(offset: monthDoneOffset, now: now, calendar: calendar)
 
-        let nextWeek = DateInterval(start: week.end, end: nextWeekEnd)
-
-        return OverviewReport(
-            thisWeek: section(.thisWeek, cards: completedCards(from: projects, in: week)),
-            nextWeek: section(
-                .nextWeek,
+        return [
+            OverviewReportSection(
+                kind: .weekTodo,
                 cards: plannedCards(
                     from: projects,
                     scheduleEntries: scheduleEntries,
-                    in: nextWeek
+                    upToEndOf: weekTodoInterval
                 )
             ),
-            thisMonth: section(.thisMonth, cards: completedCards(from: projects, in: month))
-        )
+            OverviewReportSection(
+                kind: .weekDone,
+                cards: completedCards(from: projects, in: weekDoneInterval)
+            ),
+            OverviewReportSection(
+                kind: .monthDone,
+                cards: completedCards(from: projects, in: monthDoneInterval)
+            ),
+        ]
     }
 
-    private static var emptyReport: OverviewReport {
-        OverviewReport(
-            thisWeek: section(.thisWeek, cards: []),
-            nextWeek: section(.nextWeek, cards: []),
-            thisMonth: section(.thisMonth, cards: [])
-        )
+    private static func weekInterval(offset: Int, now: Date, calendar: Calendar) -> DateInterval {
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else {
+            return DateInterval(start: now, end: now)
+        }
+        guard let start = calendar.date(byAdding: .weekOfYear, value: offset, to: week.start),
+              let end = calendar.date(byAdding: .weekOfYear, value: offset, to: week.end)
+        else {
+            return week
+        }
+        return DateInterval(start: start, end: end)
     }
 
-    private static func section(
-        _ kind: OverviewReportSectionKind,
-        cards: [OverviewReportProjectCard]
-    ) -> OverviewReportSection {
-        OverviewReportSection(kind: kind, cards: cards)
+    private static func monthInterval(offset: Int, now: Date, calendar: Calendar) -> DateInterval {
+        guard let month = calendar.dateInterval(of: .month, for: now) else {
+            return DateInterval(start: now, end: now)
+        }
+        guard let start = calendar.date(byAdding: .month, value: offset, to: month.start),
+              let end = calendar.date(byAdding: .month, value: offset, to: month.end)
+        else {
+            return month
+        }
+        return DateInterval(start: start, end: end)
     }
+
+    // MARK: - Completed Cards（不显示提醒）
 
     private static func completedCards(
         from projects: [Project],
@@ -115,93 +128,97 @@ enum OverviewReportBuilder {
                     guard milestone.isCompleted,
                           contains(milestone.completedAt, in: interval)
                     else { return nil }
-
                     return OverviewReportTaskGroup(
                         milestoneID: milestone.milestoneId,
                         title: milestone.title,
-                        subtasks: []
+                        subtasks: [],
+                        reminderDate: nil
                     )
                 }
 
                 let subtasks = sortedSubtasks(in: milestone)
                     .filter { $0.isCompleted && contains($0.completedAt, in: interval) }
-                    .map { OverviewReportSubTaskRow(taskID: $0.taskId, title: $0.title) }
+                    .map { OverviewReportSubTaskRow(taskID: $0.taskId, title: $0.title, reminderDate: nil) }
                 guard !subtasks.isEmpty else { return nil }
 
                 return OverviewReportTaskGroup(
                     milestoneID: milestone.milestoneId,
                     title: milestone.title,
-                    subtasks: subtasks
+                    subtasks: subtasks,
+                    reminderDate: nil
                 )
             }
 
             guard !groups.isEmpty else { return nil }
-            return OverviewReportProjectCard(project: project, groups: groups)
+            return OverviewReportProjectCard(project: project, groups: groups, projectReminderDate: nil)
         }
     }
+
+    // MARK: - Planned (Todo) Cards — 截止到指定周末的所有未完成任务（含未创建通知条目的有提醒任务）
 
     private static func plannedCards(
         from projects: [Project],
         scheduleEntries: [NotificationScheduleEntry],
-        in interval: DateInterval
+        upToEndOf interval: DateInterval
     ) -> [OverviewReportProjectCard] {
-        let entriesByProject = Dictionary(
-            grouping: scheduleEntries.filter { contains($0.fireDate, in: interval) },
-            by: \.projectId
-        )
+        let endDate = interval.end
 
         return sortedProjects(projects.filter { !$0.isArchived }).compactMap { project in
-            guard let entries = entriesByProject[project.projectId] else { return nil }
-
-            let groups = plannedGroups(for: project, entries: entries)
+            let groups = plannedGroups(for: project, scheduleEntries: scheduleEntries, upToEndOf: endDate)
             guard !groups.isEmpty else { return nil }
-            return OverviewReportProjectCard(project: project, groups: groups)
+            return OverviewReportProjectCard(project: project, groups: groups, projectReminderDate: project.reminder?.displayFireDate)
         }
     }
 
     private static func plannedGroups(
         for project: Project,
-        entries: [NotificationScheduleEntry]
+        scheduleEntries: [NotificationScheduleEntry],
+        upToEndOf endDate: Date
     ) -> [OverviewReportTaskGroup] {
         var milestoneIDs = Set<UUID>()
         var subtaskIDs = Set<UUID>()
 
-        for entry in entries {
+        // 从通知条目中收集
+        for entry in scheduleEntries where entry.projectId == project.projectId && entry.fireDate <= endDate {
             switch entry.ownerKind {
             case "milestone":
-                guard let milestone = project.milestones.first(where: { $0.milestoneId == entry.ownerId }),
-                      !milestone.isCompleted
-                else { continue }
-
-                milestoneIDs.insert(milestone.milestoneId)
-
+                if let m = project.milestones.first(where: { $0.milestoneId == entry.ownerId }), !m.isCompleted {
+                    milestoneIDs.insert(m.milestoneId)
+                }
             case "subtask":
-                guard let subtask = project.milestones
-                    .flatMap(\.subtasks)
-                    .first(where: { $0.taskId == entry.ownerId }),
-                    !subtask.isCompleted
-                else { continue }
-
-                subtaskIDs.insert(subtask.taskId)
-
+                if let s = project.milestones.flatMap(\.subtasks).first(where: { $0.taskId == entry.ownerId }), !s.isCompleted {
+                    subtaskIDs.insert(s.taskId)
+                }
             case "project":
-                guard let milestone = sortedMilestones(in: project).first(where: { !$0.isCompleted })
-                else { continue }
+                if let m = sortedMilestones(in: project).first(where: { !$0.isCompleted }) {
+                    milestoneIDs.insert(m.milestoneId)
+                    subtaskIDs.formUnion(m.subtasks.filter { !$0.isCompleted }.map(\.taskId))
+                }
+            default: continue
+            }
+        }
 
+        // 补充：扫描所有未完成任务，只要有提醒就纳入（即使通知条目已被处理）
+        for milestone in project.milestones where !milestone.isCompleted && milestone.reminder != nil {
+            if let fireDate = milestone.reminder?.displayFireDate, fireDate <= endDate {
                 milestoneIDs.insert(milestone.milestoneId)
-                subtaskIDs.formUnion(
-                    milestone.subtasks.filter { !$0.isCompleted }.map(\.taskId)
-                )
-
-            default:
-                continue
+            }
+        }
+        for milestone in project.milestones {
+            for subtask in milestone.subtasks where !subtask.isCompleted && subtask.reminder != nil {
+                if let fireDate = subtask.reminder?.displayFireDate, fireDate <= endDate {
+                    subtaskIDs.insert(subtask.taskId)
+                }
             }
         }
 
         return sortedMilestones(in: project).compactMap { milestone in
             let subtasks = sortedSubtasks(in: milestone)
                 .filter { subtaskIDs.contains($0.taskId) }
-                .map { OverviewReportSubTaskRow(taskID: $0.taskId, title: $0.title) }
+                .map { OverviewReportSubTaskRow(
+                    taskID: $0.taskId, title: $0.title,
+                    reminderDate: $0.reminder?.displayFireDate
+                ) }
 
             guard milestoneIDs.contains(milestone.milestoneId) || !subtasks.isEmpty else {
                 return nil
@@ -210,10 +227,13 @@ enum OverviewReportBuilder {
             return OverviewReportTaskGroup(
                 milestoneID: milestone.milestoneId,
                 title: milestone.title,
-                subtasks: subtasks
+                subtasks: subtasks,
+                reminderDate: milestone.reminder?.displayFireDate
             )
         }
     }
+
+    // MARK: - Helpers
 
     private static func contains(_ date: Date?, in interval: DateInterval) -> Bool {
         guard let date else { return false }

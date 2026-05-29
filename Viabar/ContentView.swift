@@ -10,6 +10,9 @@ struct ContentView: View {
     @State private var selection: SidebarSelection? = .overview
     @State private var isMemoDrawerVisible: Bool = true
     @State private var isOverviewReportDrawerVisible: Bool = true
+    @State private var weekTodoOffset: Int = 0
+    @State private var weekDoneOffset: Int = 0
+    @State private var monthDoneOffset: Int = -1
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
     @State private var hoveredToolbarButton: ToolbarButtonKind?
     @State private var overviewArchiveProject: Project?
@@ -67,6 +70,7 @@ struct ContentView: View {
             if isOverviewSelected, isOverviewReportDrawerVisible {
                 overviewReportDrawer
                     .transition(.move(edge: .trailing))
+                    .zIndex(4)
             }
 
             if selectedProject != nil {
@@ -219,10 +223,13 @@ struct ContentView: View {
         )
     }
 
-    private var overviewReport: OverviewReport {
+    private var overviewReportSections: [OverviewReportSection] {
         OverviewReportBuilder.makeReport(
             projects: allProjects,
             scheduleEntries: notificationScheduleEntries,
+            weekTodoOffset: weekTodoOffset,
+            weekDoneOffset: weekDoneOffset,
+            monthDoneOffset: monthDoneOffset,
             now: Date()
         )
     }
@@ -264,7 +271,10 @@ struct ContentView: View {
         HStack(spacing: 0) {
             Divider()
             OverviewReportDrawerView(
-                report: overviewReport,
+                sections: overviewReportSections,
+                weekTodoOffset: $weekTodoOffset,
+                weekDoneOffset: $weekDoneOffset,
+                monthDoneOffset: $monthDoneOffset,
                 onToggleVisibility: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         isOverviewReportDrawerVisible = false
