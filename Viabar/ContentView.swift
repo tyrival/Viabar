@@ -815,7 +815,7 @@ struct OverviewProjectCard: View {
                         .foregroundStyle(accentColor)
                     Text(project.title)
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(ViabarColor.primary)
+                        .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     if project.isFavorite {

@@ -184,6 +184,7 @@ private struct OverviewReportSectionView: View {
 
 private struct OverviewReportCardView: View {
     let card: OverviewReportProjectCard
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -193,7 +194,7 @@ private struct OverviewReportCardView: View {
 
                 Text(card.project.title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(ViabarColor.primary)
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
 
