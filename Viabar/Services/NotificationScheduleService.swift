@@ -120,9 +120,11 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         reminder: Reminder?,
         isCompleted: Bool
     ) {
+        let oldCount = entries(for: ownerId).count
         entries(for: ownerId).forEach { modelContext.delete($0) }
 
         guard !project.isArchived, !isCompleted, let fireDate = reminder?.timelineFireDate else {
+            print("[SyncEntry] \(ownerKind):\(ownerId) 清除\(oldCount)条旧条目，无需新建 (archived=\(project.isArchived) completed=\(isCompleted) hasReminder=\(reminder != nil))")
             save()
             scheduleNextTimer()
             return
@@ -136,6 +138,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
             body: body,
             fireDate: fireDate
         )
+        print("[SyncEntry] \(ownerKind):\(ownerId) 清除\(oldCount)条旧条目，新建1条 fireDate=\(fireDate) body=\(body)")
         modelContext.insert(entry)
         save()
         processDueEntries()

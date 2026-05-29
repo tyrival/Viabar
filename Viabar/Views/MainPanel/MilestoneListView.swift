@@ -20,6 +20,7 @@ struct MilestoneListView: View {
 
     @Environment(ServiceContainer.self) private var container
     @State private var newMilestoneTitle: String = ""
+    @FocusState private var isNewMilestoneFocused: Bool
     @State private var expandingSubtaskFor: UUID?
     @State private var selectedMilestoneID: UUID?
     @State private var selectedSubTaskID: UUID?
@@ -221,11 +222,13 @@ struct MilestoneListView: View {
                     .textFieldStyle(.plain)
                     .lineLimit(3)
                     .submitLabel(.done)
+                    .focused($isNewMilestoneFocused)
                     .onSubmit { commitNewMilestone() }
                     .padding(.leading, 12)
                     .padding(.trailing, 40)
                     .padding(.vertical, 10)
                     .frame(minHeight: 68, maxHeight: 68, alignment: .topLeading)
+                    .contentShape(Rectangle())
 
                 Button(action: commitNewMilestone) {
                     Image(systemName: "paperplane.fill")
@@ -238,6 +241,7 @@ struct MilestoneListView: View {
                 .padding(.trailing, 12)
                 .padding(.bottom, 10)
             }
+            .onTapGesture { isNewMilestoneFocused = true }
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(ViabarColor.panelInputBackground)
@@ -767,21 +771,25 @@ private struct SafeMilestoneRowView: View {
 
     private var milestoneRow: some View {
         HStack(alignment: .top, spacing: 10) {
-            Button {
-                onToggleMilestone(snapshot.id)
-            } label: {
-                Image(systemName: snapshot.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(
-                        isSearchHighlighted
-                            ? AnyShapeStyle(.white)
-                            : snapshot.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary)
-                    )
-                    .font(.title3)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 1)
+            HStack(alignment: .top, spacing: 10) {
+                Button {
+                    onToggleMilestone(snapshot.id)
+                } label: {
+                    Image(systemName: snapshot.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(
+                            isSearchHighlighted
+                                ? AnyShapeStyle(.white)
+                                : snapshot.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary)
+                        )
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 1)
 
-            milestoneTitle
+                milestoneTitle
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { beginTitleEdit() }
 
             ReminderStatusView(
                 reminder: $reminder,
@@ -903,9 +911,6 @@ private struct SafeMilestoneRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
-                .onTapGesture(count: 2) {
-                    beginTitleEdit()
-                }
         }
     }
 
@@ -946,6 +951,7 @@ private struct SafeSubTaskComposerView: View {
                 .textFieldStyle(.plain)
                 .font(.callout)
                 .focused($isFocused)
+                .contentShape(Rectangle())
                 .onSubmit { commit(keepsOpen: true) }
         }
         .padding(.horizontal, 8)
@@ -1003,21 +1009,25 @@ private struct SafeSubTaskRowView: View {
             Color.clear
                 .frame(width: leadingIndent)
 
-            Button {
-                onToggle(subtask.id)
-            } label: {
-                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(
-                        isSearchHighlighted
-                            ? AnyShapeStyle(.white)
-                            : subtask.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary)
-                    )
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 2)
+            HStack(alignment: .top, spacing: 8) {
+                Button {
+                    onToggle(subtask.id)
+                } label: {
+                    Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(
+                            isSearchHighlighted
+                                ? AnyShapeStyle(.white)
+                                : subtask.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary)
+                        )
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
 
-            subTaskTitle
+                subTaskTitle
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { beginTitleEdit() }
 
             ReminderStatusView(
                 reminder: $reminder,
@@ -1146,9 +1156,6 @@ private struct SafeSubTaskRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
-                .onTapGesture(count: 2) {
-                    beginTitleEdit()
-                }
         }
     }
 

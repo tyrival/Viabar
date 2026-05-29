@@ -199,6 +199,7 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func updateReminder(_ reminder: Reminder?, for milestone: Milestone) {
+        print("[ProjectService] updateReminder(milestone: \(milestone.milestoneId)) reminderId=\(reminder?.reminderId.uuidString ?? "nil") fireTimestamp=\(String(describing: reminder?.fireTimestamp))")
         milestone.reminder = reminder
         save()
         guard let project = milestone.project else { return }
@@ -255,6 +256,7 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func updateReminder(_ reminder: Reminder?, for subTask: SubTask) {
+        print("[ProjectService] updateReminder(subTask: \(subTask.taskId)) reminderId=\(reminder?.reminderId.uuidString ?? "nil") fireTimestamp=\(String(describing: reminder?.fireTimestamp))")
         subTask.reminder = reminder
         save()
         guard let project = subTask.milestone?.project else { return }

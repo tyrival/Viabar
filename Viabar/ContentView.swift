@@ -818,6 +818,11 @@ struct OverviewProjectCard: View {
                         .foregroundStyle(ViabarColor.primary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
+                    if project.isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ViabarColor.warning)
+                    }
                 }
 
                 Spacer().frame(height: headerToTaskSpacing)

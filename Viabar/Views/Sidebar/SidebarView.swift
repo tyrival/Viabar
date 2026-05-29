@@ -100,6 +100,7 @@ struct SidebarView: View {
     var revealRequest: GlobalSearchNavigationRequest? = nil
 
     @State private var showNewProjectSheet: Bool = false
+    @State private var showTemplateSheet: Bool = false
     @State private var editingProject: Project?
     @State private var isArchiveExpanded: Bool = false
     @State private var archivePickerProject: Project?
@@ -114,6 +115,7 @@ struct SidebarView: View {
     @State private var folderNameDraft: String = ""
     @State private var deleteConfirmation: DeleteConfirmation?
     @State private var isCreateProjectButtonHovered = false
+    @State private var isTemplateButtonHovered = false
     @State private var isCreateArchiveFolderButtonHovered = false
 
     private var projectService: ProjectService? {
@@ -139,6 +141,9 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .sheet(isPresented: $showNewProjectSheet) {
             NewProjectView()
+        }
+        .sheet(isPresented: $showTemplateSheet) {
+            ProjectTemplateManagementView()
         }
         .sheet(item: $editingProject) { project in
             NewProjectView(editingProject: project)
@@ -311,9 +316,19 @@ struct SidebarView: View {
                         .foregroundStyle(isCreateProjectButtonHovered ? AnyShapeStyle(ViabarColor.primaryLight) : AnyShapeStyle(.secondary))
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, 12)
                 .help("新建项目")
                 .onHover { isCreateProjectButtonHovered = $0 }
+                Button {
+                    showTemplateSheet = true
+                } label: {
+                    Image(systemName: "square.3.layers.3d.middle.filled")
+                        .font(.system(size: 14))
+                        .foregroundStyle(isTemplateButtonHovered ? AnyShapeStyle(ViabarColor.primaryLight) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 12)
+                .help("模板管理")
+                .onHover { isTemplateButtonHovered = $0 }
             }
         }
     }

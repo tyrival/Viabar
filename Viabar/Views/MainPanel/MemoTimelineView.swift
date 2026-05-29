@@ -207,6 +207,8 @@ struct MemoTimelineView: View {
                 .padding(.trailing, 12)
                 .padding(.bottom, 10)
             }
+            .contentShape(Rectangle())
+            .onTapGesture { isInputFocused = true }
             .background {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(MemoTimelineStyle.inputBackground)

@@ -9,6 +9,9 @@ struct ReminderSettingsPopover: View {
     @State private var selectedDate = Date()
     @State private var selectedTime = Date()
     @State private var repeatOption: ReminderRepeatOption = .never
+    @State private var didDelete = false
+    @State private var hasCommitted = false
+    @State private var existingReminderId: UUID?
 
     private var effectiveLanguage: EffectiveAppLanguage {
         AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
@@ -52,9 +55,9 @@ struct ReminderSettingsPopover: View {
         .frame(width: 440)
         .environment(\.locale, effectiveLanguage.locale)
         .onAppear(perform: loadReminder)
-        .onChange(of: selectedDate) { _, _ in updateReminder() }
-        .onChange(of: selectedTime) { _, _ in updateReminder() }
-        .onChange(of: repeatOption) { _, _ in updateReminder() }
+        .onDisappear {
+            commitReminder()
+        }
     }
 
     private var header: some View {
@@ -65,6 +68,8 @@ struct ReminderSettingsPopover: View {
             Spacer()
 
             Button(role: .destructive) {
+                print("[Reminder] 删除提醒 — existingReminderId: \(existingReminderId?.uuidString ?? "nil")")
+                didDelete = true
                 reminder = nil
                 onReminderChange(nil)
             } label: {
@@ -101,12 +106,16 @@ struct ReminderSettingsPopover: View {
 
     private func loadReminder() {
         guard let reminder else {
+            print("[Reminder] loadReminder: 无现有提醒，使用默认值")
             selectedDate = Date()
             selectedTime = Date()
             repeatOption = .never
-            updateReminder()
+            existingReminderId = nil
             return
         }
+
+        existingReminderId = reminder.reminderId
+        print("[Reminder] loadReminder: 加载现有提醒 id=\(reminder.reminderId) type=\(reminder.type) fireTimestamp=\(String(describing: reminder.fireTimestamp)) fireTime=\(String(describing: reminder.fireTime))")
 
         if let fireTimestamp = reminder.fireTimestamp {
             selectedDate = fireTimestamp
@@ -119,15 +128,28 @@ struct ReminderSettingsPopover: View {
         repeatOption = ReminderRepeatOption(reminder: reminder)
     }
 
-    private func updateReminder() {
+    private func commitReminder() {
+        guard !hasCommitted else {
+            print("[Reminder] commitReminder: 已提交过，跳过重复调用")
+            return
+        }
+        hasCommitted = true
+
+        guard !didDelete else {
+            print("[Reminder] commitReminder: 已删除，跳过提交")
+            return
+        }
+
         let fireTimestamp = selectedDate.combined(withTimeFrom: selectedTime)
-        reminder = Reminder(
+        let built = Reminder(
             type: repeatOption == .never ? "single" : "repeating",
             fireTime: repeatOption == .never ? nil : selectedTime.fireTimeString,
             fireTimestamp: fireTimestamp,
             repeatIntervalDays: repeatOption.repeatIntervalDays
         )
-        onReminderChange(reminder)
+        print("[Reminder] commitReminder: 提交提醒 newId=\(built.reminderId) oldId=\(existingReminderId?.uuidString ?? "nil") type=\(built.type) fireTimestamp=\(String(describing: built.fireTimestamp))")
+        // 仅更新 binding，binding setter 内部已完成 save + syncMilestone，无需再调 onReminderChange
+        reminder = built
     }
 
     private static func date(fromFireTime fireTime: String?) -> Date? {
