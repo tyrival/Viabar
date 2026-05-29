@@ -603,33 +603,36 @@ struct ActiveProjectRow: View {
         let reminderColor = usesProjectReminderColor ? Color.orange : color
         let favoriteColor = usesFixedFavoriteColor ? ViabarColor.warning : Color.clear
 
-        return HStack(spacing: 10) {
+        return HStack(spacing: 0) {
             Image(systemName: project.sfSymbolName)
                 .font(.title3)
                 .foregroundStyle(usesProjectIconColor ? accentColor : color)
+                .padding(.trailing, 6)
             Text(project.title)
                 .font(ActiveProjectRowMetrics.projectTitleFont)
                 .foregroundStyle(color)
                 .lineLimit(1)
-            Spacer(minLength: 8)
-            if hasScheduledProjectReminder {
-                Image(systemName: "alarm.fill")
+            Spacer(minLength: 2)
+            HStack(spacing: 2) {
+                if hasScheduledProjectReminder {
+                    Image(systemName: "alarm.fill")
+                        .font(.caption)
+                        .foregroundStyle(reminderColor)
+                        .frame(width: 14)
+                }
+                if project.isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(favoriteColor)
+                        .frame(width: 14)
+                }
+                Text("\(Int(project.progress * 100))%")
                     .font(.caption)
-                    .foregroundStyle(reminderColor)
-                    .frame(width: 14)
+                    .monospacedDigit()
+                    .foregroundStyle(percentColor)
             }
-            if project.isFavorite {
-                Image(systemName: "star.fill")
-                    .font(.caption)
-                    .foregroundStyle(favoriteColor)
-                    .frame(width: 14)
-            }
-            Text("\(Int(project.progress * 100))%")
-                .font(.caption)
-                .monospacedDigit()
-                .foregroundStyle(percentColor)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 7)
     }
 
