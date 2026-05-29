@@ -6,15 +6,15 @@ enum ViabarColor {
     // MARK: 主色调
 
     /// 主色 · 深蓝（默认项目进度色）
-    static let primary = Color(hex: "#0161F7")
+    static let primary = Color(hex: "#0085ff")
     /// 深紫（备用主色 / 强调）
-    static let primaryDark = Color(hex: "#40285F")
+    static let primaryDark = Color(hex: "#006fff")
     /// 中蓝（次级主色）
-    static let primaryMedium = Color(hex: "#4189FF")
+    static let primaryMedium = Color(hex: "#69b4ff")
     /// 浅蓝（辅助色）
-    static let primaryLight = Color(hex: "#4CC1FF")
+    static let primaryLight = Color(hex: "#00BFFF")
     /// 极浅蓝（背景 / 卡片底色）
-    static let primaryPale = Color(hex: "#D5F7FF")
+    static let primaryPale = Color(hex: "#e0ffff")
     /// 近白蓝（大面积背景）
     static let primaryGhost = Color(hex: "#F3FDFF")
 
@@ -57,21 +57,22 @@ extension ViabarColor {
     /// 新建项目时可选的背景色
     static let palette: [(hex: String, name: LocalizedStringKey)] = [
         ("#009AFF", "蓝"),
-        ("#00AB74", "绿"),
-        ("#00CBCF", "蓝"),
-        ("#FFCB24", "黄"),
-        ("#00CD69", "绿"),
-        ("#FF4846", "红"),
-        ("#FFBF00", "橙"),
+        ("#f94144", "红"),
         ("#FF6299", "粉"),
-        ("#642FFF", "紫"),
+        ("#f9844a", "橙"),
+        ("#f8961e", "橙"),
+        ("#f9c74f", "黄"),
+        ("#90be6d", "绿"),
+        ("#43aa8b", "绿"),
+        ("#577590", "紫"),
+        ("#7678ed", "紫"),
     ]
 }
 
 // MARK: - Hex String Convenience
 
 extension ViabarColor {
-    static let primaryHex = "#0161F7"
+    static let primaryHex = "#0085ff"
     static let successHex = "#09CC9B"
     static let dangerHex = "#FF4B41"
     static let warningHex = "#FFBF00"
