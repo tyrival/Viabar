@@ -8,7 +8,9 @@
       "Read(//Volumes/Viabar/**)",
       "Bash(hdiutil detach *)",
       "Bash(hdiutil convert *)",
-      "Bash(rm -f /tmp/Viabar_temp.dmg)"
+      "Bash(rm -f /tmp/Viabar_temp.dmg)",
+      "Bash(git *)",
+      "Bash(xargs ls -la)"
     ]
   }
 }
