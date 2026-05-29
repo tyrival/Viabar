@@ -492,6 +492,7 @@ private struct SafeMilestoneListView: View {
                             subtask: subtask,
                             parentID: snapshot.id,
                             leadingIndent: subTaskLeadingIndent,
+                            highlightRequestID: subtask.id == scrollTargetID ? navigationRequestID : nil,
                             reminder: subTaskReminderBinding(subtask.id),
                             onToggle: onToggleSubTask,
                             onUpdateTitle: onUpdateSubTaskTitle,
@@ -502,10 +503,6 @@ private struct SafeMilestoneListView: View {
                             draggingItem: $draggingItem,
                             dropTarget: $dropTarget,
                             onPerformDrop: performDrop(_:target:)
-                        )
-                        .searchTargetHighlight(
-                            triggerID: subtask.id == scrollTargetID ? navigationRequestID : nil,
-                            isActive: subtask.id == scrollTargetID
                         )
                         .id(subtask.id)
                         .safeListRow()
@@ -985,6 +982,7 @@ private struct SafeSubTaskRowView: View {
     let subtask: SubTaskSnapshot
     let parentID: UUID
     let leadingIndent: CGFloat
+    var highlightRequestID: UUID? = nil
     @Binding var reminder: Reminder?
     let onToggle: (UUID) -> Void
     let onUpdateTitle: (UUID, String) -> Void
@@ -997,6 +995,7 @@ private struct SafeSubTaskRowView: View {
     @State private var isEditing = false
     @State private var titleDraft = ""
     @State private var isRowHovered = false
+    @State private var isSearchHighlighted = false
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
@@ -1008,7 +1007,11 @@ private struct SafeSubTaskRowView: View {
                 onToggle(subtask.id)
             } label: {
                 Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(subtask.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(
+                        isSearchHighlighted
+                            ? AnyShapeStyle(.white)
+                            : subtask.isCompleted ? AnyShapeStyle(ViabarColor.success) : AnyShapeStyle(.secondary)
+                    )
                     .font(.caption)
             }
             .buttonStyle(.plain)
@@ -1022,6 +1025,7 @@ private struct SafeSubTaskRowView: View {
                 isEditing: isEditing,
                 iconFont: .caption,
                 textFont: .caption2,
+                usesInvertedForeground: isSearchHighlighted,
                 onReminderChange: onReminderChange
             )
         }
@@ -1030,7 +1034,11 @@ private struct SafeSubTaskRowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
+                .fill(
+                    isSearchHighlighted
+                        ? AnyShapeStyle(.orange)
+                        : AnyShapeStyle(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
+                )
         }
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -1081,6 +1089,20 @@ private struct SafeSubTaskRowView: View {
             guard !focused else { return }
             commitTitleEdit()
         }
+        .task(id: highlightRequestID) {
+            guard highlightRequestID != nil else {
+                isSearchHighlighted = false
+                return
+            }
+
+            isSearchHighlighted = true
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeOut(duration: 0.2)) {
+                isSearchHighlighted = false
+            }
+        }
     }
 
     private var isCurrentSubTaskDropTarget: Bool {
@@ -1114,7 +1136,11 @@ private struct SafeSubTaskRowView: View {
             Text(subtask.title)
                 .font(.callout)
                 .strikethrough(subtask.isCompleted)
-                .foregroundStyle(subtask.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                .foregroundStyle(
+                    isSearchHighlighted
+                        ? AnyShapeStyle(.white)
+                        : subtask.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+                )
                 .lineLimit(nil)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1181,7 +1207,7 @@ private struct ReminderStatusView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 4) {
+        HStack(alignment: .center, spacing: 4) {
             reminderInfo
 
             Button {

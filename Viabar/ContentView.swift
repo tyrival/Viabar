@@ -726,6 +726,7 @@ struct OverviewProjectCard: View {
     private let taskRowIndent: CGFloat = 4        // 任务行左侧缩进
     private let subtaskExtraIndent: CGFloat = 18  // 子任务相对任务行的额外缩进
     private let headerToTaskSpacing: CGFloat = 18 // 标题到任务行间距
+    private let cardBottomPadding: CGFloat = 12   // 卡片底部内边距
     private let restingShadowRadius: CGFloat = 1 // 调整这里可改变默认阴影
     private let restingShadowYOffset: CGFloat = 2
     private let hoverShadowRadius: CGFloat = 10 // 调整这里可改变 hover 阴影
@@ -862,6 +863,7 @@ struct OverviewProjectCard: View {
                                 .font(.system(size: 11))
                                 .foregroundStyle(reminderForegroundColor)
                         }.padding(.leading, 8)
+                            .offset(y: -5)
                     }
 
                     Spacer(minLength: 8)
@@ -871,7 +873,8 @@ struct OverviewProjectCard: View {
             }
             .padding(.leading, 12)
             .padding(.trailing, 14)
-            .padding(.vertical, 12)
+            .padding(.top, 12)
+            .padding(.bottom, cardBottomPadding)
         }
         .frame(height: 150)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -935,10 +938,8 @@ struct OverviewProjectCard: View {
                     .trim(from: 0, to: CGFloat(max(0, min(1, project.progress))))
                     .stroke(
                         AngularGradient(
-                            gradient: Gradient(colors: [ringStartColor, ringEndColor]),
-                            center: .center,
-                            startAngle: .degrees(-90),
-                            endAngle: .degrees(270)
+                            gradient: Gradient(colors: [ringStartColor, ringEndColor, ringStartColor]),
+                            center: .center
                         ),
                         style: StrokeStyle(lineWidth: progressRingLineWidth, lineCap: .round)
                     )
