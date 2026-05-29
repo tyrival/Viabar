@@ -518,6 +518,13 @@ private enum ActiveProjectRowMetrics {
             ? NSColor(calibratedWhite: 0.68, alpha: 1)
             : NSColor(calibratedWhite: 0.42, alpha: 1)
     })
+    /// 项目未选中时的进度条填充色（浅色/深色模式在此处调整）
+    static let progressUnselectedFillColor = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedRed: 0.22, green: 0.24, blue: 0.30, alpha: 0.88)
+            : NSColor(calibratedWhite: 0.78, alpha: 0.6)
+    })
     static let defaultShadowOpacity: Double = 0.035
     static let defaultShadowRadius: CGFloat = 2
     static let defaultShadowYOffset: CGFloat = 1
@@ -657,7 +664,7 @@ struct ActiveProjectRow: View {
             // 进度填充
             GeometryReader { geo in
                 Capsule(style: .continuous)
-                    .fill(accentColor.opacity(0.88))
+                    .fill(isSelected ? accentColor.opacity(0.88) : ActiveProjectRowMetrics.progressUnselectedFillColor)
                     .frame(
                         width: max(0, min(geo.size.width, geo.size.width * CGFloat(project.progress))),
                         height: progressBarHeight
@@ -674,17 +681,19 @@ struct ActiveProjectRow: View {
                 usesFixedFavoriteColor: true
             )
 
-            // 白色文字层
-            GeometryReader { geo in
-                let fillW = geo.size.width * CGFloat(project.progress)
-                rowContent(color: .white)
-                    .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
-                    .mask(
-                        HStack(spacing: 0) {
-                            Color.white.frame(width: fillW)
-                            Color.clear
-                        }
-                    )
+            // 白色文字层（仅选中时显示，产生反色效果）
+            if isSelected {
+                GeometryReader { geo in
+                    let fillW = geo.size.width * CGFloat(project.progress)
+                    rowContent(color: .white)
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+                        .mask(
+                            HStack(spacing: 0) {
+                                Color.white.frame(width: fillW)
+                                Color.clear
+                            }
+                        )
+                }
             }
         }
         .frame(height: rowHeight)
