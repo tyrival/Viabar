@@ -161,7 +161,13 @@ struct ContentView: View {
                 projects: allProjects,
                 overviewScope: settingsRecords.first?.overviewScope,
                 trailingPanelWidth: isOverviewReportDrawerVisible ? memoDrawerWidth : 0,
-                onSelectProject: { selection = .project($0) },
+                onSelectProject: { project in
+                    navigationRequest = GlobalSearchNavigationRequest(
+                        projectID: project.projectId,
+                        destination: navigationDestination(for: project)
+                    )
+                    selection = .project(project)
+                },
                 onEditProject: { overviewEditProject = $0 },
                 onArchiveProject: { overviewArchiveProject = $0 },
                 onDeleteProject: { overviewDeleteProject = $0 }
@@ -513,6 +519,16 @@ struct ContentView: View {
         return navigationRequest?.id
     }
 
+    private func navigationDestination(for project: Project) -> GlobalSearchDestination {
+        guard let topMilestone = project.unfinishedMilestones.first else {
+            return .project
+        }
+        if let subtask = topMilestone.subtasks.first(where: { !$0.isCompleted }) {
+            return .subTask(milestoneID: topMilestone.milestoneId, subTaskID: subtask.taskId)
+        }
+        return .milestone(topMilestone.milestoneId)
+    }
+
     private func dismissGlobalSearch() {
         isGlobalSearchPresented = false
         globalSearchQuery = ""
@@ -578,20 +594,48 @@ struct OverviewDashboardView: View {
         OverviewScope.visibleProjects(from: projects, storedValue: overviewScope)
     }
 
+    private var starredProjects: [Project] {
+        visibleProjects.filter { $0.isFavorite }
+    }
+
+    private var otherProjects: [Project] {
+        visibleProjects.filter { !$0.isFavorite }
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let columns = overviewColumns(for: proxy.size.width - trailingPanelWidth)
 
             ScrollView {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: cardSpacing) {
-                    ForEach(visibleProjects) { project in
-                        OverviewProjectCard(
-                            project: project,
-                            onSelect: { onSelectProject(project) },
-                            onEdit: { onEditProject(project) },
-                            onArchive: { onArchiveProject(project) },
-                            onDelete: { onDeleteProject(project) }
-                        )
+                VStack(alignment: .leading, spacing: 8) {
+                    if !starredProjects.isEmpty {
+                        sectionHeader(icon: "star.fill", title: "星标项目")
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: cardSpacing) {
+                            ForEach(starredProjects) { project in
+                                OverviewProjectCard(
+                                    project: project,
+                                    onSelect: { onSelectProject(project) },
+                                    onEdit: { onEditProject(project) },
+                                    onArchive: { onArchiveProject(project) },
+                                    onDelete: { onDeleteProject(project) }
+                                )
+                            }
+                        }
+                    }
+
+                    if !otherProjects.isEmpty {
+                        sectionHeader(icon: "list.bullet", title: "其他项目")
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: cardSpacing) {
+                            ForEach(otherProjects) { project in
+                                OverviewProjectCard(
+                                    project: project,
+                                    onSelect: { onSelectProject(project) },
+                                    onEdit: { onEditProject(project) },
+                                    onArchive: { onArchiveProject(project) },
+                                    onDelete: { onDeleteProject(project) }
+                                )
+                            }
+                        }
                     }
                 }
                 .padding(contentPadding)
@@ -599,6 +643,18 @@ struct OverviewDashboardView: View {
             .padding(.trailing, trailingPanelWidth)
         }
         .background(ViabarColor.mainPanelBackground)
+    }
+
+    private func sectionHeader(icon: String, title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 8)
     }
 
     private func overviewColumns(for width: CGFloat) -> [GridItem] {
@@ -662,20 +718,14 @@ struct OverviewProjectCard: View {
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var isHovering = false
 
-    private let cardHorizontalPadding: CGFloat = 18
-    private let headerHeight: CGFloat = 42
-    private let bodyHeight: CGFloat = 120
-    private let iconFrameSize: CGFloat = 24
-    private let milestoneRowHeight: CGFloat = 24
-    private let reminderRowHeight: CGFloat = 18
-    private let progressRowHeight: CGFloat = 14
-    private let milestoneReminderSpacing: CGFloat = 12
-    private let reminderProgressSpacing: CGFloat = 14
-    private let progressStepCount = 22 // 调整这里可改变底部进度点数量
-    private let progressDotSize: CGFloat = 5
-    private let progressDotSpacing: CGFloat = 5
-    private let progressPercentWidth: CGFloat = 38
-    private let hoverAnimationDuration = 0.16 // 调整这里可改变卡片悬浮动画时长
+    private let hoverAnimationDuration = 0.16
+    private let progressRingSize: CGFloat = 28
+    private let progressRingLineWidth: CGFloat = 7
+    private let progressTextWidth: CGFloat = 40      // 百分比文本固定宽度，保证圆环对齐
+    private let progressRingTextSpacing: CGFloat = 12 // 圆环与文本间距
+    private let taskRowIndent: CGFloat = 4        // 任务行左侧缩进
+    private let subtaskExtraIndent: CGFloat = 18  // 子任务相对任务行的额外缩进
+    private let headerToTaskSpacing: CGFloat = 18 // 标题到任务行间距
     private let restingShadowRadius: CGFloat = 1 // 调整这里可改变默认阴影
     private let restingShadowYOffset: CGFloat = 2
     private let hoverShadowRadius: CGFloat = 10 // 调整这里可改变 hover 阴影
@@ -709,23 +759,10 @@ struct OverviewProjectCard: View {
         settingsRecords.first?.dateFormat
     }
 
-    private var filledStepCount: Int {
-        let raw = Int((project.progress * Double(progressStepCount)).rounded(.down))
-        return max(0, min(progressStepCount, raw))
-    }
-
-    private var progressPercentText: String {
-        "\(Int((project.progress * 100).rounded()))%"
-    }
-
     private var cardBackground: Color {
         colorScheme == .dark
             ? Color(nsColor: NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.54))
             : Color(nsColor: NSColor(calibratedWhite: 1, alpha: 1))
-    }
-
-    private var headerBackground: Color {
-        accentColor
     }
 
     private var cardShadowColor: Color {
@@ -733,12 +770,15 @@ struct OverviewProjectCard: View {
         return colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity)
     }
 
-    private var cardBorderColor: Color {
-        accentColor.opacity(colorScheme == .dark ? 0.24 : 0.16)
-    }
-
     private var milestoneTextColor: Color {
         colorScheme == .dark ? Color(hex: "#C6CBD2") : Color(hex: "#4B5563")
+    }
+
+    /// 子任务文本颜色（深色/浅色模式在此处调整）
+    private var subtaskTextColor: Color {
+        colorScheme == .dark
+            ? Color.gray.opacity(1)
+            : Color.gray.opacity(1)
     }
 
     private var reminderTextColor: Color {
@@ -761,138 +801,85 @@ struct OverviewProjectCard: View {
         return reminderTextColor
     }
 
-    private var progressTintColor: Color {
-        progressColor(at: project.progress)
-    }
-
-    private var progressDotsWidth: CGFloat {
-        CGFloat(progressStepCount) * progressDotSize + CGFloat(max(progressStepCount - 1, 0)) * progressDotSpacing
-    }
-
-    private func progressColor(at value: Double) -> Color {
-        let progress = max(0, min(1, value))
-        let start = (red: 0x2B, green: 0xB7, blue: 0xFD)
-        let end = (red: 0x09, green: 0xCC, blue: 0x9B)
-        let red = Double(start.red) + (Double(end.red) - Double(start.red)) * progress
-        let green = Double(start.green) + (Double(end.green) - Double(start.green)) * progress
-        let blue = Double(start.blue) + (Double(end.blue) - Double(start.blue)) * progress
-        return Color(
-            red: red / 255,
-            green: green / 255,
-            blue: blue / 255
-        )
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: project.sfSymbolName)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: iconFrameSize, height: iconFrameSize)
-
-                Text(project.title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                Spacer()
-
-                if project.isFavorite {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(ViabarColor.warning)
-                }
-            }
-            .padding(.horizontal, cardHorizontalPadding)
-            .frame(maxWidth: .infinity, minHeight: headerHeight, maxHeight: headerHeight, alignment: .center)
-            .background(headerBackground)
+        HStack(spacing: 0) {
+            Rectangle()
+                .fill(accentColor)
+                .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 0) {
-                if let milestone = topMilestone {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bookmark.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(ViabarColor.warning)
-                            .frame(width: iconFrameSize, height: iconFrameSize, alignment: .center)
+                HStack(spacing: 8) {
+                    Image(systemName: project.sfSymbolName)
+                        .font(.title3)
+                        .foregroundStyle(accentColor)
+                    Text(project.title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(ViabarColor.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
 
+                Spacer().frame(height: headerToTaskSpacing)
+
+                if let milestone = topMilestone {
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.gray.opacity(0.55))
+                            .frame(width: 16, alignment: .center)
                         Text(milestone.title)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(milestoneTextColor)
                             .lineLimit(1)
                     }
-                    .frame(height: milestoneRowHeight)
-                } else {
-                    Color.clear
-                        .frame(height: milestoneRowHeight)
-                }
+                    .padding(.leading, taskRowIndent)
 
-                Color.clear
-                    .frame(height: milestoneReminderSpacing)
-
-                if let reminderDate, displayedMilestoneReminder != nil {
-                    HStack(spacing: 4) {
-                        Image(systemName: "alarm.fill")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(reminderForegroundColor)
-                            .frame(width: iconFrameSize, height: 18, alignment: .center)
-
-                        Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
-                            .font(.callout)
-                            .foregroundStyle(reminderForegroundColor)
-                    }
-                    .frame(height: reminderRowHeight)
-                } else {
-                    Color.clear
-                        .frame(height: reminderRowHeight)
-                }
-
-                Color.clear
-                    .frame(height: reminderProgressSpacing)
-
-                HStack {
-                    Spacer(minLength: 0)
-
-                    HStack(alignment: .center, spacing: 10) {
-                        HStack(spacing: progressDotSpacing) {
-                            let stepCount = max(progressStepCount - 1, 1)
-                            ForEach(0..<progressStepCount, id: \.self) { index in
-                                let colorProgress = Double(index) / Double(stepCount)
-                                Circle()
-                                    .fill(index < filledStepCount ? progressColor(at: colorProgress) : Color.gray.opacity(0.22))
-                                    .frame(width: progressDotSize, height: progressDotSize)
-                            }
+                    if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "list.bullet.indent")
+                                .font(.system(size: 11))
+                                .foregroundStyle(subtaskTextColor)
+                                .frame(width: 16, alignment: .center)
+                            Text(subtask.title)
+                                .font(.system(size: 12))
+                                .foregroundStyle(subtaskTextColor)
+                                .lineLimit(1)
                         }
-                        .frame(width: progressDotsWidth, height: progressDotSize, alignment: .leading)
-
-                        Text(progressPercentText)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(progressTintColor)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .frame(width: progressPercentWidth, alignment: .trailing)
+                        .padding(.leading, taskRowIndent + subtaskExtraIndent)
+                        .padding(.top, 10)
                     }
                 }
-                .frame(height: progressRowHeight)
-                .frame(maxWidth: .infinity)
+
+                Spacer(minLength: 0)
+
+                HStack(alignment: .bottom) {
+                    if let reminderDate, displayedMilestoneReminder != nil {
+                        HStack(spacing: 4) {
+                            Image(systemName: "alarm.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(reminderForegroundColor)
+                            Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
+                                .font(.system(size: 11))
+                                .foregroundStyle(reminderForegroundColor)
+                        }.padding(.leading, 8)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    progressRing
+                }
             }
-            .padding(.horizontal, cardHorizontalPadding)
-            .padding(.top, 20)
-            .padding(.bottom, 14)
-            .frame(maxWidth: .infinity, minHeight: bodyHeight, maxHeight: bodyHeight, alignment: .topLeading)
-            .background(cardBackground)
+            .padding(.leading, 12)
+            .padding(.trailing, 14)
+            .padding(.vertical, 12)
         }
-        .frame(height: headerHeight + bodyHeight)
+        .frame(height: 150)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(cardBackground)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(cardBorderColor, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(
             color: cardShadowColor,
             radius: isHovering ? hoverShadowRadius : restingShadowRadius,
@@ -900,7 +887,7 @@ struct OverviewProjectCard: View {
         )
         .offset(y: isHovering ? -2 : 0)
         .animation(.easeOut(duration: hoverAnimationDuration), value: isHovering)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onHover { isHovering = $0 }
         .onTapGesture(perform: onSelect)
         .contextMenu {
@@ -929,6 +916,41 @@ struct OverviewProjectCard: View {
             } label: {
                 Label("删除", systemImage: "trash")
             }
+        }
+    }
+
+    private var progressRing: some View {
+        let ringTrackColor = Color(hex: "#00BBE1").opacity(0.2)
+        let ringStartColor = Color(hex: "#00BBE1")
+        let ringEndColor = Color(hex: "#00F9D0")
+        let percentColor = Color(hex: "#00BBE1")
+
+        return HStack(spacing: progressRingTextSpacing) {
+            ZStack {
+                Circle()
+                    .stroke(ringTrackColor, lineWidth: progressRingLineWidth)
+                    .frame(width: progressRingSize, height: progressRingSize)
+
+                Circle()
+                    .trim(from: 0, to: CGFloat(max(0, min(1, project.progress))))
+                    .stroke(
+                        AngularGradient(
+                            gradient: Gradient(colors: [ringStartColor, ringEndColor]),
+                            center: .center,
+                            startAngle: .degrees(-90),
+                            endAngle: .degrees(270)
+                        ),
+                        style: StrokeStyle(lineWidth: progressRingLineWidth, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: progressRingSize, height: progressRingSize)
+            }
+
+            Text("\(Int(project.progress * 100))%")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(percentColor)
+                .monospacedDigit()
+                .frame(width: progressTextWidth, alignment: .leading)
         }
     }
 }
