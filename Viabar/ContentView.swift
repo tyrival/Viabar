@@ -278,7 +278,14 @@ struct ContentView: View {
                 sections: overviewReportSections,
                 weekTodoOffset: $weekTodoOffset,
                 weekDoneOffset: $weekDoneOffset,
-                monthDoneOffset: $monthDoneOffset
+                monthDoneOffset: $monthDoneOffset,
+                onNavigate: { project, destination in
+                    navigationRequest = GlobalSearchNavigationRequest(
+                        projectID: project.projectId,
+                        destination: destination
+                    )
+                    selection = .project(project)
+                }
             )
             .frame(width: memoDrawerWidth)
         }

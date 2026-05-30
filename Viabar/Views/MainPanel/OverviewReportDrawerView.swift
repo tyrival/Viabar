@@ -6,13 +6,13 @@ struct OverviewReportDrawerView: View {
     @Binding var weekTodoOffset: Int
     @Binding var weekDoneOffset: Int
     @Binding var monthDoneOffset: Int
+    let onNavigate: (Project, GlobalSearchDestination) -> Void
 
     @State private var copiedKind: OverviewReportSectionKind?
     @State private var hoveredCopyKind: OverviewReportSectionKind?
 
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部占位：保持与原来按钮行相同的高度
             Color.clear
                 .frame(height: 52)
 
@@ -31,7 +31,8 @@ struct OverviewReportDrawerView: View {
                             onCopy: { copy(section) },
                             onCopyHover: { hovering in
                                 setCopyHover(hovering, for: section.kind, isEnabled: !section.cards.isEmpty)
-                            }
+                            },
+                            onNavigate: onNavigate
                         )
                     }
                 }
@@ -73,6 +74,7 @@ private struct OverviewReportSectionView: View {
     let isCopyButtonHovered: Bool
     let onCopy: () -> Void
     let onCopyHover: (Bool) -> Void
+    let onNavigate: (Project, GlobalSearchDestination) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -108,7 +110,11 @@ private struct OverviewReportSectionView: View {
                     .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
             } else {
                 ForEach(section.cards) { card in
-                    OverviewReportCardView(card: card, isTodo: section.kind == .weekTodo)
+                    OverviewReportCardView(
+                        card: card,
+                        isTodo: section.kind == .weekTodo,
+                        onNavigate: onNavigate
+                    )
                 }
             }
         }
@@ -172,10 +178,12 @@ private struct OverviewReportSectionView: View {
 private struct OverviewReportCardView: View {
     let card: OverviewReportProjectCard
     let isTodo: Bool
+    let onNavigate: (Project, GlobalSearchDestination) -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
+            // 项目标题行 — 点击跳转项目
             HStack(alignment: .center, spacing: 7) {
                 Image(systemName: card.project.sfSymbolName)
                     .foregroundStyle(Color(hex: card.project.accentColor))
@@ -213,14 +221,28 @@ private struct OverviewReportCardView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onNavigate(card.project, .project)
+            }
 
             ForEach(card.groups) { group in
                 VStack(alignment: .leading, spacing: 3) {
+                    // 里程碑行 — 点击跳转里程碑
                     taskRow(title: group.title, reminderDate: group.reminderDate, isPrimary: true)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onNavigate(card.project, .milestone(group.milestoneID))
+                        }
 
                     ForEach(group.subtasks) { subtask in
+                        // 子任务行 — 点击跳转子任务
                         taskRow(title: subtask.title, reminderDate: subtask.reminderDate, isPrimary: false)
                             .padding(.leading, 12)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                onNavigate(card.project, .subTask(milestoneID: group.milestoneID, subTaskID: subtask.taskID))
+                            }
                     }
                 }
             }
