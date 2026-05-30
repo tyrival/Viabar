@@ -67,6 +67,10 @@ struct ViabarApp: App {
             notificationScheduleService: notificationScheduleService
         )
 
+        let updateService = container.registerUpdateService()
+        updateService.automaticallyChecksForUpdates = settings.automaticallyChecksForUpdates
+        updateService.start()
+
         // Phase 2 预留：
         // let syncService = CloudSyncService(...)
         // container.register(syncService)
@@ -94,6 +98,13 @@ struct ViabarApp: App {
                     try? runtimeController.configureShortcuts(from: settings)
                     serviceContainer.backupService?.start(settings: settings)
                 }
+        }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("检查更新...") {
+                    serviceContainer.updateService?.checkForUpdates()
+                }
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1260, height: 820)

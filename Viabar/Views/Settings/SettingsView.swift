@@ -329,7 +329,7 @@ private struct SettingsDetailView: View {
                 }
                 SettingsDivider()
                 SettingsRow("自动更新", description: "保持 Viabar 为最新版本") {
-                    settingsSwitch($settings.automaticallyChecksForUpdates)
+                    settingsSwitch(automaticallyChecksForUpdatesBinding)
                 }
             }
 
@@ -506,6 +506,16 @@ private struct SettingsDetailView: View {
             set: { enabled in
                 settings.backupEnabled = enabled
                 backupService?.setAutomaticBackupEnabled(enabled, settings: settings)
+            }
+        )
+    }
+
+    private var automaticallyChecksForUpdatesBinding: Binding<Bool> {
+        Binding(
+            get: { settings.automaticallyChecksForUpdates },
+            set: { enabled in
+                settings.automaticallyChecksForUpdates = enabled
+                container.updateService?.automaticallyChecksForUpdates = enabled
             }
         )
     }
