@@ -150,7 +150,7 @@
 "复制备忘录" = "Copy Memo";
 "复制" = "Copy";
 "本周完成" = "Completed This Week";
-"下周待办" = "Next Week";
+"下周待办" = "TODO Next Week";
 "本月完成" = "Completed This Month";
 "已归档" = "Archived";
 "复制本周完成" = "Copy Completed This Week";
@@ -232,3 +232,19 @@
 "橙" = "Orange";
 "粉" = "Pink";
 "紫" = "Purple";
+
+/* ---- 汇总面板 - 缺失补充 ---- */
+"本周待办" = "TODO This Week";
+"上周完成" = "Completed Last Week";
+"上月完成" = "Completed Last Month";
+"复制周待办" = "Copy This Week";
+"复制周完成" = "Copy Completed Week";
+"复制月完成" = "Copy Completed Month";
+"暂无待办提醒" = "No upcoming reminders";
+"暂无完成内容" = "Nothing completed";
+
+/* ---- 侧边栏 ---- */
+"其他项目" = "Other Projects";
+
+/* ---- 菜单 ---- */
+"检查更新..." = "Check for Updates...";

@@ -143,8 +143,8 @@ struct AppSettingsTests {
         #expect(settings.openSearchShortcut == "Command+F")
         #expect(settings.syncEnabled == true)
         #expect(settings.lastSyncAt == nil)
-        #expect(settings.backupEnabled == true)
-        #expect(settings.backupPath == "~/Documents/Viabar")
+        #expect(settings.backupEnabled == false)
+        #expect(settings.backupPath == "")
         #expect(settings.backupBookmarkData == nil)
         #expect(settings.automaticallyChecksForUpdates == true)
     }

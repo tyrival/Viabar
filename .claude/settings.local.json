@@ -10,7 +10,9 @@
       "Bash(hdiutil convert *)",
       "Bash(rm -f /tmp/Viabar_temp.dmg)",
       "Bash(git *)",
-      "Bash(xargs ls -la)"
+      "Bash(xargs ls -la)",
+      "Bash(curl -sI \"https://raw.githubusercontent.com/tyrival/Viabar-Releases/main/appcast.xml\")",
+      "Bash(curl *)"
     ]
   }
 }

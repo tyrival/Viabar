@@ -199,8 +199,8 @@ final class AppSettings {
         openSearchShortcut: String = "Command+F",
         syncEnabled: Bool = true,
         lastSyncAt: Date? = nil,
-        backupEnabled: Bool = true,
-        backupPath: String = "~/Documents/Viabar",
+        backupEnabled: Bool = false,
+        backupPath: String = "",
         backupBookmarkData: Data? = nil,
         automaticallyChecksForUpdates: Bool = true
     ) {

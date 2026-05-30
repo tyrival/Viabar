@@ -334,13 +334,13 @@ private struct SettingsDetailView: View {
             }
 
             SettingsGroup {
-                placeholderRow("Telegram")
-                SettingsDivider()
-                placeholderRow("App Store 评分")
-                SettingsDivider()
-                placeholderRow("许可证")
-                SettingsDivider()
-                placeholderRow("协议")
+                SettingsRow("Telegram") {
+                    Button("viabarapp") {
+                        NSWorkspace.shared.open(URL(string: "https://t.me/viabarapp")!)
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.link)
+                }
             }
         }
     }
@@ -373,7 +373,8 @@ private struct SettingsDetailView: View {
         guard panel.runModal() == .OK, let directoryURL = panel.url else { return }
         do {
             try backupService?.authorizeBackupDirectory(directoryURL, settings: settings)
-            backupService?.setAutomaticBackupEnabled(settings.backupEnabled, settings: settings)
+            settings.backupEnabled = true
+            backupService?.setAutomaticBackupEnabled(true, settings: settings)
         } catch {
             settingsErrorMessage = "无法读取备份路径，请检查文件夹权限。"
         }
@@ -504,8 +505,17 @@ private struct SettingsDetailView: View {
         Binding(
             get: { settings.backupEnabled },
             set: { enabled in
-                settings.backupEnabled = enabled
-                backupService?.setAutomaticBackupEnabled(enabled, settings: settings)
+                if enabled {
+                    if settings.backupPath.isEmpty {
+                        selectBackupFolder()
+                    } else {
+                        settings.backupEnabled = true
+                        backupService?.setAutomaticBackupEnabled(true, settings: settings)
+                    }
+                } else {
+                    settings.backupEnabled = false
+                    backupService?.setAutomaticBackupEnabled(false, settings: settings)
+                }
             }
         )
     }
