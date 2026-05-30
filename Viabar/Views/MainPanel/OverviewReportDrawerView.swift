@@ -6,28 +6,21 @@ struct OverviewReportDrawerView: View {
     @Binding var weekTodoOffset: Int
     @Binding var weekDoneOffset: Int
     @Binding var monthDoneOffset: Int
-    let onToggleVisibility: () -> Void
 
     @State private var copiedKind: OverviewReportSectionKind?
     @State private var hoveredCopyKind: OverviewReportSectionKind?
-    @State private var isToggleHovered = false
-
-    private let buttonSize: CGFloat = 36
-    private let edgeInset: CGFloat = 8
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                toggleButton
-            }
-            .padding(.trailing, edgeInset)
-            .frame(height: buttonSize + edgeInset * 2)
+            // 顶部占位：保持与原来按钮行相同的高度
+            Color.clear
+                .frame(height: 52)
+
+            Divider()
 
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(sections) { section in
-                        Divider()
                         OverviewReportSectionView(
                             section: section,
                             weekTodoOffset: $weekTodoOffset,
@@ -44,23 +37,10 @@ struct OverviewReportDrawerView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(OverviewReportDrawerStyle.panelBackground)
-    }
-
-    private var toggleButton: some View {
-        Button(action: onToggleVisibility) {
-            Image(systemName: "sidebar.right")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: buttonSize, height: buttonSize)
-                .background(OverviewReportDrawerStyle.toggleBackground(isHovered: isToggleHovered))
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .help("收起汇总面板")
-        .onHover { isToggleHovered = $0 }
     }
 
     private func copy(_ section: OverviewReportSection) {

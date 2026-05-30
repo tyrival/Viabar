@@ -77,6 +77,10 @@ struct ContentView: View {
                 memoToggleLayer
             }
 
+            if isOverviewSelected {
+                overviewToggleLayer
+            }
+
             if isGlobalSearchPresented {
                 Color.clear
                     .contentShape(Rectangle())
@@ -96,7 +100,7 @@ struct ContentView: View {
             }
         }
         .environment(\.locale, effectiveLanguage.locale)
-        .onAppear {
+        .task {
             runtimeController.registerMainWindowOpener {
                 openWindow(id: "main")
             }
@@ -274,12 +278,7 @@ struct ContentView: View {
                 sections: overviewReportSections,
                 weekTodoOffset: $weekTodoOffset,
                 weekDoneOffset: $weekDoneOffset,
-                monthDoneOffset: $monthDoneOffset,
-                onToggleVisibility: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isOverviewReportDrawerVisible = false
-                    }
-                }
+                monthDoneOffset: $monthDoneOffset
             )
             .frame(width: memoDrawerWidth)
         }
@@ -373,67 +372,101 @@ struct ContentView: View {
         .onHover { hoveredToolbarButton = $0 ? .memoDrawer : nil }
     }
 
+    private var overviewToggleLayer: some View {
+        VStack {
+            HStack {
+                Spacer()
+                overviewToggleButton
+                    .padding(.top, toolbarEdgeInset)
+                    .padding(.trailing, toolbarEdgeInset)
+            }
+            Spacer()
+        }
+        .ignoresSafeArea(.container, edges: [.top, .bottom])
+        .zIndex(5)
+    }
+
+    private var overviewToggleButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isOverviewReportDrawerVisible.toggle()
+            }
+        } label: {
+            Image(systemName: "sidebar.right")
+                .font(.system(size: toolbarButtonIconSize, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: toolbarButtonSize, height: toolbarButtonSize)
+                .background(toolbarButtonBackground(isHovered: hoveredToolbarButton == .overviewReport))
+                .contentShape(Circle())
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
+        }
+        .buttonStyle(.plain)
+        .help(isOverviewReportDrawerVisible ? Text("收起汇总面板") : Text("展开汇总面板"))
+        .onHover { hoveredToolbarButton = $0 ? .overviewReport : nil }
+    }
+
     private var mainToolbarLayer: some View {
         VStack {
             GeometryReader { proxy in
                 ZStack(alignment: .top) {
                     HStack(spacing: 12) {
                         if isSidebarHidden, let project = selectedProject {
-                            HStack(spacing: 8) {
-                                Image(systemName: project.sfSymbolName)
-                                    .font(.title2.weight(.semibold))
-                                    .foregroundStyle(Color(hex: project.accentColor))
-                                Text(project.title)
-                                    .font(.title2.weight(.bold))
-                                    .lineLimit(1)
-                                    .foregroundStyle(.primary)
-                            }
-                            .lineLimit(1)
-                            .frame(maxWidth: 360, alignment: .leading)
-                            .padding(.leading, 180)
-                            .searchTargetHighlight(
-                                triggerID: projectTitleHighlightRequestID(for: project),
-                                isActive: projectTitleHighlightRequestID(for: project) != nil
-                            )
+                        HStack(spacing: 8) {
+                            Image(systemName: project.sfSymbolName)
+                                .font(.title2.weight(.semibold))
+                                .foregroundStyle(Color(hex: project.accentColor))
+                            Text(project.title)
+                                .font(.title2.weight(.bold))
+                                .lineLimit(1)
+                                .foregroundStyle(.primary)
                         }
-
-                        Spacer()
-
-                        GlobalSearchOverlay(
-                            isPresented: $isGlobalSearchPresented,
-                            query: $globalSearchQuery,
-                            highlightedResultID: $highlightedSearchResultID,
-                            results: globalSearchResults,
-                            availableWidth: globalSearchWidth(for: proxy.size.width),
-                            iconSize: toolbarButtonIconSize,
-                            buttonSize: toolbarButtonSize,
-                            onPresent: presentGlobalSearch,
-                            onSelect: openSearchResult(_:)
+                        .lineLimit(1)
+                        .frame(maxWidth: 360, alignment: .leading)
+                        .padding(.leading, 180)
+                        .searchTargetHighlight(
+                            triggerID: projectTitleHighlightRequestID(for: project),
+                            isActive: projectTitleHighlightRequestID(for: project) != nil
                         )
-
-                        if let project = selectedProject {
-                            hideCompletedButton(project: project)
-                        }
-
-                        if isOverviewSelected, !isOverviewReportDrawerVisible {
-                            overviewReportRevealButton
-                        }
                     }
-                    .padding(.trailing, toolbarTrailingPadding)
-                    .padding(.top, toolbarEdgeInset)
-                }
-            }
-            .frame(height: toolbarGradientHeight)
 
-            Spacer()
+                    Spacer()
+
+                    GlobalSearchOverlay(
+                        isPresented: $isGlobalSearchPresented,
+                        query: $globalSearchQuery,
+                        highlightedResultID: $highlightedSearchResultID,
+                        results: globalSearchResults,
+                        availableWidth: globalSearchWidth(for: proxy.size.width),
+                        iconSize: toolbarButtonIconSize,
+                        buttonSize: toolbarButtonSize,
+                        onPresent: presentGlobalSearch,
+                        onSelect: openSearchResult(_:)
+                    )
+
+                    if let project = selectedProject {
+                        hideCompletedButton(project: project)
+                    }
+                }
+                .padding(.trailing, toolbarTrailingPadding)
+                .padding(.top, toolbarEdgeInset)
+            }
         }
-        .ignoresSafeArea(.container, edges: [.top, .bottom])
-        .zIndex(3)
+        .frame(height: toolbarGradientHeight)
+
+        Spacer()
     }
+    .ignoresSafeArea(.container, edges: [.top, .bottom])
+    .zIndex(3)
+}
 
     private var toolbarTrailingPadding: CGFloat {
         if visibleRightPanelWidth > 0 {
             return visibleRightPanelWidth + toolbarEdgeInset
+        }
+        if isOverviewSelected {
+            return collapsedProjectToolbarTrailing
         }
         return selectedProject != nil ? collapsedProjectToolbarTrailing : toolbarEdgeInset
     }
@@ -487,24 +520,6 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .help(project.hideCompleted ? Text("显示已完成里程碑") : Text("隐藏已完成里程碑"))
         .onHover { hoveredToolbarButton = $0 ? .hideCompleted : nil }
-    }
-
-    private var overviewReportRevealButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isOverviewReportDrawerVisible = true
-            }
-        } label: {
-            Image(systemName: "sidebar.right")
-                .font(.system(size: toolbarButtonIconSize, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: toolbarButtonSize, height: toolbarButtonSize)
-                .background(toolbarButtonBackground(isHovered: hoveredToolbarButton == .overviewReport))
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .help("展开汇总面板")
-        .onHover { hoveredToolbarButton = $0 ? .overviewReport : nil }
     }
 
     private func openSearchResult(_ result: GlobalSearchResult) {
@@ -944,6 +959,12 @@ struct OverviewProjectCard: View {
         let percentColor = Color(hex: "#00BBE1")
 
         return HStack(spacing: progressRingTextSpacing) {
+            Text("\(Int(project.progress * 100))%")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(percentColor)
+                .monospacedDigit()
+                .frame(width: progressTextWidth, alignment: .trailing)
+
             ZStack {
                 Circle()
                     .stroke(ringTrackColor, lineWidth: progressRingLineWidth)
@@ -961,12 +982,6 @@ struct OverviewProjectCard: View {
                     .rotationEffect(.degrees(-90))
                     .frame(width: progressRingSize, height: progressRingSize)
             }
-
-            Text("\(Int(project.progress * 100))%")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(percentColor)
-                .monospacedDigit()
-                .frame(width: progressTextWidth, alignment: .leading)
         }
     }
 }
