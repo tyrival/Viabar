@@ -541,12 +541,9 @@
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Viabar/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUEnableInstallerLauncherService = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/tyrival/Viabar-Releases/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "HzVpJrfJGL2Af9xewfUZljdibKnPsZbptI8HMT8cFW4=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -578,12 +575,9 @@
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Viabar/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUEnableInstallerLauncherService = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/tyrival/Viabar-Releases/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "HzVpJrfJGL2Af9xewfUZljdibKnPsZbptI8HMT8cFW4=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

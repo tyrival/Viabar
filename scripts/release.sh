@@ -96,13 +96,14 @@ MINIMUM_SYSTEM_VERSION="$(
 
 BUILD_DIR="$ROOT_DIR/build/LocalRelease"
 ARCHIVE_PATH="$BUILD_DIR/Viabar.xcarchive"
+DMG_STAGE_DIR="$BUILD_DIR/DMGStage"
 DIST_DIR="$ROOT_DIR/dist"
 VERSIONED_DMG_PATH="$DIST_DIR/Viabar-$VERSION.dmg"
 UPLOAD_DMG_PATH="$DIST_DIR/Viabar.dmg"
 DOWNLOAD_URL="https://github.com/$RELEASE_REPO/releases/download/$TAG/Viabar.dmg"
 
 rm -rf "$BUILD_DIR" "$DIST_DIR"
-mkdir -p "$DIST_DIR"
+mkdir -p "$DIST_DIR" "$DMG_STAGE_DIR"
 
 log_step "Archiving Viabar $VERSION ($BUILD_NUMBER)"
 xcodebuild archive \
@@ -119,11 +120,13 @@ xcodebuild archive \
     COMPILER_INDEX_STORE_ENABLE=NO
 
 cp -R "$ARCHIVE_PATH/Products/Applications/Viabar.app" "$DIST_DIR/Viabar.app"
+cp -R "$DIST_DIR/Viabar.app" "$DMG_STAGE_DIR/Viabar.app"
+ln -s /Applications "$DMG_STAGE_DIR/Applications"
 
 log_step "Creating DMG"
 hdiutil create \
     -volname "Viabar $VERSION" \
-    -srcfolder "$DIST_DIR/Viabar.app" \
+    -srcfolder "$DMG_STAGE_DIR" \
     -ov \
     -format UDZO \
     "$VERSIONED_DMG_PATH"

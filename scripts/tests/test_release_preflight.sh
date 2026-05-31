@@ -103,4 +103,12 @@ if ! rg -q 'log_step "Uploading GitHub Release \$TAG"' "$RELEASE_SCRIPT"; then
     fail "release script must show when it starts uploading the GitHub Release"
 fi
 
+if ! rg -q 'DMG_STAGE_DIR=' "$RELEASE_SCRIPT"; then
+    fail "release script must create a DMG staging directory"
+fi
+
+if ! rg -q 'ln -s /Applications "\$DMG_STAGE_DIR/Applications"' "$RELEASE_SCRIPT"; then
+    fail "release script must add an Applications shortcut to the DMG"
+fi
+
 printf 'PASS: release preflight checks\n'
