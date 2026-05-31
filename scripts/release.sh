@@ -87,8 +87,9 @@ MINIMUM_SYSTEM_VERSION="$(
 BUILD_DIR="$ROOT_DIR/build/LocalRelease"
 ARCHIVE_PATH="$BUILD_DIR/Viabar.xcarchive"
 DIST_DIR="$ROOT_DIR/dist"
-DMG_PATH="$DIST_DIR/Viabar-$VERSION.dmg"
-DOWNLOAD_URL="https://github.com/$RELEASE_REPO/releases/download/$TAG/Viabar-$VERSION.dmg"
+VERSIONED_DMG_PATH="$DIST_DIR/Viabar-$VERSION.dmg"
+UPLOAD_DMG_PATH="$DIST_DIR/Viabar.dmg"
+DOWNLOAD_URL="https://github.com/$RELEASE_REPO/releases/download/$TAG/Viabar.dmg"
 
 rm -rf "$BUILD_DIR" "$DIST_DIR"
 mkdir -p "$DIST_DIR"
@@ -115,14 +116,16 @@ hdiutil create \
     -srcfolder "$DIST_DIR/Viabar.app" \
     -ov \
     -format UDZO \
-    "$DMG_PATH"
+    "$VERSIONED_DMG_PATH"
+
+cp "$VERSIONED_DMG_PATH" "$UPLOAD_DMG_PATH"
 
 printf 'Signing Sparkle update...\n'
-SIGNATURE="$("$SIGN_UPDATE" --account "$SPARKLE_ACCOUNT" -p "$DMG_PATH")"
-LENGTH="$(stat -f '%z' "$DMG_PATH")"
+SIGNATURE="$("$SIGN_UPDATE" --account "$SPARKLE_ACCOUNT" -p "$UPLOAD_DMG_PATH")"
+LENGTH="$(stat -f '%z' "$UPLOAD_DMG_PATH")"
 
 printf 'Uploading %s...\n' "$TAG"
-gh release create "$TAG" "$DMG_PATH" \
+gh release create "$TAG" "$UPLOAD_DMG_PATH" \
     --repo "$RELEASE_REPO" \
     --title "$TAG" \
     --notes "$RELEASE_NOTES"
@@ -142,5 +145,7 @@ git -C "$RELEASE_REPO_DIR" commit -m "release: Viabar $VERSION"
 git -C "$RELEASE_REPO_DIR" push origin main
 
 printf '\nPublished Viabar %s (%s)\n' "$VERSION" "$BUILD_NUMBER"
-printf 'DMG: %s\n' "$DOWNLOAD_URL"
+printf 'Local DMG: %s\n' "$VERSIONED_DMG_PATH"
+printf 'Version DMG: %s\n' "$DOWNLOAD_URL"
+printf 'Latest DMG: https://github.com/%s/releases/latest/download/Viabar.dmg\n' "$RELEASE_REPO"
 printf 'Appcast: https://raw.githubusercontent.com/%s/main/appcast.xml\n' "$RELEASE_REPO"

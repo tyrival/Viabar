@@ -44,11 +44,23 @@ RELEASE_BUILD_NUMBER=8 ./scripts/release.sh 1.0.7 "更新说明"
 
 1. 计算下一个内部 build number。
 2. 使用传入版本号归档 Viabar。
-3. 生成 `dist/Viabar-1.0.7.dmg`。
-4. 使用钥匙串中的 Sparkle EdDSA 私钥签名。
-5. 在 `tyrival/Viabar-Releases` 创建 GitHub Release 并上传 DMG。
+3. 生成本机留档 `dist/Viabar-1.0.7.dmg`，并复制为待上传的 `dist/Viabar.dmg`。
+4. 使用钥匙串中的 Sparkle EdDSA 私钥签名待上传的 `Viabar.dmg`。
+5. 在 `tyrival/Viabar-Releases` 创建 GitHub Release，并以固定文件名 `Viabar.dmg` 上传。
 6. 将签名后的新版本插入公开仓库 `appcast.xml` 首项。
 7. 提交并推送公开仓库中的 `appcast.xml`。
+
+App 内 Sparkle 会根据 `appcast.xml` 中当前版本对应的地址下载更新，例如：
+
+```text
+https://github.com/tyrival/Viabar-Releases/releases/download/v1.0.7/Viabar.dmg
+```
+
+官网可以始终使用不带版本号的最新版下载地址：
+
+```text
+https://github.com/tyrival/Viabar-Releases/releases/latest/download/Viabar.dmg
+```
 
 ## 当前公开仓库的本地改动
 

@@ -79,4 +79,16 @@ if ! rg -q 'gh auth token' "$RELEASE_SCRIPT"; then
     fail "release script must use gh auth token for local credential preflight"
 fi
 
+if ! rg -q 'VERSIONED_DMG_PATH="\$DIST_DIR/Viabar-\$VERSION\.dmg"' "$RELEASE_SCRIPT"; then
+    fail "release script must keep a versioned local DMG"
+fi
+
+if ! rg -q 'UPLOAD_DMG_PATH="\$DIST_DIR/Viabar\.dmg"' "$RELEASE_SCRIPT"; then
+    fail "release script must upload a stable Viabar.dmg asset"
+fi
+
+if ! rg -q 'DOWNLOAD_URL="https://github\.com/\$RELEASE_REPO/releases/download/\$TAG/Viabar\.dmg"' "$RELEASE_SCRIPT"; then
+    fail "release script must write a tag-specific Viabar.dmg URL into appcast"
+fi
+
 printf 'PASS: release preflight checks\n'
