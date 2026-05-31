@@ -21,7 +21,8 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 command -v gh >/dev/null 2>&1 || fail "GitHub CLI 'gh' is required. Install it with: brew install gh"
-gh auth status >/dev/null 2>&1 || fail "GitHub CLI is not logged in. Run: gh auth login"
+gh auth token --hostname github.com >/dev/null 2>&1 ||
+    fail "GitHub CLI credentials are unavailable. Run: gh auth login --hostname github.com"
 
 if [[ ! -d "$RELEASE_REPO_DIR/.git" ]]; then
     if [[ -e "$RELEASE_REPO_DIR" ]]; then

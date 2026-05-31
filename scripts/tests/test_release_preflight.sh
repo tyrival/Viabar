@@ -71,4 +71,12 @@ if ! rg -q 'RELEASE_BUILD_NUMBER' "$RELEASE_SCRIPT"; then
     fail "release script must support a one-time build number override for migration"
 fi
 
+if rg -q 'gh auth status' "$RELEASE_SCRIPT"; then
+    fail "release script must not use network-dependent gh auth status for local credential preflight"
+fi
+
+if ! rg -q 'gh auth token' "$RELEASE_SCRIPT"; then
+    fail "release script must use gh auth token for local credential preflight"
+fi
+
 printf 'PASS: release preflight checks\n'
