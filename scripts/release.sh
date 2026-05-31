@@ -114,9 +114,7 @@ xcodebuild archive \
     -derivedDataPath "$BUILD_DIR/DerivedData" \
     MARKETING_VERSION="$VERSION" \
     CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-    CODE_SIGNING_ALLOWED=NO \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGN_IDENTITY="" \
+    CODE_SIGN_IDENTITY="-" \
     COMPILER_INDEX_STORE_ENABLE=NO
 
 cp -R "$ARCHIVE_PATH/Products/Applications/Viabar.app" "$DIST_DIR/Viabar.app"
