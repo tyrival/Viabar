@@ -1,0 +1,68 @@
+name: 手动打包并跨仓发布
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'v1.0.7'
+        required: true
+        default: 'v1.0.0'
+      body:
+        description: ''
+        required: false
+        default: 'Fix some bugs.'
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest # 使用 GitHub 提供的最新 macOS 虚拟机环境
+
+    steps:
+      # 1. 拉取私有仓库的代码
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2. 编译并归档 macOS 应用程序
+      # 提示：如果你的项目使用的是 .xcworkspace，请把下面的 -project Viabar.xcodeproj 替换为 -workspace Viabar.xcworkspace
+      - name: Build and Archive App
+        run: |
+          xcodebuild archive \
+            -project Viabar.xcodeproj \
+            -scheme Viabar \
+            -configuration Release \
+            -archivePath ./build/Viabar.xcarchive \
+            CODE_SIGNING_ALLOWED=NO
+
+      # 3. 导出 .app 安装包
+      - name: Export App
+        run: |
+          mkdir -p ./dist
+          cp -R ./build/Viabar.xcarchive/Products/Applications/Viabar.app ./dist/Viabar.app
+
+      # 4. 使用 macOS 原生工具将 .app 打包为 .dmg
+      - name: Create DMG Packages
+        run: |
+          # 创建带版本号的 dmg (例如 Viabar-v1.0.0.dmg)
+          hdiutil create -format UDZO \
+            -srcfolder ./dist/Viabar.app \
+            ./dist/Viabar-${{ github.event.inputs.version }}.dmg
+          
+          # 创建不带版本号的固定命名 dmg (Viabar-latest.dmg)
+          # 这将作为你官网固定的下载源，每次发布新版都会自动覆盖
+          hdiutil create -format UDZO \
+            -srcfolder ./dist/Viabar.app \
+            ./dist/Viabar-latest.dmg
+
+      # 5. 将生成的 dmg 文件跨仓库发布到 tyrival/Viabar-Release
+      - name: Push Release to Public Repo
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }} # 读取你配置的跨仓 Token
+          owner: 'tyrival'
+          repo: 'Viabar-Release'
+          allowUpdates: true
+          tag: ${{ github.event.inputs.version }}
+          name: 'Release ${{ github.event.inputs.version }}'
+          body: ${{ github.event.inputs.body }}
+          draft: false
+          prerelease: false
+          artifacts: "dist/*.dmg" # 自动上传 dist 目录下所有的 dmg 文件
