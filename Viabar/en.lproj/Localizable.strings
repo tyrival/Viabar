@@ -245,6 +245,17 @@
 
 /* ---- 侧边栏 ---- */
 "其他项目" = "Other Projects";
+"Viabar 项目" = "Viabar Project";
+"在桌面查看并完成项目任务" = "View and complete project tasks from your desktop";
+"选择桌面小组件要显示的项目" = "Choose the project to show in this desktop widget";
+"完成任务" = "Complete Task";
+"任务类型" = "Task Type";
+"任务 ID" = "Task ID";
+"右键小组件 > 编辑小组件" = "Right-click the widget > Edit Widget";
+"项目不可用，请重新选择项目" = "Project unavailable. Choose another project";
+"暂时无法读取数据" = "Unable to read data right now";
+"当前没有未完成任务" = "No unfinished tasks";
+"还有 %lld 项未完成" = "%lld more unfinished tasks";
 
 /* ---- 菜单 ---- */
 "检查更新..." = "Check for Updates...";

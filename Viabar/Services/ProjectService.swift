@@ -207,20 +207,7 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func toggleMilestoneComplete(_ milestone: Milestone) {
-        if milestone.subtasks.isEmpty {
-            milestone.isCompleted.toggle()
-            milestone.completedAt = milestone.isCompleted ? Date() : nil
-        } else {
-            // 有子任务时，联动切换全部子任务状态
-            let target = !milestone.isCompleted
-            let completedAt = target ? Date() : nil
-            for st in milestone.subtasks {
-                st.isCompleted = target
-                st.completedAt = completedAt
-            }
-            milestone.isCompleted = target
-            milestone.completedAt = completedAt
-        }
+        TaskCompletionMutation.toggle(milestone)
         save()
         if let project = milestone.project {
             syncReminderTimeline(for: project)
@@ -264,9 +251,7 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func toggleSubTaskComplete(_ subTask: SubTask) {
-        subTask.isCompleted.toggle()
-        subTask.completedAt = subTask.isCompleted ? Date() : nil
-        subTask.milestone?.syncCompletionFromSubtasks()
+        TaskCompletionMutation.toggle(subTask)
         save()
         if let project = subTask.milestone?.project {
             syncReminderTimeline(for: project)

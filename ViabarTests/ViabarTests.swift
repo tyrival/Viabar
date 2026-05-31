@@ -53,6 +53,193 @@ struct GlobalSearchTests {
     }
 }
 
+struct TaskCompletionMutationTests {
+    @Test func togglingParentTaskCompletesEveryChild() {
+        let milestone = Milestone(title: "Release")
+        let first = SubTask(title: "Package")
+        let second = SubTask(title: "Publish")
+        first.milestone = milestone
+        second.milestone = milestone
+        milestone.subtasks = [first, second]
+
+        TaskCompletionMutation.toggle(milestone)
+
+        #expect(milestone.isCompleted)
+        #expect(milestone.completedAt != nil)
+        #expect(milestone.subtasks.allSatisfy(\.isCompleted))
+        #expect(milestone.subtasks.allSatisfy { $0.completedAt != nil })
+    }
+
+    @Test func togglingLastChildCompletesParentTask() {
+        let milestone = Milestone(title: "Release")
+        let first = SubTask(title: "Package", isCompleted: true)
+        let second = SubTask(title: "Publish")
+        first.milestone = milestone
+        second.milestone = milestone
+        milestone.subtasks = [first, second]
+
+        TaskCompletionMutation.toggle(second)
+
+        #expect(second.isCompleted)
+        #expect(milestone.isCompleted)
+        #expect(milestone.completedAt != nil)
+    }
+}
+
+struct WidgetContentTests {
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    @Test func activeProjectsExcludeArchivedProjectsAndPreserveOrder() {
+        let second = Project(title: "Second", orderIndex: 1)
+        let first = Project(title: "First", orderIndex: 0)
+        let archived = Project(title: "Archived", orderIndex: 2)
+        archived.isArchived = true
+
+        #expect(
+            WidgetContentBuilder.activeProjects(from: [second, archived, first]).map(\.title)
+                == ["First", "Second"]
+        )
+    }
+
+    @Test func flattensUnfinishedParentsAndChildrenWithoutParentSubtitle() {
+        let project = Project(title: "Release")
+        let milestone = Milestone(title: "Prepare", orderIndex: 0)
+        let child = SubTask(title: "Package", orderIndex: 0)
+        let done = SubTask(title: "Already done", orderIndex: 1, isCompleted: true)
+        milestone.project = project
+        child.milestone = milestone
+        done.milestone = milestone
+        milestone.subtasks = [done, child]
+        project.milestones = [milestone]
+
+        let items = WidgetContentBuilder.items(for: project, now: Date(), calendar: calendar)
+
+        #expect(items.map(\.title) == ["Prepare", "Package"])
+        #expect(items.map(\.kind) == [.milestone, .subTask])
+        #expect(items.map(\.isIndented) == [false, true])
+    }
+
+    @Test func classifiesOverdueTodayPendingAndFutureReminders() {
+        let now = calendar.date(
+            from: DateComponents(year: 2026, month: 5, day: 31, hour: 12)
+        )!
+
+        #expect(
+            WidgetReminderTone.resolve(
+                fireDate: now.addingTimeInterval(-60),
+                now: now,
+                calendar: calendar
+            ) == .overdue
+        )
+        #expect(
+            WidgetReminderTone.resolve(
+                fireDate: now.addingTimeInterval(60),
+                now: now,
+                calendar: calendar
+            ) == .todayPending
+        )
+        #expect(
+            WidgetReminderTone.resolve(
+                fireDate: now.addingTimeInterval(86_400),
+                now: now,
+                calendar: calendar
+            ) == .future
+        )
+        #expect(WidgetReminderTone.resolve(fireDate: nil, now: now, calendar: calendar) == nil)
+    }
+
+    @Test func truncatesByRowBudgetAndReportsHiddenCount() {
+        let project = Project(title: "Release")
+        project.milestones = (0..<5).map { Milestone(title: "Task \($0)", orderIndex: $0) }
+
+        let content = WidgetContentBuilder.content(
+            for: project,
+            rowBudget: 3,
+            now: Date(),
+            calendar: calendar
+        )
+
+        #expect(content.visibleItems.map(\.title) == ["Task 0", "Task 1", "Task 2"])
+        #expect(content.hiddenItemCount == 2)
+    }
+
+    @Test func reminderSubtitleConsumesASecondBudgetRow() {
+        let now = Date()
+        let project = Project(title: "Release")
+        let reminded = Milestone(title: "Reminded", orderIndex: 0)
+        reminded.reminder = Reminder(type: "single", fireTimestamp: now.addingTimeInterval(60))
+        let plain = Milestone(title: "Plain", orderIndex: 1)
+        project.milestones = [reminded, plain]
+
+        let content = WidgetContentBuilder.content(
+            for: project,
+            rowBudget: 2,
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(content.visibleItems.map(\.title) == ["Reminded"])
+        #expect(content.hiddenItemCount == 1)
+    }
+}
+
+struct SharedStoreMigratorTests {
+    @Test func migratesLegacyStoreFilesBeforeOpeningSharedContainer() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let legacy = root.appending(path: "legacy/default.store")
+        let shared = root.appending(path: "group/default.store")
+        try FileManager.default.createDirectory(
+            at: legacy.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("store".utf8).write(to: legacy)
+        try Data("wal".utf8).write(to: URL(fileURLWithPath: legacy.path + "-wal"))
+
+        try SharedStoreMigrator.migrateStoreFilesIfNeeded(
+            legacyStoreURL: legacy,
+            sharedStoreURL: shared,
+            validate: { candidate in
+                #expect(FileManager.default.fileExists(atPath: candidate.path))
+            }
+        )
+
+        #expect(FileManager.default.fileExists(atPath: shared.path))
+        #expect(FileManager.default.fileExists(atPath: shared.path + "-wal"))
+        #expect(FileManager.default.fileExists(atPath: legacy.path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: shared.deletingLastPathComponent()
+                    .appending(path: SharedModelContainer.migrationMarkerFileName).path
+            )
+        )
+    }
+
+    @Test func failedValidationKeepsLegacyStoreAndDoesNotPublishSharedStore() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let legacy = root.appending(path: "legacy/default.store")
+        let shared = root.appending(path: "group/default.store")
+        try FileManager.default.createDirectory(
+            at: legacy.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("store".utf8).write(to: legacy)
+
+        #expect(throws: SharedStoreError.self) {
+            try SharedStoreMigrator.migrateStoreFilesIfNeeded(
+                legacyStoreURL: legacy,
+                sharedStoreURL: shared,
+                validate: { _ in throw SharedStoreError.sharedStoreUnavailable }
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: legacy.path))
+        #expect(!FileManager.default.fileExists(atPath: shared.path))
+    }
+}
+
 @MainActor
 struct ProjectTemplateAndFavoriteTests {
     @Test func createsIndependentUnfinishedTaskTreeFromTemplate() throws {

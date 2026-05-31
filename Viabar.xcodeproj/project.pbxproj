@@ -8,6 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		C332307A2FCA911D00F2DBA3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = B2C3D4E5F6A7B8C9D0E1F2A3B4 /* Sparkle */; };
+		D10000012FDD000100000001 /* ViabarWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D10000102FDD000100000001 /* ViabarWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D10000212FDD000100000001 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000312FDD000100000001 /* Project.swift */; };
+		D10000222FDD000100000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000322FDD000100000001 /* AppSettings.swift */; };
+		D10000232FDD000100000001 /* ReminderDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000332FDD000100000001 /* ReminderDisplay.swift */; };
+		D10000242FDD000100000001 /* ViabarColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000342FDD000100000001 /* ViabarColor.swift */; };
+		D10000252FDD000100000001 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000352FDD000100000001 /* Color+Hex.swift */; };
+		D10000262FDD000100000001 /* AppLanguageController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000362FDD000100000001 /* AppLanguageController.swift */; };
+		D10000272FDD000100000001 /* TaskCompletionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000372FDD000100000001 /* TaskCompletionMutation.swift */; };
+		D10000282FDD000100000001 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000382FDD000100000001 /* WidgetContent.swift */; };
+		D10000292FDD000100000001 /* SharedModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000392FDD000100000001 /* SharedModelContainer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,12 +35,43 @@
 			remoteGlobalIDString = C3F31B002FBC0DBC00CEC84F;
 			remoteInfo = Viabar;
 		};
+		D10000412FDD000100000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3F31AF92FBC0DBC00CEC84F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D10001002FDD000100000001;
+			remoteInfo = ViabarWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D10000512FDD000100000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D10000012FDD000100000001 /* ViabarWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		C3F31B012FBC0DBC00CEC84F /* Viabar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Viabar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3F31B102FBC0DBD00CEC84F /* ViabarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViabarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3F31B1A2FBC0DBD00CEC84F /* ViabarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViabarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D10000102FDD000100000001 /* ViabarWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ViabarWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D10000312FDD000100000001 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/Project.swift; sourceTree = SOURCE_ROOT; };
+		D10000322FDD000100000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/AppSettings.swift; sourceTree = SOURCE_ROOT; };
+		D10000332FDD000100000001 /* ReminderDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/ReminderDisplay.swift; sourceTree = SOURCE_ROOT; };
+		D10000342FDD000100000001 /* ViabarColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/ViabarColor.swift; sourceTree = SOURCE_ROOT; };
+		D10000352FDD000100000001 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Viabar/Views/Component/Color+Hex.swift"; sourceTree = SOURCE_ROOT; };
+		D10000362FDD000100000001 /* AppLanguageController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/AppLanguageController.swift; sourceTree = SOURCE_ROOT; };
+		D10000372FDD000100000001 /* TaskCompletionMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/TaskCompletionMutation.swift; sourceTree = SOURCE_ROOT; };
+		D10000382FDD000100000001 /* WidgetContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/WidgetContent.swift; sourceTree = SOURCE_ROOT; };
+		D10000392FDD000100000001 /* SharedModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/SharedModelContainer.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -47,6 +88,11 @@
 		C3F31B1D2FBC0DBD00CEC84F /* ViabarUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ViabarUITests;
+			sourceTree = "<group>";
+		};
+		D10000612FDD000100000001 /* ViabarWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ViabarWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -74,6 +120,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D10000712FDD000100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -83,6 +136,7 @@
 				C3F31B032FBC0DBC00CEC84F /* Viabar */,
 				C3F31B132FBC0DBD00CEC84F /* ViabarTests */,
 				C3F31B1D2FBC0DBD00CEC84F /* ViabarUITests */,
+				D10000612FDD000100000001 /* ViabarWidget */,
 				C3F31B022FBC0DBC00CEC84F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,6 +147,7 @@
 				C3F31B012FBC0DBC00CEC84F /* Viabar.app */,
 				C3F31B102FBC0DBD00CEC84F /* ViabarTests.xctest */,
 				C3F31B1A2FBC0DBD00CEC84F /* ViabarUITests.xctest */,
+				D10000102FDD000100000001 /* ViabarWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -107,10 +162,12 @@
 				C3F31AFD2FBC0DBC00CEC84F /* Sources */,
 				C3F31AFE2FBC0DBC00CEC84F /* Frameworks */,
 				C3F31AFF2FBC0DBC00CEC84F /* Resources */,
+				D10000512FDD000100000001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D10000422FDD000100000001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				C3F31B032FBC0DBC00CEC84F /* Viabar */,
@@ -169,6 +226,28 @@
 			productReference = C3F31B1A2FBC0DBD00CEC84F /* ViabarUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		D10001002FDD000100000001 /* ViabarWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D10001102FDD000100000001 /* Build configuration list for PBXNativeTarget "ViabarWidgetExtension" */;
+			buildPhases = (
+				D10001212FDD000100000001 /* Sources */,
+				D10000712FDD000100000001 /* Frameworks */,
+				D10001312FDD000100000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D10000612FDD000100000001 /* ViabarWidget */,
+			);
+			name = ViabarWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = ViabarWidgetExtension;
+			productReference = D10000102FDD000100000001 /* ViabarWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -189,6 +268,9 @@
 					C3F31B192FBC0DBD00CEC84F = {
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = C3F31B002FBC0DBC00CEC84F;
+					};
+					D10001002FDD000100000001 = {
+						CreatedOnToolsVersion = 26.5;
 					};
 				};
 			};
@@ -213,6 +295,7 @@
 				C3F31B002FBC0DBC00CEC84F /* Viabar */,
 				C3F31B0F2FBC0DBD00CEC84F /* ViabarTests */,
 				C3F31B192FBC0DBD00CEC84F /* ViabarUITests */,
+				D10001002FDD000100000001 /* ViabarWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -233,6 +316,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C3F31B182FBC0DBD00CEC84F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D10001312FDD000100000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -263,6 +353,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D10001212FDD000100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D10000212FDD000100000001 /* Project.swift in Sources */,
+				D10000222FDD000100000001 /* AppSettings.swift in Sources */,
+				D10000232FDD000100000001 /* ReminderDisplay.swift in Sources */,
+				D10000242FDD000100000001 /* ViabarColor.swift in Sources */,
+				D10000252FDD000100000001 /* Color+Hex.swift in Sources */,
+				D10000262FDD000100000001 /* AppLanguageController.swift in Sources */,
+				D10000272FDD000100000001 /* TaskCompletionMutation.swift in Sources */,
+				D10000282FDD000100000001 /* WidgetContent.swift in Sources */,
+				D10000292FDD000100000001 /* SharedModelContainer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -275,6 +381,11 @@
 			isa = PBXTargetDependency;
 			target = C3F31B002FBC0DBC00CEC84F /* Viabar */;
 			targetProxy = C3F31B1B2FBC0DBD00CEC84F /* PBXContainerItemProxy */;
+		};
+		D10000422FDD000100000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D10001002FDD000100000001 /* ViabarWidgetExtension */;
+			targetProxy = D10000412FDD000100000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -405,6 +516,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = Viabar/Viabar.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 5J4XX45X4J;
@@ -439,6 +551,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = Viabar/Viabar.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 5J4XX45X4J;
@@ -547,6 +660,68 @@
 			};
 			name = Release;
 		};
+		D10001412FDD000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ViabarWidget/ViabarWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = 5J4XX45X4J;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Viabar;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tyrival.Viabar.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D10001422FDD000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ViabarWidget/ViabarWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = 5J4XX45X4J;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Viabar;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tyrival.Viabar.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -582,6 +757,15 @@
 			buildConfigurations = (
 				C3F31B2B2FBC0DBD00CEC84F /* Debug */,
 				C3F31B2C2FBC0DBD00CEC84F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D10001102FDD000100000001 /* Build configuration list for PBXNativeTarget "ViabarWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D10001412FDD000100000001 /* Debug */,
+				D10001422FDD000100000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

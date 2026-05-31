@@ -15,36 +15,8 @@ struct ViabarApp: App {
     // MARK: - Init
 
     init() {
-        let schema = Schema([
-            Project.self,
-            Milestone.self,
-            SubTask.self,
-            Memo.self,
-            Reminder.self,
-            NotificationScheduleEntry.self,
-            ArchiveFolder.self,
-            ProjectTemplate.self,
-            TemplateMilestone.self,
-            TemplateSubTask.self,
-            AppSettings.self,
-        ])
-
-        // iCloud sync 预留：替换为以下配置即可启用 CloudKit 同步
-        // let modelConfiguration = ModelConfiguration(
-        //     schema: schema,
-        //     isStoredInMemoryOnly: false,
-        //     cloudKitDatabase: .private("iCloud.com.viabar")
-        // )
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false
-        )
-
         do {
-            sharedModelContainer = try ModelContainer(
-                for: schema,
-                configurations: [modelConfiguration]
-            )
+            sharedModelContainer = try SharedModelContainer.makeMainAppContainer()
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
