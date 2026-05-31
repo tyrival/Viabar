@@ -16,10 +16,15 @@ fail() {
     exit 1
 }
 
+log_step() {
+    printf '\n==> %s\n' "$1"
+}
+
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     fail "version must use X.Y.Z format, for example: ./scripts/release.sh 1.0.7 \"更新说明\""
 fi
 
+log_step "Checking GitHub CLI credentials"
 command -v gh >/dev/null 2>&1 || fail "GitHub CLI 'gh' is required. Install it with: brew install gh"
 gh auth token --hostname github.com >/dev/null 2>&1 ||
     fail "GitHub CLI credentials are unavailable. Run: gh auth login --hostname github.com"
@@ -31,17 +36,21 @@ if [[ ! -d "$RELEASE_REPO_DIR/.git" ]]; then
     git clone "https://github.com/$RELEASE_REPO.git" "$RELEASE_REPO_DIR"
 fi
 
+log_step "Checking public release repository status"
 if [[ -n "$(git -C "$RELEASE_REPO_DIR" status --porcelain)" ]]; then
     fail "public release repository has uncommitted changes: $RELEASE_REPO_DIR"
 fi
 
+log_step "Syncing public release repository"
 git -C "$RELEASE_REPO_DIR" pull --ff-only
 [[ -f "$APPCAST_PATH" ]] || fail "appcast.xml was not found in $RELEASE_REPO_DIR"
 
+log_step "Checking whether GitHub Release $TAG already exists"
 if gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
     fail "GitHub Release $TAG already exists in $RELEASE_REPO"
 fi
 
+log_step "Checking Sparkle signing key"
 SIGN_UPDATE="$(find_sparkle_tool sign_update)"
 GENERATE_KEYS="$(find_sparkle_tool generate_keys)"
 "$GENERATE_KEYS" --account "$SPARKLE_ACCOUNT" -p >/dev/null 2>&1 ||
@@ -74,6 +83,7 @@ if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || (( BUILD_NUMBER < NEXT_BUILD_NUMBER ))
     fail "RELEASE_BUILD_NUMBER must be an integer greater than or equal to $NEXT_BUILD_NUMBER"
 fi
 
+log_step "Reading Xcode deployment target"
 MINIMUM_SYSTEM_VERSION="$(
     xcodebuild -showBuildSettings \
         -project "$ROOT_DIR/Viabar.xcodeproj" \
@@ -94,7 +104,7 @@ DOWNLOAD_URL="https://github.com/$RELEASE_REPO/releases/download/$TAG/Viabar.dmg
 rm -rf "$BUILD_DIR" "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
-printf 'Archiving Viabar %s (%s)...\n' "$VERSION" "$BUILD_NUMBER"
+log_step "Archiving Viabar $VERSION ($BUILD_NUMBER)"
 xcodebuild archive \
     -project "$ROOT_DIR/Viabar.xcodeproj" \
     -scheme Viabar \
@@ -110,7 +120,7 @@ xcodebuild archive \
 
 cp -R "$ARCHIVE_PATH/Products/Applications/Viabar.app" "$DIST_DIR/Viabar.app"
 
-printf 'Creating DMG...\n'
+log_step "Creating DMG"
 hdiutil create \
     -volname "Viabar $VERSION" \
     -srcfolder "$DIST_DIR/Viabar.app" \
@@ -120,11 +130,11 @@ hdiutil create \
 
 cp "$VERSIONED_DMG_PATH" "$UPLOAD_DMG_PATH"
 
-printf 'Signing Sparkle update...\n'
+log_step "Signing Sparkle update"
 SIGNATURE="$("$SIGN_UPDATE" --account "$SPARKLE_ACCOUNT" -p "$UPLOAD_DMG_PATH")"
 LENGTH="$(stat -f '%z' "$UPLOAD_DMG_PATH")"
 
-printf 'Uploading %s...\n' "$TAG"
+log_step "Uploading GitHub Release $TAG"
 gh release create "$TAG" "$UPLOAD_DMG_PATH" \
     --repo "$RELEASE_REPO" \
     --title "$TAG" \
@@ -140,6 +150,7 @@ python3 "$ROOT_DIR/scripts/update_appcast.py" \
     --length "$LENGTH" \
     --signature "$SIGNATURE"
 
+log_step "Publishing appcast.xml"
 git -C "$RELEASE_REPO_DIR" add -- appcast.xml
 git -C "$RELEASE_REPO_DIR" commit -m "release: Viabar $VERSION"
 git -C "$RELEASE_REPO_DIR" push origin main

@@ -62,6 +62,16 @@ https://github.com/tyrival/Viabar-Releases/releases/download/v1.0.7/Viabar.dmg
 https://github.com/tyrival/Viabar-Releases/releases/latest/download/Viabar.dmg
 ```
 
+## 发布脚本长时间没有响应
+
+脚本会在每个可能等待的步骤前输出 `==> ...`。如果长时间没有新输出，最后一行阶段日志就是当前停留的位置。例如：
+
+```text
+==> Syncing public release repository
+```
+
+表示正在执行公开仓库的 `git pull --ff-only`。网络不稳定时可以按 `Ctrl+C` 结束，稍后重新执行发布命令。脚本会在 GitHub Release 或 appcast 已存在对应版本时停止，不会重复发布同一个版本。
+
 ## 当前公开仓库的本地改动
 
 首次使用发布脚本前，需要人工处理相邻目录 `../Viabar-Releases` 中已有的本地修改。脚本检测到公开仓库不干净时会停止，避免覆盖官网或手工维护的 appcast。

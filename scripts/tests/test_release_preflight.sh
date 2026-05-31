@@ -91,4 +91,16 @@ if ! rg -q 'DOWNLOAD_URL="https://github\.com/\$RELEASE_REPO/releases/download/\
     fail "release script must write a tag-specific Viabar.dmg URL into appcast"
 fi
 
+if ! rg -q 'log_step "Syncing public release repository"' "$RELEASE_SCRIPT"; then
+    fail "release script must show when it starts syncing the public repository"
+fi
+
+if ! rg -q 'log_step "Checking whether GitHub Release \$TAG already exists"' "$RELEASE_SCRIPT"; then
+    fail "release script must show when it queries GitHub Releases"
+fi
+
+if ! rg -q 'log_step "Uploading GitHub Release \$TAG"' "$RELEASE_SCRIPT"; then
+    fail "release script must show when it starts uploading the GitHub Release"
+fi
+
 printf 'PASS: release preflight checks\n'
