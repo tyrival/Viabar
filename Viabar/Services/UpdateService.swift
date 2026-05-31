@@ -22,11 +22,7 @@ final class UpdateService {
             delegate: nil
         )
 
-        do {
-            try updater.setFeedURL(URL(string: "https://raw.githubusercontent.com/tyrival/Viabar-Releases/main/appcast.xml")!)
-        } catch {
-            print("[UpdateService] Failed to set feed URL: \(error)")
-        }
+        updater.clearFeedURLFromUserDefaults()
     }
 
     func start() {

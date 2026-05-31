@@ -544,7 +544,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://github.com/tyrival/Viabar-Releases/releases.atom";
+				INFOPLIST_KEY_SUEnableInstallerLauncherService = YES;
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/tyrival/Viabar-Releases/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "HzVpJrfJGL2Af9xewfUZljdibKnPsZbptI8HMT8cFW4=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -579,7 +581,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://github.com/tyrival/Viabar-Releases/releases.atom";
+				INFOPLIST_KEY_SUEnableInstallerLauncherService = YES;
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/tyrival/Viabar-Releases/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "HzVpJrfJGL2Af9xewfUZljdibKnPsZbptI8HMT8cFW4=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
