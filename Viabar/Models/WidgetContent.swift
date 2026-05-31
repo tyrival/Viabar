@@ -43,6 +43,8 @@ struct WidgetProjectContent: Equatable {
 }
 
 enum WidgetContentBuilder {
+    static let largeWidgetRowBudget = 10
+
     static func activeProjects(from projects: [Project]) -> [Project] {
         projects
             .filter { !$0.isArchived }

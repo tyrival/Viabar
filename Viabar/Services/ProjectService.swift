@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import WidgetKit
 
 // MARK: - Service Registry
 
@@ -519,6 +520,7 @@ final class ProjectService: ProjectServiceProtocol {
         guard modelContext.hasChanges else { return }
         do {
             try modelContext.save()
+            WidgetCenter.shared.reloadTimelines(ofKind: SharedModelContainer.widgetKind)
         } catch {
             // TODO: Phase 2 — 统一错误处理与用户提示
             print("[ProjectService] save failed: \(error.localizedDescription)")

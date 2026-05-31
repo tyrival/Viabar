@@ -167,6 +167,21 @@ struct WidgetContentTests {
         #expect(content.hiddenItemCount == 2)
     }
 
+    @Test func largeWidgetAllowsTenPlainTaskRows() {
+        let project = Project(title: "Release")
+        project.milestones = (0..<12).map { Milestone(title: "Task \($0)", orderIndex: $0) }
+
+        let content = WidgetContentBuilder.content(
+            for: project,
+            rowBudget: WidgetContentBuilder.largeWidgetRowBudget,
+            now: Date(),
+            calendar: calendar
+        )
+
+        #expect(content.visibleItems.count == 10)
+        #expect(content.hiddenItemCount == 2)
+    }
+
     @Test func reminderSubtitleConsumesASecondBudgetRow() {
         let now = Date()
         let project = Project(title: "Release")

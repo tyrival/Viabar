@@ -68,7 +68,11 @@ struct ViabarWidgetProvider: AppIntentTimelineProvider {
             return ViabarWidgetEntry(
                 date: .now,
                 state: .content(
-                    WidgetContentBuilder.content(for: project, rowBudget: 8, now: .now)
+                    WidgetContentBuilder.content(
+                        for: project,
+                        rowBudget: WidgetContentBuilder.largeWidgetRowBudget,
+                        now: .now
+                    )
                 ),
                 dateFormatPattern: settings?.dateFormat
             )
@@ -124,7 +128,7 @@ struct ViabarLargeWidgetView: View {
             if content.visibleItems.isEmpty, content.hiddenItemCount == 0 {
                 emptyState("当前没有未完成任务", detail: nil)
             } else {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 7) {
                     ForEach(content.visibleItems) { item in
                         taskRow(item)
                     }
@@ -162,9 +166,18 @@ struct ViabarLargeWidgetView: View {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(.quaternary)
+                        .fill(Color(hex: "#00BBE1").opacity(0.2))
                     Capsule()
-                        .fill(Color(hex: content.accentColor))
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: "#00BBE1"),
+                                    Color(hex: "#00F9D0"),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .frame(
                             width: geometry.size.width * max(0, min(1, content.progress))
                         )
@@ -176,6 +189,14 @@ struct ViabarLargeWidgetView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 34, alignment: .trailing)
+
+            Button(intent: RefreshWidgetIntent()) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("刷新任务列表")
         }
     }
 
@@ -190,7 +211,7 @@ struct ViabarLargeWidgetView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title)
-                    .font(.system(size: 14))
+                    .font(.system(size: item.kind == .subTask ? 12 : 14))
                     .lineLimit(1)
 
                 if let reminderDate = item.reminderDate {
