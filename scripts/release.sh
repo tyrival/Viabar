@@ -46,7 +46,7 @@ GENERATE_KEYS="$(find_sparkle_tool generate_keys)"
 "$GENERATE_KEYS" --account "$SPARKLE_ACCOUNT" -p >/dev/null 2>&1 ||
     fail "Sparkle key is missing. Run: ./scripts/bootstrap-sparkle.sh"
 
-BUILD_NUMBER="$(
+NEXT_BUILD_NUMBER="$(
     python3 - "$APPCAST_PATH" "$VERSION" <<'PY'
 import sys
 import xml.etree.ElementTree as ET
@@ -68,6 +68,20 @@ for item in items:
 print(max(builds, default=0) + 1)
 PY
 )"
+BUILD_NUMBER="${RELEASE_BUILD_NUMBER:-$NEXT_BUILD_NUMBER}"
+if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || (( BUILD_NUMBER < NEXT_BUILD_NUMBER )); then
+    fail "RELEASE_BUILD_NUMBER must be an integer greater than or equal to $NEXT_BUILD_NUMBER"
+fi
+
+MINIMUM_SYSTEM_VERSION="$(
+    xcodebuild -showBuildSettings \
+        -project "$ROOT_DIR/Viabar.xcodeproj" \
+        -scheme Viabar \
+        -configuration Release |
+        awk '/^[[:space:]]*MACOSX_DEPLOYMENT_TARGET = / { print $3; exit }'
+)"
+[[ -n "$MINIMUM_SYSTEM_VERSION" ]] ||
+    fail "MACOSX_DEPLOYMENT_TARGET was not found in the Viabar Release build settings"
 
 BUILD_DIR="$ROOT_DIR/build/LocalRelease"
 ARCHIVE_PATH="$BUILD_DIR/Viabar.xcarchive"
@@ -87,7 +101,6 @@ xcodebuild archive \
     -derivedDataPath "$BUILD_DIR/DerivedData" \
     MARKETING_VERSION="$VERSION" \
     CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-    MACOSX_DEPLOYMENT_TARGET=14.0 \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGN_IDENTITY="" \
@@ -117,7 +130,7 @@ python3 "$ROOT_DIR/scripts/update_appcast.py" \
     --appcast "$APPCAST_PATH" \
     --version "$VERSION" \
     --build "$BUILD_NUMBER" \
-    --minimum-system-version "14.0" \
+    --minimum-system-version "$MINIMUM_SYSTEM_VERSION" \
     --description "$RELEASE_NOTES" \
     --url "$DOWNLOAD_URL" \
     --length "$LENGTH" \

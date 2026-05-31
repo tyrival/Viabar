@@ -32,6 +32,14 @@ git -C ../Viabar-Releases status --short
 ./scripts/release.sh 1.0.7 "更新说明"
 ```
 
+现有公开仓库曾手工上传 `v1.0.6`，但 appcast 尚未记录该版本。首次发布带签名的 `1.0.7` 时，需要显式指定内部 build `8`：
+
+```bash
+RELEASE_BUILD_NUMBER=8 ./scripts/release.sh 1.0.7 "更新说明"
+```
+
+从下一版开始恢复普通命令，脚本会根据 appcast 自动递增内部 build number。
+
 脚本会自动：
 
 1. 计算下一个内部 build number。

@@ -105,7 +105,7 @@ Viabar 开启 App Sandbox。Sparkle 的沙盒应用需要启用 Installer Launch
 5. 使用命令行参数向 `xcodebuild archive` 传入：
    - `MARKETING_VERSION=<输入版本号>`
    - `CURRENT_PROJECT_VERSION=<自动计算的 build number>`
-   - `MACOSX_DEPLOYMENT_TARGET=14.0`
+   - 不覆盖 `MACOSX_DEPLOYMENT_TARGET`，沿用 Xcode Release 配置。
 6. 从 archive 复制 `Viabar.app`，制作 `Viabar-<版本号>.dmg`。
 7. 调用 Sparkle `sign_update` 生成 `sparkle:edSignature` 和包长度。
 8. 使用 `gh release create` 在 `tyrival/Viabar-Releases` 创建 `v<版本号>` Release 并上传 DMG。
@@ -113,7 +113,7 @@ Viabar 开启 App Sandbox。Sparkle 的沙盒应用需要启用 Installer Launch
    - `title`
    - `sparkle:version`
    - `sparkle:shortVersionString`
-   - `sparkle:minimumSystemVersion`
+   - `sparkle:minimumSystemVersion`，从 Xcode Release 配置读取
    - `description`
    - enclosure 下载地址
    - `sparkle:edSignature`
@@ -219,4 +219,3 @@ git rm --cached .claude/settings.local.json
 - Sparkle delta 更新。
 - 私有源码仓库历史重写。
 - 官网前端重构。
-

@@ -66,7 +66,7 @@ Run Sparkle `generate_keys`, retain the private key in Keychain, print the publi
 
 - [ ] **Step 4: Add the local release command**
 
-Validate tools and repositories, derive the next build number from appcast, archive with command-line version overrides, create the DMG, sign it, create a GitHub Release, call `update_appcast.py`, then commit and push only `appcast.xml`.
+Validate tools and repositories, derive the next build number from appcast, read the minimum system version from Xcode Release settings, archive with version overrides only, create the DMG, sign it, create a GitHub Release, call `update_appcast.py`, then commit and push only `appcast.xml`.
 
 - [ ] **Step 5: Run shell preflight coverage**
 
@@ -179,4 +179,3 @@ Expected: only intentional implementation changes, staged artifact removals, pre
 - [ ] **Step 4: Leave end-to-end packaging for explicit user testing**
 
 Do not compile or publish automatically. Provide the bootstrap command, `brew install gh`, `gh auth login`, the public repository dirty-state warning, and the release command for the developer to run after reviewing changes.
-

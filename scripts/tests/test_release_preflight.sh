@@ -59,4 +59,16 @@ assert_fails_with \
     env PATH="$FAKE_BIN:/usr/bin:/bin" RELEASE_REPO_DIR="$DIRTY_REPO" \
     "$RELEASE_SCRIPT" "1.2.3" "notes"
 
+if rg -q 'MACOSX_DEPLOYMENT_TARGET=14\.0|--minimum-system-version "14\.0"' "$RELEASE_SCRIPT"; then
+    fail "release script must not override the Xcode deployment target with 14.0"
+fi
+
+if ! rg -q 'xcodebuild -showBuildSettings' "$RELEASE_SCRIPT"; then
+    fail "release script must read the deployment target from Xcode build settings"
+fi
+
+if ! rg -q 'RELEASE_BUILD_NUMBER' "$RELEASE_SCRIPT"; then
+    fail "release script must support a one-time build number override for migration"
+fi
+
 printf 'PASS: release preflight checks\n'
