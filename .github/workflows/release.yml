@@ -12,19 +12,20 @@ on:
         required: false
         default: '常规更新与性能优化。'
 
+# 🛠️ 核心修复：强制让 GitHub 所有的 Action 插件提前在 Node.js 24 下运行，从而消除警告
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-and-release:
     runs-on: macos-latest
 
     steps:
-      # 1. 拉取私有仓库的源码（此 Action 内部用 Node 运行，忽略系统的 Node 警告即可）
+      # 1. 拉取私有仓库的代码（此时警告就会被 env 变量压制消除）
       - name: Checkout source code
         uses: actions/checkout@v4
 
       # 2. 编译并归档 macOS 应用程序
-      # 💡 情况 A：如果你的项目根目录下有 Viabar.xcworkspace，请把下面两行改为：
-      #    -workspace Viabar.xcworkspace \
-      #    -scheme Viabar \
       - name: Build and Archive App
         run: |
           xcodebuild archive \
