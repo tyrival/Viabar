@@ -12,7 +12,6 @@ on:
         required: false
         default: '常规更新与性能优化。'
 
-# 🛠️ 核心修复：强制让 GitHub 所有的 Action 插件提前在 Node.js 24 下运行，从而消除警告
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -21,11 +20,11 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # 1. 拉取私有仓库的代码（此时警告就会被 env 变量压制消除）
+      # 1. 拉取代码
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. 编译并归档 macOS 应用程序
+      # 2. 编译并归档 (严格纠正 Deployment Target 混淆)
       - name: Build and Archive App
         run: |
           xcodebuild archive \
@@ -33,7 +32,12 @@ jobs:
             -scheme Viabar \
             -configuration Release \
             -archivePath ./build/Viabar.xcarchive \
-            CODE_SIGNING_ALLOWED=NO
+            -derivedDataPath ./build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            MACOSX_DEPLOYMENT_TARGET=14.0
 
       # 3. 导出 .app 安装包
       - name: Export App
