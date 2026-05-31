@@ -9,15 +9,15 @@
 /* Begin PBXBuildFile section */
 		C332307A2FCA911D00F2DBA3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = B2C3D4E5F6A7B8C9D0E1F2A3B4 /* Sparkle */; };
 		D10000012FDD000100000001 /* ViabarWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D10000102FDD000100000001 /* ViabarWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		D10000212FDD000100000001 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000312FDD000100000001 /* Project.swift */; };
-		D10000222FDD000100000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000322FDD000100000001 /* AppSettings.swift */; };
-		D10000232FDD000100000001 /* ReminderDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000332FDD000100000001 /* ReminderDisplay.swift */; };
-		D10000242FDD000100000001 /* ViabarColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000342FDD000100000001 /* ViabarColor.swift */; };
-		D10000252FDD000100000001 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000352FDD000100000001 /* Color+Hex.swift */; };
-		D10000262FDD000100000001 /* AppLanguageController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000362FDD000100000001 /* AppLanguageController.swift */; };
-		D10000272FDD000100000001 /* TaskCompletionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000372FDD000100000001 /* TaskCompletionMutation.swift */; };
-		D10000282FDD000100000001 /* WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000382FDD000100000001 /* WidgetContent.swift */; };
-		D10000292FDD000100000001 /* SharedModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000392FDD000100000001 /* SharedModelContainer.swift */; };
+		D10000212FDD000100000001 /* Viabar/Models/Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000312FDD000100000001 /* Viabar/Models/Project.swift */; };
+		D10000222FDD000100000001 /* Viabar/Models/AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000322FDD000100000001 /* Viabar/Models/AppSettings.swift */; };
+		D10000232FDD000100000001 /* Viabar/Models/ReminderDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000332FDD000100000001 /* Viabar/Models/ReminderDisplay.swift */; };
+		D10000242FDD000100000001 /* Viabar/System/ViabarColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000342FDD000100000001 /* Viabar/System/ViabarColor.swift */; };
+		D10000252FDD000100000001 /* Viabar/Views/Component/Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000352FDD000100000001 /* Viabar/Views/Component/Color+Hex.swift */; };
+		D10000262FDD000100000001 /* Viabar/System/AppLanguageController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000362FDD000100000001 /* Viabar/System/AppLanguageController.swift */; };
+		D10000272FDD000100000001 /* Viabar/Models/TaskCompletionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000372FDD000100000001 /* Viabar/Models/TaskCompletionMutation.swift */; };
+		D10000282FDD000100000001 /* Viabar/Models/WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000382FDD000100000001 /* Viabar/Models/WidgetContent.swift */; };
+		D10000292FDD000100000001 /* Viabar/System/SharedModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000392FDD000100000001 /* Viabar/System/SharedModelContainer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,15 +63,15 @@
 		C3F31B102FBC0DBD00CEC84F /* ViabarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViabarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3F31B1A2FBC0DBD00CEC84F /* ViabarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViabarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D10000102FDD000100000001 /* ViabarWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ViabarWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		D10000312FDD000100000001 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/Project.swift; sourceTree = SOURCE_ROOT; };
-		D10000322FDD000100000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/AppSettings.swift; sourceTree = SOURCE_ROOT; };
-		D10000332FDD000100000001 /* ReminderDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/ReminderDisplay.swift; sourceTree = SOURCE_ROOT; };
-		D10000342FDD000100000001 /* ViabarColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/ViabarColor.swift; sourceTree = SOURCE_ROOT; };
-		D10000352FDD000100000001 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Viabar/Views/Component/Color+Hex.swift"; sourceTree = SOURCE_ROOT; };
-		D10000362FDD000100000001 /* AppLanguageController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/AppLanguageController.swift; sourceTree = SOURCE_ROOT; };
-		D10000372FDD000100000001 /* TaskCompletionMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/TaskCompletionMutation.swift; sourceTree = SOURCE_ROOT; };
-		D10000382FDD000100000001 /* WidgetContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/WidgetContent.swift; sourceTree = SOURCE_ROOT; };
-		D10000392FDD000100000001 /* SharedModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/SharedModelContainer.swift; sourceTree = SOURCE_ROOT; };
+		D10000312FDD000100000001 /* Viabar/Models/Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/Project.swift; sourceTree = SOURCE_ROOT; };
+		D10000322FDD000100000001 /* Viabar/Models/AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/AppSettings.swift; sourceTree = SOURCE_ROOT; };
+		D10000332FDD000100000001 /* Viabar/Models/ReminderDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/ReminderDisplay.swift; sourceTree = SOURCE_ROOT; };
+		D10000342FDD000100000001 /* Viabar/System/ViabarColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/ViabarColor.swift; sourceTree = SOURCE_ROOT; };
+		D10000352FDD000100000001 /* Viabar/Views/Component/Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Viabar/Views/Component/Color+Hex.swift"; sourceTree = SOURCE_ROOT; };
+		D10000362FDD000100000001 /* Viabar/System/AppLanguageController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/AppLanguageController.swift; sourceTree = SOURCE_ROOT; };
+		D10000372FDD000100000001 /* Viabar/Models/TaskCompletionMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/TaskCompletionMutation.swift; sourceTree = SOURCE_ROOT; };
+		D10000382FDD000100000001 /* Viabar/Models/WidgetContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/WidgetContent.swift; sourceTree = SOURCE_ROOT; };
+		D10000392FDD000100000001 /* Viabar/System/SharedModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/SharedModelContainer.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -130,6 +130,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		C3323E892FCC151F00F2DBA3 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				D10000312FDD000100000001 /* Viabar/Models/Project.swift */,
+				D10000322FDD000100000001 /* Viabar/Models/AppSettings.swift */,
+				D10000332FDD000100000001 /* Viabar/Models/ReminderDisplay.swift */,
+				D10000342FDD000100000001 /* Viabar/System/ViabarColor.swift */,
+				D10000352FDD000100000001 /* Viabar/Views/Component/Color+Hex.swift */,
+				D10000362FDD000100000001 /* Viabar/System/AppLanguageController.swift */,
+				D10000372FDD000100000001 /* Viabar/Models/TaskCompletionMutation.swift */,
+				D10000382FDD000100000001 /* Viabar/Models/WidgetContent.swift */,
+				D10000392FDD000100000001 /* Viabar/System/SharedModelContainer.swift */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		C3F31AF82FBC0DBC00CEC84F = {
 			isa = PBXGroup;
 			children = (
@@ -138,6 +154,7 @@
 				C3F31B1D2FBC0DBD00CEC84F /* ViabarUITests */,
 				D10000612FDD000100000001 /* ViabarWidget */,
 				C3F31B022FBC0DBC00CEC84F /* Products */,
+				C3323E892FCC151F00F2DBA3 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -357,15 +374,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D10000212FDD000100000001 /* Project.swift in Sources */,
-				D10000222FDD000100000001 /* AppSettings.swift in Sources */,
-				D10000232FDD000100000001 /* ReminderDisplay.swift in Sources */,
-				D10000242FDD000100000001 /* ViabarColor.swift in Sources */,
-				D10000252FDD000100000001 /* Color+Hex.swift in Sources */,
-				D10000262FDD000100000001 /* AppLanguageController.swift in Sources */,
-				D10000272FDD000100000001 /* TaskCompletionMutation.swift in Sources */,
-				D10000282FDD000100000001 /* WidgetContent.swift in Sources */,
-				D10000292FDD000100000001 /* SharedModelContainer.swift in Sources */,
+				D10000212FDD000100000001 /* Viabar/Models/Project.swift in Sources */,
+				D10000222FDD000100000001 /* Viabar/Models/AppSettings.swift in Sources */,
+				D10000232FDD000100000001 /* Viabar/Models/ReminderDisplay.swift in Sources */,
+				D10000242FDD000100000001 /* Viabar/System/ViabarColor.swift in Sources */,
+				D10000252FDD000100000001 /* Viabar/Views/Component/Color+Hex.swift in Sources */,
+				D10000262FDD000100000001 /* Viabar/System/AppLanguageController.swift in Sources */,
+				D10000272FDD000100000001 /* Viabar/Models/TaskCompletionMutation.swift in Sources */,
+				D10000282FDD000100000001 /* Viabar/Models/WidgetContent.swift in Sources */,
+				D10000292FDD000100000001 /* Viabar/System/SharedModelContainer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -515,8 +532,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = Viabar/Viabar.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 5J4XX45X4J;
@@ -550,8 +567,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = Viabar/Viabar.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 5J4XX45X4J;
