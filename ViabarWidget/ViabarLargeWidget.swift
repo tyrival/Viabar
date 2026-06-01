@@ -128,9 +128,9 @@ struct ViabarLargeWidgetView: View {
             if content.visibleItems.isEmpty, content.hiddenItemCount == 0 {
                 emptyState("当前没有未完成任务", detail: nil)
             } else {
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 9) {
                     ForEach(content.visibleItems) { item in
-                        taskRow(item)
+                        taskRow(item, projectID: content.projectID)
                     }
                 }
 
@@ -149,6 +149,7 @@ struct ViabarLargeWidgetView: View {
 
             Spacer(minLength: 0)
         }
+        .widgetURL(ViabarWidgetNavigationURL.project(content.projectID))
     }
 
     private func header(_ content: WidgetProjectContent) -> some View {
@@ -200,7 +201,7 @@ struct ViabarLargeWidgetView: View {
         }
     }
 
-    private func taskRow(_ item: WidgetTaskItem) -> some View {
+    private func taskRow(_ item: WidgetTaskItem, projectID: UUID) -> some View {
         HStack(alignment: .top, spacing: 7) {
             Button(intent: ToggleWidgetTaskIntent(kind: item.kind, taskID: item.id)) {
                 Image(systemName: "circle")
@@ -209,24 +210,40 @@ struct ViabarLargeWidgetView: View {
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(item.title)
-                    .font(.system(size: item.kind == .subTask ? 12 : 14))
-                    .lineLimit(1)
+            Link(destination: taskURL(for: item, projectID: projectID)) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.title)
+                        .font(.system(size: item.kind == .subTask ? 12 : 14))
+                        .lineLimit(1)
 
-                if let reminderDate = item.reminderDate {
-                    Text(
-                        AppDateFormatter.string(
-                            from: reminderDate,
-                            pattern: entry.dateFormatPattern
+                    if let reminderDate = item.reminderDate {
+                        Text(
+                            AppDateFormatter.string(
+                                from: reminderDate,
+                                pattern: entry.dateFormatPattern
+                            )
                         )
-                    )
-                    .font(.caption2)
-                    .foregroundStyle(reminderColor(item.reminderTone))
+                        .font(.caption2)
+                        .foregroundStyle(reminderColor(item.reminderTone))
+                    }
                 }
             }
+            .buttonStyle(.plain)
         }
         .padding(.leading, item.isIndented ? 16 : 0)
+    }
+
+    private func taskURL(for item: WidgetTaskItem, projectID: UUID) -> URL {
+        switch item.kind {
+        case .milestone:
+            ViabarWidgetNavigationURL.milestone(projectID: projectID, milestoneID: item.id)
+        case .subTask:
+            ViabarWidgetNavigationURL.subTask(
+                projectID: projectID,
+                milestoneID: item.milestoneID,
+                subTaskID: item.id
+            )
+        }
     }
 
     private func emptyState(
@@ -255,5 +272,23 @@ struct ViabarLargeWidgetView: View {
         case .future, nil:
             .secondary
         }
+    }
+}
+
+private enum ViabarWidgetNavigationURL {
+    static func project(_ projectID: UUID) -> URL {
+        url(path: "project/\(projectID.uuidString)")
+    }
+
+    static func milestone(projectID: UUID, milestoneID: UUID) -> URL {
+        url(path: "milestone/\(projectID.uuidString)/\(milestoneID.uuidString)")
+    }
+
+    static func subTask(projectID: UUID, milestoneID: UUID, subTaskID: UUID) -> URL {
+        url(path: "subtask/\(projectID.uuidString)/\(milestoneID.uuidString)/\(subTaskID.uuidString)")
+    }
+
+    private static func url(path: String) -> URL {
+        URL(string: "viabar://navigate/\(path)")!
     }
 }

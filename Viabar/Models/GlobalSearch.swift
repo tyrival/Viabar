@@ -13,6 +13,38 @@ struct GlobalSearchNavigationRequest: Identifiable, Equatable {
     let destination: GlobalSearchDestination
 }
 
+enum WidgetNavigationURL {
+    static func navigationRequest(from url: URL) -> GlobalSearchNavigationRequest? {
+        guard url.scheme == "viabar", url.host == "navigate" else { return nil }
+
+        let components = url.pathComponents.filter { $0 != "/" }
+        switch (components.count, components.first) {
+        case (2, "project"):
+            guard let projectID = UUID(uuidString: components[1]) else { return nil }
+            return GlobalSearchNavigationRequest(projectID: projectID, destination: .project)
+        case (3, "milestone"):
+            guard let projectID = UUID(uuidString: components[1]),
+                  let milestoneID = UUID(uuidString: components[2])
+            else { return nil }
+            return GlobalSearchNavigationRequest(
+                projectID: projectID,
+                destination: .milestone(milestoneID)
+            )
+        case (4, "subtask"):
+            guard let projectID = UUID(uuidString: components[1]),
+                  let milestoneID = UUID(uuidString: components[2]),
+                  let subTaskID = UUID(uuidString: components[3])
+            else { return nil }
+            return GlobalSearchNavigationRequest(
+                projectID: projectID,
+                destination: .subTask(milestoneID: milestoneID, subTaskID: subTaskID)
+            )
+        default:
+            return nil
+        }
+    }
+}
+
 struct GlobalSearchResult: Identifiable {
     let id: String
     let project: Project

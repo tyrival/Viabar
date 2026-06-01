@@ -50,6 +50,18 @@ RELEASE_BUILD_NUMBER=8 ./scripts/release.sh 1.0.7 "更新说明"
 6. 将签名后的新版本插入公开仓库 `appcast.xml` 首项。
 7. 提交并推送公开仓库中的 `appcast.xml`。
 
+脚本退出时会删除 archive、DerivedData、DMG staging 和 `dist/Viabar.app` 等解包产物，只保留 `dist/*.dmg`。这是为了避免 macOS 在日常 Xcode 调试时自动发现旧 release Widget Extension，并优先加载错误版本。
+
+## 刷新本地 Debug Widget
+
+macOS 会独立缓存正在运行的 Widget Extension。修改 Widget 源码并从 Xcode 运行主程序后，如果桌面仍显示旧布局，执行：
+
+```bash
+./scripts/refresh_widget_debug.sh
+```
+
+脚本会重新注册 Xcode Debug App，并结束旧 Widget Extension 进程，让系统重新拉起最新 Debug Widget。它不会删除 App Group 数据库。
+
 App 内 Sparkle 会根据 `appcast.xml` 中当前版本对应的地址下载更新，例如：
 
 ```text

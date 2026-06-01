@@ -256,6 +256,51 @@ struct TrashServiceTests {
 }
 
 struct GlobalSearchTests {
+    @Test func parsesWidgetNavigationURLsIntoSearchNavigationRequests() throws {
+        let projectID = UUID()
+        let milestoneID = UUID()
+        let subTaskID = UUID()
+
+        let projectRequest = try #require(
+            WidgetNavigationURL.navigationRequest(
+                from: #require(URL(string: "viabar://navigate/project/\(projectID.uuidString)"))
+            )
+        )
+        #expect(projectRequest.projectID == projectID)
+        #expect(projectRequest.destination == .project)
+
+        let milestoneRequest = try #require(
+            WidgetNavigationURL.navigationRequest(
+                from: #require(URL(string: "viabar://navigate/milestone/\(projectID.uuidString)/\(milestoneID.uuidString)"))
+            )
+        )
+        #expect(milestoneRequest.projectID == projectID)
+        #expect(milestoneRequest.destination == .milestone(milestoneID))
+
+        let subTaskRequest = try #require(
+            WidgetNavigationURL.navigationRequest(
+                from: #require(URL(string: "viabar://navigate/subtask/\(projectID.uuidString)/\(milestoneID.uuidString)/\(subTaskID.uuidString)"))
+            )
+        )
+        #expect(subTaskRequest.projectID == projectID)
+        #expect(subTaskRequest.destination == .subTask(milestoneID: milestoneID, subTaskID: subTaskID))
+    }
+
+    @Test func rejectsInvalidWidgetNavigationURLs() throws {
+        let projectID = UUID()
+
+        #expect(
+            WidgetNavigationURL.navigationRequest(
+                from: #require(URL(string: "https://navigate/project/\(projectID.uuidString)"))
+            ) == nil
+        )
+        #expect(
+            WidgetNavigationURL.navigationRequest(
+                from: #require(URL(string: "viabar://navigate/subtask/\(projectID.uuidString)/missing"))
+            ) == nil
+        )
+    }
+
     @Test func buildsProjectTaskSubtaskAndMemoResults() {
         let project = Project(title: "发布计划", orderIndex: 0)
         let milestone = Milestone(title: "准备发布页面信息架构复核", orderIndex: 0)
@@ -372,6 +417,7 @@ struct WidgetContentTests {
 
         #expect(items.map(\.title) == ["Prepare", "Package"])
         #expect(items.map(\.kind) == [.milestone, .subTask])
+        #expect(items.map(\.milestoneID) == [milestone.milestoneId, milestone.milestoneId])
         #expect(items.map(\.isIndented) == [false, true])
     }
 

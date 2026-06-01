@@ -102,6 +102,11 @@ VERSIONED_DMG_PATH="$DIST_DIR/Viabar-$VERSION.dmg"
 UPLOAD_DMG_PATH="$DIST_DIR/Viabar.dmg"
 DOWNLOAD_URL="https://github.com/$RELEASE_REPO/releases/download/$TAG/Viabar.dmg"
 
+cleanup_unpacked_apps() {
+    rm -rf "$BUILD_DIR" "$DIST_DIR/Viabar.app"
+}
+trap cleanup_unpacked_apps EXIT
+
 rm -rf "$BUILD_DIR" "$DIST_DIR"
 mkdir -p "$DIST_DIR" "$DMG_STAGE_DIR"
 

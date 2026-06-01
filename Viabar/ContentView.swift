@@ -113,6 +113,10 @@ struct ContentView: View {
         .onChange(of: runtimeController.navigationPresentationID) { _, _ in
             consumePendingNavigationIfNeeded()
         }
+        .onOpenURL { url in
+            guard let request = WidgetNavigationURL.navigationRequest(from: url) else { return }
+            runtimeController.navigate(to: request)
+        }
         .onChange(of: selectedProject?.projectId) { _, projectID in
             guard let navigationRequest, projectID != navigationRequest.projectID else { return }
             self.navigationRequest = nil

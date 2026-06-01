@@ -24,6 +24,7 @@ enum WidgetReminderTone: Equatable {
 struct WidgetTaskItem: Identifiable, Equatable {
     let id: UUID
     let kind: WidgetTaskKind
+    let milestoneID: UUID
     let title: String
     let isIndented: Bool
     let reminderDate: Date?
@@ -68,6 +69,7 @@ enum WidgetContentBuilder {
                 let parent = item(
                     id: milestone.milestoneId,
                     kind: .milestone,
+                    milestoneID: milestone.milestoneId,
                     title: milestone.title,
                     isIndented: false,
                     reminder: milestone.reminder,
@@ -81,6 +83,7 @@ enum WidgetContentBuilder {
                         item(
                             id: $0.taskId,
                             kind: .subTask,
+                            milestoneID: milestone.milestoneId,
                             title: $0.title,
                             isIndented: true,
                             reminder: $0.reminder,
@@ -122,6 +125,7 @@ enum WidgetContentBuilder {
     private static func item(
         id: UUID,
         kind: WidgetTaskKind,
+        milestoneID: UUID,
         title: String,
         isIndented: Bool,
         reminder: Reminder?,
@@ -132,6 +136,7 @@ enum WidgetContentBuilder {
         return WidgetTaskItem(
             id: id,
             kind: kind,
+            milestoneID: milestoneID,
             title: title,
             isIndented: isIndented,
             reminderDate: reminderDate,

@@ -111,4 +111,12 @@ if ! rg -q 'ln -s /Applications "\$DMG_STAGE_DIR/Applications"' "$RELEASE_SCRIPT
     fail "release script must add an Applications shortcut to the DMG"
 fi
 
+if ! rg -q 'trap cleanup_unpacked_apps EXIT' "$RELEASE_SCRIPT"; then
+    fail "release script must clean unpacked app products on exit"
+fi
+
+if ! rg -q 'rm -rf "\$BUILD_DIR" "\$DIST_DIR/Viabar\.app"' "$RELEASE_SCRIPT"; then
+    fail "release cleanup must remove discoverable unpacked app products"
+fi
+
 printf 'PASS: release preflight checks\n'
