@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 import SwiftData
 
 enum SharedStoreError: Error {
@@ -13,11 +12,6 @@ enum SharedModelContainer {
     static let trashStoreFileName = "trash.store"
     static let migrationMarkerFileName = ".viabar-shared-store-v1"
     static let widgetKind = "ViabarLargeWidget"
-
-    private static let logger = Logger(
-        subsystem: "com.tyrival.Viabar",
-        category: "SharedModelContainer"
-    )
 
     static var schema: Schema {
         Schema([
@@ -68,27 +62,22 @@ enum SharedModelContainer {
 
     static func makeMainAppContainer(fileManager: FileManager = .default) throws -> ModelContainer {
         let legacy = try legacyStoreURL(fileManager: fileManager)
-        do {
-            let shared = try sharedStoreURL(fileManager: fileManager)
-            try SharedStoreMigrator.migrateStoreFilesIfNeeded(
-                legacyStoreURL: legacy,
-                sharedStoreURL: shared,
-                fileManager: fileManager,
-                validate: { candidate in
-                    _ = try makeContainer(storeURL: candidate)
-                }
-            )
-            try fileManager.createDirectory(
-                at: shared.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            return try makeContainer(storeURL: shared)
-        } catch {
-            logger.error(
-                "Shared store migration failed; using legacy store: \(String(describing: error), privacy: .public)"
-            )
-            return try makeContainer(storeURL: legacy)
-        }
+        let shared = try sharedStoreURL(fileManager: fileManager)
+        try SharedStoreMigrator.migrateStoreFilesIfNeeded(
+            legacyStoreURL: legacy,
+            sharedStoreURL: shared,
+            fileManager: fileManager,
+            validate: { candidate in
+                _ = try makeContainer(storeURL: candidate)
+            }
+        )
+        try fileManager.createDirectory(
+            at: shared.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let container = try makeContainer(storeURL: shared)
+        try? SharedStoreMigrator.removeLegacyStoreFiles(at: legacy, fileManager: fileManager)
+        return container
     }
 
     static func makeWidgetContainer(fileManager: FileManager = .default) throws -> ModelContainer {
@@ -149,9 +138,21 @@ enum SharedStoreMigrator {
                 try fileManager.removeItem(at: sharedStoreDirectory)
             }
             try fileManager.moveItem(at: temporaryDirectory, to: sharedStoreDirectory)
+            try? removeLegacyStoreFiles(at: legacyStoreURL, fileManager: fileManager)
         } catch {
             try? fileManager.removeItem(at: temporaryDirectory)
             throw error
+        }
+    }
+
+    static func removeLegacyStoreFiles(
+        at legacyStoreURL: URL,
+        fileManager: FileManager = .default
+    ) throws {
+        for suffix in suffixes {
+            let fileURL = URL(fileURLWithPath: legacyStoreURL.path + suffix)
+            guard fileManager.fileExists(atPath: fileURL.path) else { continue }
+            try fileManager.removeItem(at: fileURL)
         }
     }
 }

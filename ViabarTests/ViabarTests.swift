@@ -476,7 +476,8 @@ struct SharedStoreMigratorTests {
 
         #expect(FileManager.default.fileExists(atPath: shared.path))
         #expect(FileManager.default.fileExists(atPath: shared.path + "-wal"))
-        #expect(FileManager.default.fileExists(atPath: legacy.path))
+        #expect(!FileManager.default.fileExists(atPath: legacy.path))
+        #expect(!FileManager.default.fileExists(atPath: legacy.path + "-wal"))
         #expect(
             FileManager.default.fileExists(
                 atPath: shared.deletingLastPathComponent()
@@ -504,6 +505,26 @@ struct SharedStoreMigratorTests {
         }
         #expect(FileManager.default.fileExists(atPath: legacy.path))
         #expect(!FileManager.default.fileExists(atPath: shared.path))
+    }
+
+    @Test func removesLegacyStoreFilesAfterSharedStoreIsAvailable() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let legacy = root.appending(path: "legacy/default.store")
+        try FileManager.default.createDirectory(
+            at: legacy.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("store".utf8).write(to: legacy)
+        try Data("wal".utf8).write(to: URL(fileURLWithPath: legacy.path + "-wal"))
+        try Data("shm".utf8).write(to: URL(fileURLWithPath: legacy.path + "-shm"))
+
+        try SharedStoreMigrator.removeLegacyStoreFiles(
+            at: legacy
+        )
+
+        #expect(!FileManager.default.fileExists(atPath: legacy.path))
+        #expect(!FileManager.default.fileExists(atPath: legacy.path + "-wal"))
+        #expect(!FileManager.default.fileExists(atPath: legacy.path + "-shm"))
     }
 }
 
