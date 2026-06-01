@@ -302,7 +302,7 @@ private struct SettingsDetailView: View {
                     }
                     .labelsHidden()
                     .controlSize(.small)
-                    .frame(width: 96)
+                    .frame(width: 96, alignment: .trailing)
                     .onChange(of: trashRetentionPolicy) { _, rawValue in
                         TrashRetentionSettingsStore.set(TrashRetentionPolicy.resolve(rawValue))
                     }
