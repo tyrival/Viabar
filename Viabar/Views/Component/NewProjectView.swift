@@ -5,6 +5,12 @@ import AppKit
 // MARK: - NewProjectView
 
 struct NewProjectView: View {
+    private enum Layout {
+        static let sheetWidth: CGFloat = 520
+        static let createSheetHeight: CGFloat = 620
+        static let editSheetHeight: CGFloat = 540
+    }
+
     @Environment(ServiceContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ProjectTemplate.orderIndex) private var templates: [ProjectTemplate]
@@ -53,6 +59,10 @@ struct NewProjectView: View {
         !ViabarColor.palette.contains {
             $0.hex.caseInsensitiveCompare(selectedColorHex) == .orderedSame
         }
+    }
+
+    private var sheetHeight: CGFloat {
+        editingProject == nil ? Layout.createSheetHeight : Layout.editSheetHeight
     }
 
     private var customColorBinding: Binding<Color> {
@@ -109,7 +119,7 @@ struct NewProjectView: View {
             }
             .padding()
         }
-        .frame(width: 520, height: 620)
+        .frame(width: Layout.sheetWidth, height: sheetHeight)
         .environment(\.locale, effectiveLanguage.locale)
         .sheet(isPresented: $showingTemplateManager) {
             ProjectTemplateManagementView()
