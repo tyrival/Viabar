@@ -437,6 +437,7 @@ final class BackupService {
         settings.theme = snapshot.theme
         settings.language = snapshot.language
         settings.overviewScope = snapshot.overviewScope
+        settings.weekStartDay = WeekStartDay.resolve(snapshot.weekStartDay).rawValue
         settings.weekdayFilterEnabled = snapshot.weekdayFilterEnabled
         settings.dateFormat = snapshot.dateFormat
         settings.toggleMainPanelShortcut = snapshot.toggleMainPanelShortcut

@@ -31,6 +31,9 @@
 "语言" = "Language";
 "视图" = "View";
 "总览" = "Overview";
+"每周开始于" = "Week Starts On";
+"周日" = "Sunday";
+"周一" = "Monday";
 "日期格式" = "Date Format";
 "应用操作" = "Application Actions";
 "显示 / 隐藏主面板" = "Show / Hide Main Panel";

@@ -339,6 +339,7 @@ struct AppSettingsTests {
         #expect(settings.theme == AppTheme.system.rawValue)
         #expect(settings.language == AppLanguage.system.rawValue)
         #expect(settings.overviewScope == OverviewScope.allProjects.rawValue)
+        #expect(settings.weekStartDay == WeekStartDay.defaultValue().rawValue)
         #expect(settings.weekdayFilterEnabled == false)
         #expect(settings.dateFormat == AppDateFormat.yearMonthDaySlashes.rawValue)
         #expect(settings.toggleMainPanelShortcut == "Option+V")
@@ -369,6 +370,34 @@ struct AppSettingsTests {
             "checkmark.rectangle",
             "checkmark.rectangle.fill",
         ])
+    }
+
+    @Test func resolvesWeekStartDefaultsFromRegionAndPreservesSavedValues() {
+        let unitedStates = Locale(identifier: "en_US")
+        let singapore = Locale(identifier: "en_SG")
+
+        #expect(WeekStartDay.defaultValue(locale: unitedStates) == .sunday)
+        #expect(WeekStartDay.defaultValue(locale: singapore) == .monday)
+        #expect(WeekStartDay.resolve("monday", locale: unitedStates) == .monday)
+        #expect(WeekStartDay.resolve("invalid", locale: unitedStates) == .sunday)
+        #expect(WeekStartDay.resolve(nil, locale: singapore) == .monday)
+    }
+
+    @Test @MainActor func bootstrapFreezesMissingWeekStartUsingCurrentRegion() throws {
+        let schema = Schema([AppSettings.self])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
+        )
+        let settings = AppSettings(weekStartDay: nil)
+        container.mainContext.insert(settings)
+
+        let resolved = AppSettingsStore.ensureDefaultSettings(
+            in: container.mainContext,
+            locale: Locale(identifier: "en_US")
+        )
+
+        #expect(resolved.weekStartDay == WeekStartDay.sunday.rawValue)
     }
 
     @Test func formatsDatesUsingEverySupportedSelection() {
@@ -563,6 +592,20 @@ struct MenuBarContentTests {
     }
 }
 
+private extension Array where Element == OverviewReportSection {
+    var thisWeek: OverviewReportSection {
+        first { $0.kind == .weekDone }!
+    }
+
+    var nextWeek: OverviewReportSection {
+        first { $0.kind == .weekTodo }!
+    }
+
+    var thisMonth: OverviewReportSection {
+        first { $0.kind == .monthDone }!
+    }
+}
+
 struct OverviewReportTests {
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .iso8601)
@@ -731,6 +774,51 @@ struct OverviewReportTests {
         #expect(report.nextWeek.cards.map(\.project.title) == ["Active"])
         #expect(report.nextWeek.cards[0].groups.map(\.title) == ["Prepare"])
     }
+
+    @Test func weekStartChangesCompletionAndTodoBoundaries() {
+        let project = Project(title: "Boundary")
+        let completed = Milestone(title: "Sunday Done", isCompleted: true)
+        completed.completedAt = calendar.date(
+            from: DateComponents(year: 2026, month: 5, day: 31, hour: 12)
+        )
+        completed.project = project
+        let planned = Milestone(title: "Sunday Todo")
+        planned.reminder = Reminder(
+            type: "single",
+            fireTimestamp: calendar.date(
+                from: DateComponents(year: 2026, month: 5, day: 31, hour: 12)
+            )
+        )
+        planned.project = project
+        project.milestones = [completed, planned]
+
+        let mondayNow = calendar.date(
+            from: DateComponents(year: 2026, month: 6, day: 1, hour: 12)
+        )!
+        let sundayReport = OverviewReportBuilder.makeReport(
+            projects: [project],
+            scheduleEntries: [],
+            now: mondayNow,
+            calendar: calendar,
+            weekStartDay: .sunday
+        )
+        let mondayReport = OverviewReportBuilder.makeReport(
+            projects: [project],
+            scheduleEntries: [],
+            now: mondayNow,
+            calendar: calendar,
+            weekStartDay: .monday
+        )
+        let sundayWeekDone = sundayReport.first { $0.kind == .weekDone }!
+        let mondayWeekDone = mondayReport.first { $0.kind == .weekDone }!
+        let sundayTodo = sundayReport.first { $0.kind == .weekTodo }!
+        let mondayTodo = mondayReport.first { $0.kind == .weekTodo }!
+
+        #expect(sundayWeekDone.cards[0].groups.map(\.title) == ["Sunday Done"])
+        #expect(mondayWeekDone.cards.isEmpty)
+        #expect(sundayTodo.cards[0].groups.map(\.title) == ["Sunday Todo"])
+        #expect(mondayTodo.cards[0].groups.map(\.title) == ["Sunday Todo"])
+    }
 }
 
 struct BackupMetadataTests {
@@ -772,10 +860,12 @@ struct BackupMetadataTests {
     }
 
     @Test func roundTripsVersionedBackupSnapshot() throws {
+        var settings = BackupSettingsSnapshot(backupEnabled: true, backupPath: "~/Documents/Viabar")
+        settings.weekStartDay = WeekStartDay.sunday.rawValue
         let snapshot = BackupSnapshot(
             formatVersion: BackupSnapshot.currentFormatVersion,
             createdAt: Date(timeIntervalSince1970: 0),
-            settings: BackupSettingsSnapshot(backupEnabled: true, backupPath: "~/Documents/Viabar"),
+            settings: settings,
             folders: [],
             projects: [],
             templates: []
@@ -784,6 +874,38 @@ struct BackupMetadataTests {
         let encoded = try JSONEncoder.backupEncoder.encode(snapshot)
 
         #expect(try JSONDecoder.backupDecoder.decode(BackupSnapshot.self, from: encoded) == snapshot)
+    }
+
+    @Test func decodesLegacyBackupWithoutWeekStart() throws {
+        let json = """
+        {
+          "settingsId": "shared",
+          "createdAt": "1970-01-01T00:00:00Z",
+          "launchAtLogin": false,
+          "menuBarComponentEnabled": false,
+          "menuBarIcon": "bookmark.fill",
+          "menuBarProjectScope": "allProjects",
+          "menuBarContentMode": "currentTask",
+          "theme": "system",
+          "language": "system",
+          "overviewScope": "allProjects",
+          "weekdayFilterEnabled": false,
+          "dateFormat": "yyyy/MM/dd HH:mm",
+          "toggleMainPanelShortcut": "Option+V",
+          "openSearchShortcut": "Command+F",
+          "syncEnabled": true,
+          "backupEnabled": false,
+          "backupPath": "",
+          "automaticallyChecksForUpdates": true
+        }
+        """
+
+        let snapshot = try JSONDecoder.backupDecoder.decode(
+            BackupSettingsSnapshot.self,
+            from: Data(json.utf8)
+        )
+
+        #expect(snapshot.weekStartDay == nil)
     }
 
     private func metadata(_ name: String, hoursBefore: Double, now: Date) -> BackupFileMetadata {
@@ -866,6 +988,10 @@ struct BackupRestoreTests {
 
         #expect(try context.fetch(FetchDescriptor<Project>()).map(\.title) == ["Recovered"])
         #expect(try context.fetch(FetchDescriptor<NotificationScheduleEntry>()).map(\.ownerId) == [milestoneID])
+        #expect(
+            try context.fetch(FetchDescriptor<AppSettings>()).first?.weekStartDay
+                == WeekStartDay.defaultValue().rawValue
+        )
     }
 }
 

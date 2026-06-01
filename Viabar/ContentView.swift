@@ -234,7 +234,8 @@ struct ContentView: View {
             weekTodoOffset: weekTodoOffset,
             weekDoneOffset: weekDoneOffset,
             monthDoneOffset: monthDoneOffset,
-            now: Date()
+            now: Date(),
+            weekStartDay: WeekStartDay.resolve(settingsRecords.first?.weekStartDay)
         )
     }
 

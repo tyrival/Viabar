@@ -234,6 +234,17 @@ private struct SettingsDetailView: View {
                     .frame(width: 150, alignment: .trailing)
                 }
                 SettingsDivider()
+                SettingsRow("每周开始于") {
+                    Picker("每周开始于", selection: weekStartDayBinding) {
+                        ForEach(WeekStartDay.allCases) { day in
+                            Text(day.title).tag(day)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 150, alignment: .trailing)
+                }
+                SettingsDivider()
                 SettingsRow("日期格式") {
                     Picker("日期格式", selection: dateFormatBinding) {
                         ForEach(AppDateFormat.allCases) { format in
@@ -498,6 +509,13 @@ private struct SettingsDetailView: View {
         Binding(
             get: { AppDateFormatter.resolvedFormat(for: settings.dateFormat) },
             set: { settings.dateFormat = $0.rawValue }
+        )
+    }
+
+    private var weekStartDayBinding: Binding<WeekStartDay> {
+        Binding(
+            get: { WeekStartDay.resolve(settings.weekStartDay) },
+            set: { settings.weekStartDay = $0.rawValue }
         )
     }
 

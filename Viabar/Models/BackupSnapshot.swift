@@ -22,6 +22,7 @@ struct BackupSettingsSnapshot: Codable, Equatable {
     var theme: String = AppTheme.system.rawValue
     var language: String = AppLanguage.system.rawValue
     var overviewScope: String = OverviewScope.allProjects.rawValue
+    var weekStartDay: String?
     var weekdayFilterEnabled: Bool = false
     var dateFormat: String = AppDateFormat.defaultValue.rawValue
     var toggleMainPanelShortcut: String = "Option+V"
@@ -48,6 +49,7 @@ struct BackupSettingsSnapshot: Codable, Equatable {
         theme = settings.theme
         language = settings.language
         overviewScope = settings.overviewScope
+        weekStartDay = settings.weekStartDay
         weekdayFilterEnabled = settings.weekdayFilterEnabled
         dateFormat = settings.dateFormat
         toggleMainPanelShortcut = settings.toggleMainPanelShortcut

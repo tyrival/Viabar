@@ -87,6 +87,34 @@ enum OverviewScope: String, CaseIterable, Identifiable {
     }
 }
 
+enum WeekStartDay: String, CaseIterable, Identifiable {
+    case sunday
+    case monday
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .sunday: "周日"
+        case .monday: "周一"
+        }
+    }
+
+    static func defaultValue(locale: Locale = .current) -> WeekStartDay {
+        locale.region?.identifier == "US" ? .sunday : .monday
+    }
+
+    static func resolve(_ storedValue: String?, locale: Locale = .current) -> WeekStartDay {
+        WeekStartDay(rawValue: storedValue ?? "") ?? defaultValue(locale: locale)
+    }
+
+    func applying(to calendar: Calendar) -> Calendar {
+        var calendar = calendar
+        calendar.firstWeekday = self == .sunday ? 1 : 2
+        return calendar
+    }
+}
+
 enum MenuBarIcon: String, CaseIterable, Identifiable {
     case bookmark
     case bookmarkFill = "bookmark.fill"
@@ -171,6 +199,7 @@ final class AppSettings {
     var theme: String
     var language: String
     var overviewScope: String
+    var weekStartDay: String?
     var weekdayFilterEnabled: Bool
     var dateFormat: String
     var toggleMainPanelShortcut: String
@@ -193,6 +222,7 @@ final class AppSettings {
         theme: String = AppTheme.system.rawValue,
         language: String = AppLanguage.system.rawValue,
         overviewScope: String = OverviewScope.allProjects.rawValue,
+        weekStartDay: String? = WeekStartDay.defaultValue().rawValue,
         weekdayFilterEnabled: Bool = false,
         dateFormat: String = AppDateFormat.defaultValue.rawValue,
         toggleMainPanelShortcut: String = "Option+V",
@@ -214,6 +244,7 @@ final class AppSettings {
         self.theme = theme
         self.language = language
         self.overviewScope = overviewScope
+        self.weekStartDay = weekStartDay
         self.weekdayFilterEnabled = weekdayFilterEnabled
         self.dateFormat = dateFormat
         self.toggleMainPanelShortcut = toggleMainPanelShortcut
@@ -230,17 +261,26 @@ final class AppSettings {
 @MainActor
 enum AppSettingsStore {
     @discardableResult
-    static func ensureDefaultSettings(in context: ModelContext) -> AppSettings {
+    static func ensureDefaultSettings(
+        in context: ModelContext,
+        locale: Locale = .current
+    ) -> AppSettings {
         var descriptor = FetchDescriptor<AppSettings>(
             sortBy: [SortDescriptor(\AppSettings.createdAt)]
         )
         descriptor.fetchLimit = 1
 
         if let settings = try? context.fetch(descriptor).first {
+            if WeekStartDay(rawValue: settings.weekStartDay ?? "") == nil {
+                settings.weekStartDay = WeekStartDay.defaultValue(locale: locale).rawValue
+                try? context.save()
+            }
             return settings
         }
 
-        let settings = AppSettings()
+        let settings = AppSettings(
+            weekStartDay: WeekStartDay.defaultValue(locale: locale).rawValue
+        )
         context.insert(settings)
         try? context.save()
         return settings

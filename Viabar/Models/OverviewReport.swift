@@ -66,10 +66,12 @@ enum OverviewReportBuilder {
         weekDoneOffset: Int = 0,
         monthDoneOffset: Int = -1,
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        weekStartDay: WeekStartDay = WeekStartDay.resolve(nil)
     ) -> [OverviewReportSection] {
-        let weekTodoInterval = weekInterval(offset: weekTodoOffset, now: now, calendar: calendar)
-        let weekDoneInterval = weekInterval(offset: weekDoneOffset, now: now, calendar: calendar)
+        let weeklyCalendar = weekStartDay.applying(to: calendar)
+        let weekTodoInterval = weekInterval(offset: weekTodoOffset, now: now, calendar: weeklyCalendar)
+        let weekDoneInterval = weekInterval(offset: weekDoneOffset, now: now, calendar: weeklyCalendar)
         let monthDoneInterval = monthInterval(offset: monthDoneOffset, now: now, calendar: calendar)
 
         return [
