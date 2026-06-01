@@ -6,7 +6,9 @@ struct RefreshWidgetIntent: AppIntent {
     static var supportedModes: IntentModes = .background
 
     func perform() async throws -> some IntentResult {
-        WidgetCenter.shared.reloadTimelines(ofKind: SharedModelContainer.widgetKind)
+        SharedModelContainer.widgetKinds.forEach {
+            WidgetCenter.shared.reloadTimelines(ofKind: $0)
+        }
         return .result()
     }
 }

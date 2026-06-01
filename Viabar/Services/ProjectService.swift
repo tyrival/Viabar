@@ -538,7 +538,9 @@ final class ProjectService: ProjectServiceProtocol {
         guard modelContext.hasChanges else { return }
         do {
             try modelContext.save()
-            WidgetCenter.shared.reloadTimelines(ofKind: SharedModelContainer.widgetKind)
+            SharedModelContainer.widgetKinds.forEach {
+                WidgetCenter.shared.reloadTimelines(ofKind: $0)
+            }
         } catch {
             // TODO: Phase 2 — 统一错误处理与用户提示
             print("[ProjectService] save failed: \(error.localizedDescription)")

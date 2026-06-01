@@ -17,6 +17,12 @@ struct ViabarWidgetEntry: TimelineEntry {
 }
 
 struct ViabarWidgetProvider: AppIntentTimelineProvider {
+    let rowBudget: Int
+
+    init(rowBudget: Int) {
+        self.rowBudget = rowBudget
+    }
+
     func placeholder(in context: Context) -> ViabarWidgetEntry {
         ViabarWidgetEntry(
             date: .now,
@@ -70,7 +76,7 @@ struct ViabarWidgetProvider: AppIntentTimelineProvider {
                 state: .content(
                     WidgetContentBuilder.content(
                         for: project,
-                        rowBudget: WidgetContentBuilder.largeWidgetRowBudget,
+                        rowBudget: rowBudget,
                         now: .now
                     )
                 ),
@@ -86,22 +92,41 @@ struct ViabarWidgetProvider: AppIntentTimelineProvider {
     }
 }
 
+struct ViabarMediumWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(
+            kind: SharedModelContainer.mediumWidgetKind,
+            intent: SelectWidgetProjectIntent.self,
+            provider: ViabarWidgetProvider(
+                rowBudget: WidgetContentBuilder.mediumWidgetRowBudget
+            )
+        ) { entry in
+            ViabarWidgetView(entry: entry)
+        }
+        .configurationDisplayName("Viabar 中号项目")
+        .description("在桌面查看并完成项目任务")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
 struct ViabarLargeWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(
-            kind: SharedModelContainer.widgetKind,
+            kind: SharedModelContainer.largeWidgetKind,
             intent: SelectWidgetProjectIntent.self,
-            provider: ViabarWidgetProvider()
+            provider: ViabarWidgetProvider(
+                rowBudget: WidgetContentBuilder.largeWidgetRowBudget
+            )
         ) { entry in
-            ViabarLargeWidgetView(entry: entry)
+            ViabarWidgetView(entry: entry)
         }
-        .configurationDisplayName("Viabar 项目")
+        .configurationDisplayName("Viabar 大号项目")
         .description("在桌面查看并完成项目任务")
         .supportedFamilies([.systemLarge])
     }
 }
 
-struct ViabarLargeWidgetView: View {
+struct ViabarWidgetView: View {
     let entry: ViabarWidgetEntry
 
     var body: some View {

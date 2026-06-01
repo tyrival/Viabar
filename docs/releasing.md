@@ -100,3 +100,38 @@ git -C ../Viabar-Releases diff -- appcast.xml
 ## 没有 Developer ID 时的限制
 
 当前流程使用 Sparkle EdDSA 验证更新包来源，但没有 Apple Developer ID 签名和公证。首次下载安装可能仍需在 macOS 中手动确认打开。后续可在加入 Apple Developer Program 后补充正式签名和公证流程。
+
+## Frozen-local DMG
+
+当 Apple Developer Program 未续费、没有 Developer ID Application 证书时，使用独立的本地迁移包脚本：
+
+```bash
+./scripts/package_frozen_local.sh 1.0.0
+```
+
+产物：
+
+```text
+dist/Viabar-1.0.0-frozen-local.dmg
+```
+
+Widget 和主 App 通过 `group.com.tyrival.Viabar` App Group 共享数据库。macOS 15 及以后要求这种 `group.` App Group 由 provisioning profile 授权，因此这个脚本会保留 Xcode 自动签发的本地开发 profile，并拒绝 ad hoc 签名包。
+
+该包不包含 Apple Developer ID 信任链，也未经过 notarization。它适合在自己的 Mac 或新 Mac 上手动迁移，不应被描述为永久冻结包或正式公开分发包。新 Mac 必须在内嵌 provisioning profile 过期前安装和使用；脚本会在打包时输出过期时间。
+
+安装步骤：
+
+1. 将 `Viabar.app` 拖入 `/Applications`。
+2. 首次安装时，右键 `/Applications/Viabar.app` 并选择“打开”。
+3. 启动 Viabar 一次。
+4. 打开 macOS Widget 面板。
+5. 将 Viabar Medium 或 Large 拖到桌面。
+6. 右键 Widget，选择“编辑小组件”，再选择项目。
+
+如果 Widget 面板仍显示旧版本或没有出现 Viabar，退出 Viabar 后执行：
+
+```bash
+./scripts/reset_local_widget_cache.sh
+```
+
+这个脚本只清理 Widget Chrono 缓存，不会删除 App Group 中的业务数据库。清理后重新启动 Viabar；如果系统索引仍未刷新，再重新登录或重启 macOS。

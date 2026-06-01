@@ -44,6 +44,7 @@ struct WidgetProjectContent: Equatable {
 }
 
 enum WidgetContentBuilder {
+    static let mediumWidgetRowBudget = 4
     static let largeWidgetRowBudget = 10
 
     static func activeProjects(from projects: [Project]) -> [Project] {

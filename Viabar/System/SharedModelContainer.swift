@@ -11,7 +11,9 @@ enum SharedModelContainer {
     static let storeFileName = "default.store"
     static let trashStoreFileName = "trash.store"
     static let migrationMarkerFileName = ".viabar-shared-store-v1"
-    static let widgetKind = "ViabarLargeWidget"
+    static let mediumWidgetKind = "ViabarMediumWidget"
+    static let largeWidgetKind = "ViabarLargeWidget"
+    static let widgetKinds = [mediumWidgetKind, largeWidgetKind]
 
     static var schema: Schema {
         Schema([

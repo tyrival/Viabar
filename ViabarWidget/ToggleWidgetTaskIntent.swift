@@ -46,7 +46,9 @@ struct ToggleWidgetTaskIntent: AppIntent {
         }
 
         try context.save()
-        WidgetCenter.shared.reloadTimelines(ofKind: SharedModelContainer.widgetKind)
+        SharedModelContainer.widgetKinds.forEach {
+            WidgetCenter.shared.reloadTimelines(ofKind: $0)
+        }
         return .result()
     }
 }
