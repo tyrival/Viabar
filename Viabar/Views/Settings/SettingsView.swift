@@ -79,6 +79,7 @@ private struct SettingsDetailView: View {
     @State private var recordingShortcut: ShortcutAction?
     @State private var settingsErrorMessage: LocalizedStringKey?
     @State private var showsBackupBrowser = false
+    @State private var trashRetentionPolicy = TrashRetentionSettingsStore.policy().rawValue
 
     private var backupService: BackupService? {
         container.backupService
@@ -109,6 +110,7 @@ private struct SettingsDetailView: View {
                 settings.launchAtLogin = runtimeController.launchAtLogin.isEnabled
             }
             if category == .data {
+                trashRetentionPolicy = TrashRetentionSettingsStore.policy().rawValue
                 try? backupService?.refreshBackups(settings: settings)
             }
         }
@@ -288,6 +290,22 @@ private struct SettingsDetailView: View {
             SettingsGroup("数据同步") {
                 SettingsRow("iCloud") {
                     settingsSwitch($settings.syncEnabled)
+                }
+            }
+
+            SettingsGroup("回收站") {
+                SettingsRow("保留期限", description: "过期的将从本地和云端永久抹除") {
+                    Picker("", selection: $trashRetentionPolicy) {
+                        Text("30天").tag(TrashRetentionPolicy.thirtyDays.rawValue)
+                        Text("60天").tag(TrashRetentionPolicy.sixtyDays.rawValue)
+                        Text("90天").tag(TrashRetentionPolicy.ninetyDays.rawValue)
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 96)
+                    .onChange(of: trashRetentionPolicy) { _, rawValue in
+                        TrashRetentionSettingsStore.set(TrashRetentionPolicy.resolve(rawValue))
+                    }
                 }
             }
 
@@ -514,8 +532,8 @@ private struct SettingsDetailView: View {
 
     private var weekStartDayBinding: Binding<WeekStartDay> {
         Binding(
-            get: { WeekStartDay.resolve(settings.weekStartDay) },
-            set: { settings.weekStartDay = $0.rawValue }
+            get: { WeekStartDaySettingsStore.value() },
+            set: { WeekStartDaySettingsStore.set($0) }
         )
     }
 

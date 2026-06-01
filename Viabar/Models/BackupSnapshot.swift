@@ -9,6 +9,36 @@ struct BackupSnapshot: Codable, Equatable {
     let folders: [BackupFolderSnapshot]
     let projects: [BackupProjectSnapshot]
     let templates: [BackupTemplateSnapshot]
+    let trashItems: [BackupTrashItemSnapshot]
+
+    init(
+        formatVersion: Int,
+        createdAt: Date,
+        settings: BackupSettingsSnapshot,
+        folders: [BackupFolderSnapshot],
+        projects: [BackupProjectSnapshot],
+        templates: [BackupTemplateSnapshot],
+        trashItems: [BackupTrashItemSnapshot] = []
+    ) {
+        self.formatVersion = formatVersion
+        self.createdAt = createdAt
+        self.settings = settings
+        self.folders = folders
+        self.projects = projects
+        self.templates = templates
+        self.trashItems = trashItems
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        formatVersion = try container.decode(Int.self, forKey: .formatVersion)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        settings = try container.decode(BackupSettingsSnapshot.self, forKey: .settings)
+        folders = try container.decode([BackupFolderSnapshot].self, forKey: .folders)
+        projects = try container.decode([BackupProjectSnapshot].self, forKey: .projects)
+        templates = try container.decode([BackupTemplateSnapshot].self, forKey: .templates)
+        trashItems = try container.decodeIfPresent([BackupTrashItemSnapshot].self, forKey: .trashItems) ?? []
+    }
 }
 
 struct BackupSettingsSnapshot: Codable, Equatable {
@@ -31,11 +61,13 @@ struct BackupSettingsSnapshot: Codable, Equatable {
     var lastSyncAt: Date?
     var backupEnabled: Bool
     var backupPath: String
+    var trashRetentionPolicy: String?
     var automaticallyChecksForUpdates: Bool = true
 
     init(backupEnabled: Bool, backupPath: String) {
         self.backupEnabled = backupEnabled
         self.backupPath = backupPath
+        trashRetentionPolicy = TrashRetentionPolicy.defaultValue.rawValue
     }
 
     init(settings: AppSettings) {
@@ -49,7 +81,7 @@ struct BackupSettingsSnapshot: Codable, Equatable {
         theme = settings.theme
         language = settings.language
         overviewScope = settings.overviewScope
-        weekStartDay = settings.weekStartDay
+        weekStartDay = WeekStartDaySettingsStore.value().rawValue
         weekdayFilterEnabled = settings.weekdayFilterEnabled
         dateFormat = settings.dateFormat
         toggleMainPanelShortcut = settings.toggleMainPanelShortcut
@@ -58,6 +90,7 @@ struct BackupSettingsSnapshot: Codable, Equatable {
         lastSyncAt = settings.lastSyncAt
         backupEnabled = settings.backupEnabled
         backupPath = settings.backupPath
+        trashRetentionPolicy = TrashRetentionSettingsStore.policy().rawValue
         automaticallyChecksForUpdates = settings.automaticallyChecksForUpdates
     }
 }
@@ -166,6 +199,21 @@ struct BackupTemplateSubTaskSnapshot: Codable, Equatable {
     let taskId: UUID
     let title: String
     let orderIndex: Int
+}
+
+struct BackupTrashItemSnapshot: Codable, Equatable {
+    let trashItemId: UUID
+    let kind: String
+    let deletedAt: Date
+    let originalProjectId: UUID
+    let originalProjectTitle: String
+    let originalProjectAccentColor: String
+    let originalProjectSymbolName: String
+    let originalParentTaskId: UUID?
+    let originalParentTaskTitle: String?
+    let originalOrderIndex: Int
+    let payloadVersion: Int
+    let payloadData: Data
 }
 
 struct BackupFileMetadata: Identifiable, Hashable {

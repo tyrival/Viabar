@@ -115,6 +115,21 @@ enum WeekStartDay: String, CaseIterable, Identifiable {
     }
 }
 
+enum WeekStartDaySettingsStore {
+    private static let key = "weekStartDay"
+
+    static func value(
+        defaults: UserDefaults = .standard,
+        locale: Locale = .current
+    ) -> WeekStartDay {
+        WeekStartDay.resolve(defaults.string(forKey: key), locale: locale)
+    }
+
+    static func set(_ value: WeekStartDay, defaults: UserDefaults = .standard) {
+        defaults.set(value.rawValue, forKey: key)
+    }
+}
+
 enum MenuBarIcon: String, CaseIterable, Identifiable {
     case bookmark
     case bookmarkFill = "bookmark.fill"
@@ -187,6 +202,40 @@ enum AppDateFormat: String, CaseIterable, Identifiable {
     }
 }
 
+enum TrashRetentionPolicy: String, CaseIterable, Identifiable, Codable {
+    case thirtyDays = "30-days"
+    case sixtyDays = "60-days"
+    case ninetyDays = "90-days"
+
+    static let defaultValue = TrashRetentionPolicy.ninetyDays
+
+    var id: String { rawValue }
+
+    static func resolve(_ rawValue: String?) -> TrashRetentionPolicy {
+        TrashRetentionPolicy(rawValue: rawValue ?? "") ?? .defaultValue
+    }
+
+    var dayCount: Int {
+        switch self {
+        case .thirtyDays: 30
+        case .sixtyDays: 60
+        case .ninetyDays: 90
+        }
+    }
+}
+
+enum TrashRetentionSettingsStore {
+    private static let key = "trashRetentionPolicy"
+
+    static func policy(defaults: UserDefaults = .standard) -> TrashRetentionPolicy {
+        TrashRetentionPolicy.resolve(defaults.string(forKey: key))
+    }
+
+    static func set(_ policy: TrashRetentionPolicy, defaults: UserDefaults = .standard) {
+        defaults.set(policy.rawValue, forKey: key)
+    }
+}
+
 @Model
 final class AppSettings {
     @Attribute(.unique) var settingsId: String
@@ -199,7 +248,6 @@ final class AppSettings {
     var theme: String
     var language: String
     var overviewScope: String
-    var weekStartDay: String?
     var weekdayFilterEnabled: Bool
     var dateFormat: String
     var toggleMainPanelShortcut: String
@@ -222,7 +270,6 @@ final class AppSettings {
         theme: String = AppTheme.system.rawValue,
         language: String = AppLanguage.system.rawValue,
         overviewScope: String = OverviewScope.allProjects.rawValue,
-        weekStartDay: String? = WeekStartDay.defaultValue().rawValue,
         weekdayFilterEnabled: Bool = false,
         dateFormat: String = AppDateFormat.defaultValue.rawValue,
         toggleMainPanelShortcut: String = "Option+V",
@@ -244,7 +291,6 @@ final class AppSettings {
         self.theme = theme
         self.language = language
         self.overviewScope = overviewScope
-        self.weekStartDay = weekStartDay
         self.weekdayFilterEnabled = weekdayFilterEnabled
         self.dateFormat = dateFormat
         self.toggleMainPanelShortcut = toggleMainPanelShortcut
@@ -271,16 +317,10 @@ enum AppSettingsStore {
         descriptor.fetchLimit = 1
 
         if let settings = try? context.fetch(descriptor).first {
-            if WeekStartDay(rawValue: settings.weekStartDay ?? "") == nil {
-                settings.weekStartDay = WeekStartDay.defaultValue(locale: locale).rawValue
-                try? context.save()
-            }
             return settings
         }
 
-        let settings = AppSettings(
-            weekStartDay: WeekStartDay.defaultValue(locale: locale).rawValue
-        )
+        let settings = AppSettings()
         context.insert(settings)
         try? context.save()
         return settings
@@ -301,6 +341,33 @@ enum AppDateFormatter {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = resolvedFormat(for: pattern).rawValue
+        return formatter.string(from: date)
+    }
+
+    static func trashDeletionString(
+        from date: Date,
+        now: Date = Date(),
+        language: EffectiveAppLanguage
+    ) -> String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = language.locale
+
+        if calendar.isDate(date, inSameDayAs: now) {
+            formatter.dateFormat = "HH:mm"
+            return formatter.string(from: date)
+        }
+
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(date, inSameDayAs: yesterday) {
+            formatter.dateFormat = "HH:mm"
+            return AppLocalization.format("昨天 %@", language: language, formatter.string(from: date))
+        }
+
+        formatter.dateFormat = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+            ? "M/d HH:mm"
+            : "yyyy/M/d HH:mm"
         return formatter.string(from: date)
     }
 }

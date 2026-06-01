@@ -11,12 +11,14 @@ struct ViabarApp: App {
     @State private var isMenuBarInserted: Bool
     @State private var menuBarIcon: MenuBarIcon
     private let sharedModelContainer: ModelContainer
+    private let trashModelContainer: ModelContainer
 
     // MARK: - Init
 
     init() {
         do {
             sharedModelContainer = try SharedModelContainer.makeMainAppContainer()
+            trashModelContainer = try SharedModelContainer.makeTrashContainer()
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -34,9 +36,18 @@ struct ViabarApp: App {
             modelContext: sharedModelContainer.mainContext
         )
         notificationScheduleService.start()
+        let trashService = container.registerTrashService(
+            modelContext: trashModelContainer.mainContext,
+            projectModelContext: sharedModelContainer.mainContext,
+            notificationScheduleService: notificationScheduleService
+        )
+        try? trashService.cleanupExpired(
+            policy: TrashRetentionSettingsStore.policy()
+        )
         _ = container.registerBackupService(
             modelContext: sharedModelContainer.mainContext,
-            notificationScheduleService: notificationScheduleService
+            notificationScheduleService: notificationScheduleService,
+            trashService: trashService
         )
 
         let updateService = container.registerUpdateService()

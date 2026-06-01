@@ -3,6 +3,258 @@ import Testing
 import SwiftData
 @testable import Viabar
 
+struct TrashItemModelTests {
+    @Test func taskPayloadCopiesNestedSubtasksAsHierarchy() throws {
+        let payload = TrashPayload.task(
+            TrashTaskSnapshot(
+                title: "发布准备",
+                isCompleted: false,
+                completedAt: nil,
+                reminder: nil,
+                subtasks: [
+                    TrashSubTaskSnapshot(
+                        title: "打包",
+                        isCompleted: false,
+                        completedAt: nil,
+                        orderIndex: 0,
+                        reminder: nil
+                    ),
+                    TrashSubTaskSnapshot(
+                        title: "上传",
+                        isCompleted: true,
+                        completedAt: Date(timeIntervalSince1970: 10),
+                        orderIndex: 1,
+                        reminder: nil
+                    ),
+                ]
+            )
+        )
+        let item = try TrashItem.fixture(projectTitle: "Viabar", payload: payload)
+
+        #expect(try item.copyText() == "发布准备\n- 打包\n- 上传")
+        #expect(try item.matches("viabar"))
+        #expect(try item.matches("上传"))
+        #expect(item.displayText == "发布准备")
+        #expect(item.displayPath == "Viabar / 任务")
+    }
+
+    @Test func subtaskMatchesNestedTextAndUsesCompactedParentPath() throws {
+        let item = try TrashItem.fixture(
+            projectTitle: "Viabar",
+            parentTaskTitle: "准备发布页面信息架构复核",
+            payload: .subTask(
+                TrashSubTaskSnapshot(
+                    title: "发布公告复核",
+                    isCompleted: false,
+                    completedAt: nil,
+                    orderIndex: 0,
+                    reminder: nil
+                )
+            )
+        )
+
+        #expect(try item.matches("发布公告"))
+        #expect(item.displayPath == "Viabar / 准备发布页面信息架… / 子任务")
+    }
+
+    @Test func emptySearchReturnsAllTrashItemsNewestFirst() throws {
+        let older = try TrashItem.fixture(
+            deletedAt: Date(timeIntervalSince1970: 10),
+            payload: .memo(.init(content: "旧", createdAt: .distantPast))
+        )
+        let newer = try TrashItem.fixture(
+            deletedAt: Date(timeIntervalSince1970: 20),
+            payload: .memo(.init(content: "新", createdAt: .distantPast))
+        )
+
+        #expect(
+            TrashItemIndex.results(matching: "  ", items: [older, newer]).map(\.trashItemId)
+                == [newer.trashItemId, older.trashItemId]
+        )
+    }
+
+    @Test func newestTrashItemsSortFirst() throws {
+        let older = try TrashItem.fixture(
+            deletedAt: Date(timeIntervalSince1970: 10),
+            payload: .memo(.init(content: "旧", createdAt: .distantPast))
+        )
+        let newer = try TrashItem.fixture(
+            deletedAt: Date(timeIntervalSince1970: 20),
+            payload: .memo(.init(content: "新", createdAt: .distantPast))
+        )
+
+        #expect(
+            TrashItemIndex.sortedNewestFirst([older, newer]).map(\.trashItemId)
+                == [newer.trashItemId, older.trashItemId]
+        )
+    }
+
+    @Test func retentionDeletesExpiredItems() throws {
+        let now = Date(timeIntervalSince1970: 100 * 86_400)
+        let recent = try TrashItem.fixture(deletedAt: now.addingTimeInterval(-29 * 86_400))
+        let expired = try TrashItem.fixture(deletedAt: now.addingTimeInterval(-31 * 86_400))
+
+        #expect(
+            TrashRetentionPolicy.thirtyDays.expiredItems(from: [recent, expired], now: now)
+                .map(\.trashItemId) == [expired.trashItemId]
+        )
+    }
+}
+
+private extension TrashItem {
+    static func fixture(
+        deletedAt: Date = Date(),
+        projectTitle: String = "Viabar",
+        parentTaskTitle: String? = nil,
+        payload: TrashPayload = .memo(.init(content: "备忘录", createdAt: .distantPast))
+    ) throws -> TrashItem {
+        TrashItem(
+            kind: payload.kind,
+            deletedAt: deletedAt,
+            originalProjectId: UUID(),
+            originalProjectTitle: projectTitle,
+            originalProjectAccentColor: ViabarColor.primaryHex,
+            originalProjectSymbolName: "bookmark.fill",
+            originalParentTaskId: parentTaskTitle == nil ? nil : UUID(),
+            originalParentTaskTitle: parentTaskTitle,
+            originalOrderIndex: 0,
+            payloadVersion: TrashItem.currentPayloadVersion,
+            payloadData: try JSONEncoder.backupEncoder.encode(payload)
+        )
+    }
+}
+
+@MainActor
+struct TrashServiceTests {
+    @Test func deletingTaskStoresOneSnapshotAndRestoreRecreatesChildren() throws {
+        let (projectService, trashService, _, trashContext) = try makeServices()
+        let project = projectService.createProject(title: "发布")
+        let milestone = projectService.addMilestone(to: project, title: "准备")
+        _ = projectService.addSubTask(to: milestone, title: "打包")
+        _ = projectService.addSubTask(to: milestone, title: "上传")
+
+        projectService.deleteMilestone(milestone)
+
+        let item = try #require(trashContext.fetch(FetchDescriptor<TrashItem>()).first)
+        #expect(project.milestones.isEmpty)
+        #expect(try item.copyText() == "准备\n- 打包\n- 上传")
+
+        try trashService.restore(item)
+
+        #expect(project.milestones.map(\.title) == ["准备"])
+        #expect(project.milestones[0].subtasks.map(\.title).sorted() == ["上传", "打包"])
+        #expect(try trashContext.fetch(FetchDescriptor<TrashItem>()).isEmpty)
+    }
+
+    @Test func directlyDeletedSubtaskRequiresOriginalParent() throws {
+        let (projectService, trashService, projectContext, trashContext) = try makeServices()
+        let project = projectService.createProject(title: "发布")
+        let milestone = projectService.addMilestone(to: project, title: "准备")
+        let subTask = projectService.addSubTask(to: milestone, title: "打包")
+
+        projectService.deleteSubTask(subTask)
+
+        let item = try #require(trashContext.fetch(FetchDescriptor<TrashItem>()).first)
+        #expect(trashService.restoreAvailability(for: item) == .available)
+        projectContext.delete(milestone)
+        try projectContext.save()
+        #expect(trashService.restoreAvailability(for: item) == .missingParentTask)
+    }
+
+    @Test func deletingMemoStoresSnapshotAndRestoreRecreatesMemo() throws {
+        let (projectService, trashService, _, trashContext) = try makeServices()
+        let project = projectService.createProject(title: "发布")
+        let memo = projectService.addMemo(to: project, content: "回顾")
+
+        projectService.deleteMemo(memo)
+
+        let item = try #require(trashContext.fetch(FetchDescriptor<TrashItem>()).first)
+        try trashService.restore(item)
+
+        #expect(project.memos.map(\.content) == ["回顾"])
+    }
+
+    @Test func deletingTaskFallsBackToProjectCollectionWhenInverseIsMissing() throws {
+        let (projectService, _, projectContext, trashContext) = try makeServices()
+        let project = projectService.createProject(title: "旧项目")
+        let milestone = Milestone(title: "旧任务")
+        project.milestones.append(milestone)
+        projectContext.insert(milestone)
+        try projectContext.save()
+        milestone.project = nil
+
+        projectService.deleteMilestone(milestone)
+
+        #expect(try trashContext.fetch(FetchDescriptor<TrashItem>()).count == 1)
+    }
+
+    @Test func cleanupDeletesOnlyExpiredTrashItems() throws {
+        let (_, trashService, _, trashContext) = try makeServices()
+        let now = Date(timeIntervalSince1970: 100 * 86_400)
+        trashContext.insert(try TrashItem.fixture(deletedAt: now.addingTimeInterval(-29 * 86_400)))
+        trashContext.insert(try TrashItem.fixture(deletedAt: now.addingTimeInterval(-31 * 86_400)))
+
+        try trashService.cleanupExpired(policy: .thirtyDays, now: now)
+
+        #expect(try trashContext.fetch(FetchDescriptor<TrashItem>()).count == 1)
+    }
+
+    @Test func trashItemsLoadIncrementallyInPages() throws {
+        let (_, trashService, _, trashContext) = try makeServices()
+        for index in 0..<45 {
+            trashContext.insert(try TrashItem.fixture(
+                deletedAt: Date(timeIntervalSince1970: Double(index))
+            ))
+        }
+
+        try trashService.cleanupExpired(
+            policy: .ninetyDays,
+            now: Date(timeIntervalSince1970: 45)
+        )
+
+        #expect(trashService.items.count == 40)
+        #expect(trashService.hasMoreItems)
+        trashService.loadNextPage()
+        #expect(trashService.items.count == 45)
+        #expect(!trashService.hasMoreItems)
+    }
+
+    private func makeServices() throws -> (ProjectService, TrashService, ModelContext, ModelContext) {
+        let projectSchema = Schema([
+            Project.self,
+            Milestone.self,
+            SubTask.self,
+            Memo.self,
+            Reminder.self,
+            NotificationScheduleEntry.self,
+            ArchiveFolder.self,
+            ProjectTemplate.self,
+            TemplateMilestone.self,
+            TemplateSubTask.self,
+            AppSettings.self,
+        ])
+        let projectConfiguration = ModelConfiguration(schema: projectSchema, isStoredInMemoryOnly: true)
+        let projectContainer = try ModelContainer(for: projectSchema, configurations: [projectConfiguration])
+        let projectContext = projectContainer.mainContext
+        let trashSchema = Schema([TrashItem.self])
+        let trashConfiguration = ModelConfiguration(schema: trashSchema, isStoredInMemoryOnly: true)
+        let trashContainer = try ModelContainer(for: trashSchema, configurations: [trashConfiguration])
+        let trashContext = trashContainer.mainContext
+        let container = ServiceContainer()
+        let scheduleService = NotificationScheduleService(modelContext: projectContext, notificationPoster: { _, _ in })
+        let trashService = TrashService(
+            modelContext: trashContext,
+            projectModelContext: projectContext,
+            notificationScheduleService: scheduleService
+        )
+        let projectService = ProjectService(modelContext: projectContext, container: container)
+        container.register(scheduleService)
+        container.register(trashService)
+        container.register(projectService)
+        return (projectService, trashService, projectContext, trashContext)
+    }
+}
+
 struct GlobalSearchTests {
     @Test func buildsProjectTaskSubtaskAndMemoResults() {
         let project = Project(title: "发布计划", orderIndex: 0)
@@ -317,6 +569,7 @@ struct ProjectTemplateAndFavoriteTests {
             ProjectTemplate.self,
             TemplateMilestone.self,
             TemplateSubTask.self,
+            TrashItem.self,
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let modelContainer = try ModelContainer(for: schema, configurations: [configuration])
@@ -339,7 +592,7 @@ struct AppSettingsTests {
         #expect(settings.theme == AppTheme.system.rawValue)
         #expect(settings.language == AppLanguage.system.rawValue)
         #expect(settings.overviewScope == OverviewScope.allProjects.rawValue)
-        #expect(settings.weekStartDay == WeekStartDay.defaultValue().rawValue)
+        #expect(WeekStartDay.defaultValue() == WeekStartDay.resolve(nil))
         #expect(settings.weekdayFilterEnabled == false)
         #expect(settings.dateFormat == AppDateFormat.yearMonthDaySlashes.rawValue)
         #expect(settings.toggleMainPanelShortcut == "Option+V")
@@ -349,6 +602,7 @@ struct AppSettingsTests {
         #expect(settings.backupEnabled == false)
         #expect(settings.backupPath == "")
         #expect(settings.backupBookmarkData == nil)
+        #expect(TrashRetentionPolicy.defaultValue == .ninetyDays)
         #expect(settings.automaticallyChecksForUpdates == true)
     }
 
@@ -383,21 +637,49 @@ struct AppSettingsTests {
         #expect(WeekStartDay.resolve(nil, locale: singapore) == .monday)
     }
 
-    @Test @MainActor func bootstrapFreezesMissingWeekStartUsingCurrentRegion() throws {
-        let schema = Schema([AppSettings.self])
-        let container = try ModelContainer(
-            for: schema,
-            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
-        )
-        let settings = AppSettings(weekStartDay: nil)
-        container.mainContext.insert(settings)
+    @Test func weekStartSettingsStoreUsesRegionDefaultAndPersistsSelection() throws {
+        let suiteName = "ViabarTests.WeekStart.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let resolved = AppSettingsStore.ensureDefaultSettings(
-            in: container.mainContext,
-            locale: Locale(identifier: "en_US")
+        #expect(
+            WeekStartDaySettingsStore.value(
+                defaults: defaults,
+                locale: Locale(identifier: "en_US")
+            ) == .sunday
         )
+        WeekStartDaySettingsStore.set(.monday, defaults: defaults)
+        #expect(
+            WeekStartDaySettingsStore.value(
+                defaults: defaults,
+                locale: Locale(identifier: "en_US")
+            ) == .monday
+        )
+    }
 
-        #expect(resolved.weekStartDay == WeekStartDay.sunday.rawValue)
+    @Test func trashRetentionSettingsStoreRepairsInvalidValues() throws {
+        let suiteName = "ViabarTests.TrashRetention.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("invalid", forKey: "trashRetentionPolicy")
+
+        #expect(TrashRetentionSettingsStore.policy(defaults: defaults) == .ninetyDays)
+        defaults.set("forever", forKey: "trashRetentionPolicy")
+        #expect(TrashRetentionSettingsStore.policy(defaults: defaults) == .ninetyDays)
+        TrashRetentionSettingsStore.set(.sixtyDays, defaults: defaults)
+        #expect(TrashRetentionSettingsStore.policy(defaults: defaults) == .sixtyDays)
+    }
+
+    @Test func formatsTrashDeletionTimesRelativeToToday() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 13))!
+        let today = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 9, minute: 8))!
+        let yesterday = calendar.date(from: DateComponents(year: 2026, month: 5, day: 31, hour: 20, minute: 6))!
+        let older = calendar.date(from: DateComponents(year: 2026, month: 5, day: 20, hour: 7, minute: 5))!
+
+        #expect(AppDateFormatter.trashDeletionString(from: today, now: now, language: .english) == "09:08")
+        #expect(AppDateFormatter.trashDeletionString(from: yesterday, now: now, language: .english) == "Yesterday 20:06")
+        #expect(AppDateFormatter.trashDeletionString(from: older, now: now, language: .english) == "5/20 07:05")
     }
 
     @Test func formatsDatesUsingEverySupportedSelection() {
@@ -937,8 +1219,23 @@ struct BackupRestoreTests {
             configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
         )
         let context = container.mainContext
+        let trashSchema = Schema([TrashItem.self])
+        let trashContainer = try ModelContainer(
+            for: trashSchema,
+            configurations: [ModelConfiguration(schema: trashSchema, isStoredInMemoryOnly: true)]
+        )
+        let trashContext = trashContainer.mainContext
         let schedule = NotificationScheduleService(modelContext: context, notificationPoster: { _, _ in })
-        let service = BackupService(modelContext: context, notificationScheduleService: schedule)
+        let trashService = TrashService(
+            modelContext: trashContext,
+            projectModelContext: context,
+            notificationScheduleService: schedule
+        )
+        let service = BackupService(
+            modelContext: context,
+            notificationScheduleService: schedule,
+            trashService: trashService
+        )
         let fireDate = Date().addingTimeInterval(3600)
         let projectID = UUID()
         let milestoneID = UUID()
@@ -988,9 +1285,80 @@ struct BackupRestoreTests {
 
         #expect(try context.fetch(FetchDescriptor<Project>()).map(\.title) == ["Recovered"])
         #expect(try context.fetch(FetchDescriptor<NotificationScheduleEntry>()).map(\.ownerId) == [milestoneID])
-        #expect(
-            try context.fetch(FetchDescriptor<AppSettings>()).first?.weekStartDay
-                == WeekStartDay.defaultValue().rawValue
+        #expect(WeekStartDaySettingsStore.value() == WeekStartDay.defaultValue())
+    }
+
+    @Test func restoreRecreatesRecentTrashAndDropsExpiredTrash() throws {
+        let schema = Schema([
+            Project.self,
+            Milestone.self,
+            SubTask.self,
+            Memo.self,
+            Reminder.self,
+            NotificationScheduleEntry.self,
+            ArchiveFolder.self,
+            ProjectTemplate.self,
+            TemplateMilestone.self,
+            TemplateSubTask.self,
+            AppSettings.self,
+        ])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
+        )
+        let context = container.mainContext
+        let trashSchema = Schema([TrashItem.self])
+        let trashContainer = try ModelContainer(
+            for: trashSchema,
+            configurations: [ModelConfiguration(schema: trashSchema, isStoredInMemoryOnly: true)]
+        )
+        let trashContext = trashContainer.mainContext
+        let schedule = NotificationScheduleService(modelContext: context, notificationPoster: { _, _ in })
+        let trashService = TrashService(
+            modelContext: trashContext,
+            projectModelContext: context,
+            notificationScheduleService: schedule
+        )
+        let service = BackupService(
+            modelContext: context,
+            notificationScheduleService: schedule,
+            trashService: trashService
+        )
+        let now = Date(timeIntervalSince1970: 100 * 86_400)
+        let recent = try TrashItem.fixture(deletedAt: now.addingTimeInterval(-10 * 86_400))
+        let expired = try TrashItem.fixture(deletedAt: now.addingTimeInterval(-100 * 86_400))
+        var settings = BackupSettingsSnapshot(backupEnabled: false, backupPath: "")
+        settings.trashRetentionPolicy = TrashRetentionPolicy.ninetyDays.rawValue
+        let snapshot = BackupSnapshot(
+            formatVersion: BackupSnapshot.currentFormatVersion,
+            createdAt: now,
+            settings: settings,
+            folders: [],
+            projects: [],
+            templates: [],
+            trashItems: [backupTrashSnapshot(recent), backupTrashSnapshot(expired)]
+        )
+
+        try service.restore(snapshot: snapshot, now: now)
+
+        #expect(try trashContext.fetch(FetchDescriptor<TrashItem>()).map(\.trashItemId) == [recent.trashItemId])
+        #expect(try context.fetch(FetchDescriptor<NotificationScheduleEntry>()).isEmpty)
+    }
+
+    private func backupTrashSnapshot(_ item: TrashItem) -> BackupTrashItemSnapshot {
+        BackupTrashItemSnapshot(
+            trashItemId: item.trashItemId,
+            kind: item.kind,
+            deletedAt: item.deletedAt,
+            originalProjectId: item.originalProjectId,
+            originalProjectTitle: item.originalProjectTitle,
+            originalProjectAccentColor: item.originalProjectAccentColor,
+            originalProjectSymbolName: item.originalProjectSymbolName,
+            originalParentTaskId: item.originalParentTaskId,
+            originalParentTaskTitle: item.originalParentTaskTitle,
+            originalOrderIndex: item.originalOrderIndex,
+            payloadVersion: item.payloadVersion,
+            payloadData: item.payloadData
         )
     }
 }
@@ -1062,6 +1430,7 @@ struct NotificationScheduleLifecycleTests {
             TemplateMilestone.self,
             TemplateSubTask.self,
             AppSettings.self,
+            TrashItem.self,
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let modelContainer = try ModelContainer(for: schema, configurations: [configuration])

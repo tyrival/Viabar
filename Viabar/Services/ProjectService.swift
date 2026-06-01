@@ -190,6 +190,12 @@ final class ProjectService: ProjectServiceProtocol {
 
     func deleteMilestone(_ milestone: Milestone) {
         let project = milestone.project
+        guard let trashService = container.trashService else { return }
+        do {
+            try trashService.store(milestone)
+        } catch {
+            return
+        }
         notificationScheduleService?.removeEntry(ownerId: milestone.milestoneId)
         milestone.subtasks.forEach { notificationScheduleService?.removeEntry(ownerId: $0.taskId) }
         modelContext.delete(milestone)
@@ -234,6 +240,12 @@ final class ProjectService: ProjectServiceProtocol {
     func deleteSubTask(_ subTask: SubTask) {
         let milestone = subTask.milestone
         let project = milestone?.project
+        guard let trashService = container.trashService else { return }
+        do {
+            try trashService.store(subTask)
+        } catch {
+            return
+        }
         notificationScheduleService?.removeEntry(ownerId: subTask.taskId)
         modelContext.delete(subTask)
         milestone?.syncCompletionFromSubtasks()
@@ -272,6 +284,12 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func deleteMemo(_ memo: Memo) {
+        guard let trashService = container.trashService else { return }
+        do {
+            try trashService.store(memo)
+        } catch {
+            return
+        }
         modelContext.delete(memo)
         save()
     }

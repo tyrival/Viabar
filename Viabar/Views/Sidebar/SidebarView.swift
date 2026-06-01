@@ -59,13 +59,10 @@ enum FolderNamePrompt: Identifiable {
 }
 
 enum DeleteConfirmation: Identifiable {
-    case project(Project)
     case nonEmptyFolder(ArchiveFolder)
 
     var id: String {
         switch self {
-        case .project(let project):
-            return "project-\(project.projectId.uuidString)"
         case .nonEmptyFolder(let folder):
             return "folder-\(folder.folderId.uuidString)"
         }
@@ -73,8 +70,6 @@ enum DeleteConfirmation: Identifiable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .project:
-            return "删除项目？"
         case .nonEmptyFolder:
             return "删除文件夹？"
         }
@@ -82,8 +77,6 @@ enum DeleteConfirmation: Identifiable {
 
     var message: LocalizedStringKey {
         switch self {
-        case .project(let project):
-            return "“\(project.title)”将被永久删除，无法恢复。"
         case .nonEmptyFolder(let folder):
             return "“\(folder.name)”不是空文件夹，删除后其中的项目和子文件夹均不可恢复。"
         }
@@ -114,6 +107,10 @@ struct SidebarView: View {
     @State private var folderNamePrompt: FolderNamePrompt?
     @State private var folderNameDraft: String = ""
     @State private var deleteConfirmation: DeleteConfirmation?
+    @State private var projectPendingDeletion: Project?
+    @State private var isTrashBrowserPresented = false
+    @State private var isTrashHovered = false
+    @State private var isOverviewHovered = false
     @State private var isCreateProjectButtonHovered = false
     @State private var isTemplateButtonHovered = false
     @State private var isCreateArchiveFolderButtonHovered = false
@@ -133,12 +130,31 @@ struct SidebarView: View {
     // MARK: - Body
 
     var body: some View {
-        List(selection: $selection) {
-            overviewSection
-            projectsSection
-            archiveSection
+        VStack(spacing: 0) {
+            List(selection: $selection) {
+                overviewSection
+                projectsSection
+                archiveSection
+            }
+            .listStyle(.sidebar)
+
+            Button {
+                isTrashBrowserPresented = true
+            } label: {
+                Label("回收站", systemImage: "trash")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .frame(height: ActiveProjectRowMetrics.defaultRowHeight)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(isTrashHovered ? ActiveProjectRowMetrics.sidebarHoverColor : .clear)
+                    }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
+            .padding(.bottom, 8)
+            .onHover { isTrashHovered = $0 }
         }
-        .listStyle(.sidebar)
         .sheet(isPresented: $showNewProjectSheet) {
             NewProjectView()
         }
@@ -147,6 +163,10 @@ struct SidebarView: View {
         }
         .sheet(item: $editingProject) { project in
             NewProjectView(editingProject: project)
+        }
+        .sheet(isPresented: $isTrashBrowserPresented) {
+            TrashBrowserView()
+                .presentationSizing(.fitted)
         }
         .alert(
             folderNamePrompt?.title ?? "",
@@ -180,6 +200,12 @@ struct SidebarView: View {
             }
         } message: {
             Text(deleteConfirmation?.message ?? "")
+        }
+        .permanentProjectDeletionConfirmation(project: $projectPendingDeletion) { project in
+            if selection == .project(project) {
+                selection = .overview
+            }
+            projectService?.deleteProject(project)
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 260)
         .onAppear {
@@ -222,7 +248,13 @@ struct SidebarView: View {
             } label: {
                 ZStack {
                     Capsule(style: .continuous)
-                        .fill(isOverviewSelected ? ViabarColor.primary : ActiveProjectRowMetrics.progressTrackColor)
+                        .fill(
+                            isOverviewSelected
+                                ? ViabarColor.primary
+                                : isOverviewHovered
+                                    ? ActiveProjectRowMetrics.sidebarHoverColor
+                                    : ActiveProjectRowMetrics.progressTrackColor
+                        )
                         .frame(height: overviewProgressBarHeight)
 
                     HStack(spacing: 10) {
@@ -245,6 +277,7 @@ struct SidebarView: View {
                 .animation(ActiveProjectRowMetrics.selectionAnimation, value: isOverviewSelected)
             }
             .buttonStyle(.plain)
+            .onHover { isOverviewHovered = $0 }
         }
     }
 
@@ -460,7 +493,7 @@ struct SidebarView: View {
     }
 
     private func showDeleteProjectConfirmation(_ project: Project) {
-        deleteConfirmation = .project(project)
+        projectPendingDeletion = project
     }
 
     private func requestDeleteFolder(_ folder: ArchiveFolder) {
@@ -475,11 +508,6 @@ struct SidebarView: View {
         guard let confirmation = deleteConfirmation else { return }
 
         switch confirmation {
-        case .project(let project):
-            if selection == .project(project) {
-                selection = .overview
-            }
-            projectService?.deleteProject(project)
         case .nonEmptyFolder(let folder):
             projectService?.deleteArchiveFolder(folder)
         }
@@ -527,6 +555,12 @@ private enum ActiveProjectRowMetrics {
             ? NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.74)
             : NSColor(calibratedWhite: 0.92, alpha: 1)
     })
+    static let sidebarHoverColor = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 0.32, alpha: 0.55)
+            : NSColor(calibratedWhite: 0.82, alpha: 0.82)
+    })
     static let progressPercentColor = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
@@ -568,6 +602,7 @@ struct ActiveProjectRow: View {
     let onSelect: () -> Void
 
     @Environment(ServiceContainer.self) private var container
+    @State private var isHovered = false
 
     private var projectService: ProjectService? {
         container.projectService
@@ -676,7 +711,11 @@ struct ActiveProjectRow: View {
 
             // 轨道底色
             Capsule(style: .continuous)
-                .fill(ActiveProjectRowMetrics.progressTrackColor)
+                .fill(
+                    !isSelected && isHovered
+                        ? ActiveProjectRowMetrics.sidebarHoverColor
+                        : ActiveProjectRowMetrics.progressTrackColor
+                )
                 .frame(height: progressBarHeight)
 
             // 进度填充
@@ -724,6 +763,7 @@ struct ActiveProjectRow: View {
         .padding(.vertical, isSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
         .offset(y: isSelected ? ActiveProjectRowMetrics.selectedLift : 0)
         .animation(ActiveProjectRowMetrics.selectionAnimation, value: isSelected)
+        .onHover { isHovered = $0 }
         .onTapGesture {
             onSelect()
         }
@@ -1187,6 +1227,7 @@ struct ArchivedProjectSelectableRow: View {
     let onSelect: () -> Void
 
     @Environment(ServiceContainer.self) private var container
+    @State private var isHovered = false
 
     private var projectService: ProjectService? {
         container.projectService
@@ -1236,6 +1277,11 @@ struct ArchivedProjectSelectableRow: View {
             onSelect()
         } label: {
             ZStack(alignment: .center) {
+                if !isSelected && isHovered {
+                    Capsule(style: .continuous)
+                        .fill(ActiveProjectRowMetrics.sidebarHoverColor)
+                        .frame(height: progressBarHeight)
+                }
                 if isSelected {
                     Capsule(style: .continuous)
                         .fill(ActiveProjectRowMetrics.progressTrackColor)
@@ -1273,6 +1319,7 @@ struct ArchivedProjectSelectableRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
         .searchTargetHighlight(
             triggerID: highlightRequestID,
             isActive: highlightRequestID != nil,
@@ -1641,13 +1688,25 @@ private struct SidebarPreviewData {
             ArchiveFolder.self,
             ProjectTemplate.self,
             TemplateMilestone.self,
-            TemplateSubTask.self
+            TemplateSubTask.self,
+            TrashItem.self,
+            AppSettings.self,
+            NotificationScheduleEntry.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let modelContainer = try! ModelContainer(for: schema, configurations: [configuration])
         let serviceContainer = ServiceContainer()
         let projectService = ProjectService(modelContext: modelContainer.mainContext, container: serviceContainer)
+        let scheduleService = NotificationScheduleService(modelContext: modelContainer.mainContext, notificationPoster: { _, _ in })
+        let trashService = TrashService(
+            modelContext: modelContainer.mainContext,
+            projectModelContext: modelContainer.mainContext,
+            notificationScheduleService: scheduleService
+        )
         serviceContainer.register(projectService)
+        serviceContainer.register(scheduleService)
+        serviceContainer.register(trashService)
+        modelContainer.mainContext.insert(AppSettings())
 
         let version = makeProject(title: "版本", accentColor: ViabarColor.primaryHex, symbol: "bookmark.fill", completed: 1, total: 6, order: 0, context: modelContainer.mainContext)
         _ = makeProject(title: "5553", accentColor: "#4CC3FF", symbol: "circle.dashed", completed: 0, total: 4, order: 1, context: modelContainer.mainContext)

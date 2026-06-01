@@ -30,6 +30,7 @@ enum BackupServiceError: LocalizedError {
 final class BackupService {
     private let modelContext: ModelContext
     private let notificationScheduleService: NotificationScheduleService
+    private let trashService: TrashService
     private let fileManager: FileManager
     private var timer: Timer?
 
@@ -40,10 +41,12 @@ final class BackupService {
     init(
         modelContext: ModelContext,
         notificationScheduleService: NotificationScheduleService,
+        trashService: TrashService,
         fileManager: FileManager = .default
     ) {
         self.modelContext = modelContext
         self.notificationScheduleService = notificationScheduleService
+        self.trashService = trashService
         self.fileManager = fileManager
     }
 
@@ -117,7 +120,7 @@ final class BackupService {
         }
     }
 
-    func restore(snapshot: BackupSnapshot) throws {
+    func restore(snapshot: BackupSnapshot, now: Date = Date()) throws {
         guard snapshot.formatVersion == BackupSnapshot.currentFormatVersion else {
             throw BackupServiceError.unsupportedFormat
         }
@@ -128,7 +131,12 @@ final class BackupService {
         let folders = restoreFolders(snapshot.folders)
         restoreTemplates(snapshot.templates)
         let projects = restoreProjects(snapshot.projects, folders: folders)
+        try restoreTrashItems(snapshot.trashItems)
         try modelContext.save()
+        try trashService.cleanupExpired(
+            policy: TrashRetentionSettingsStore.policy(),
+            now: now
+        )
         notificationScheduleService.rebuildTimeline(from: projects)
         try? refreshBackups(settings: settings)
         setAutomaticBackupEnabled(settings.backupEnabled, settings: settings)
@@ -189,6 +197,7 @@ final class BackupService {
         let folders = try modelContext.fetch(FetchDescriptor<ArchiveFolder>())
         let projects = try modelContext.fetch(FetchDescriptor<Project>())
         let templates = try modelContext.fetch(FetchDescriptor<ProjectTemplate>())
+        let trashItems = trashService.allItems()
 
         return BackupSnapshot(
             formatVersion: BackupSnapshot.currentFormatVersion,
@@ -203,7 +212,8 @@ final class BackupService {
                 )
             },
             projects: projects.map(projectSnapshot),
-            templates: templates.map(templateSnapshot)
+            templates: templates.map(templateSnapshot),
+            trashItems: trashItems.map(trashSnapshot)
         )
     }
 
@@ -426,6 +436,44 @@ final class BackupService {
         return reminder
     }
 
+    private func trashSnapshot(_ item: TrashItem) -> BackupTrashItemSnapshot {
+        BackupTrashItemSnapshot(
+            trashItemId: item.trashItemId,
+            kind: item.kind,
+            deletedAt: item.deletedAt,
+            originalProjectId: item.originalProjectId,
+            originalProjectTitle: item.originalProjectTitle,
+            originalProjectAccentColor: item.originalProjectAccentColor,
+            originalProjectSymbolName: item.originalProjectSymbolName,
+            originalParentTaskId: item.originalParentTaskId,
+            originalParentTaskTitle: item.originalParentTaskTitle,
+            originalOrderIndex: item.originalOrderIndex,
+            payloadVersion: item.payloadVersion,
+            payloadData: item.payloadData
+        )
+    }
+
+    private func restoreTrashItems(_ snapshots: [BackupTrashItemSnapshot]) throws {
+        try trashService.replaceItems(
+            with: snapshots.map { snapshot in
+                TrashItem(
+                    trashItemId: snapshot.trashItemId,
+                    kind: TrashItemKind(rawValue: snapshot.kind) ?? .memo,
+                    deletedAt: snapshot.deletedAt,
+                    originalProjectId: snapshot.originalProjectId,
+                    originalProjectTitle: snapshot.originalProjectTitle,
+                    originalProjectAccentColor: snapshot.originalProjectAccentColor,
+                    originalProjectSymbolName: snapshot.originalProjectSymbolName,
+                    originalParentTaskId: snapshot.originalParentTaskId,
+                    originalParentTaskTitle: snapshot.originalParentTaskTitle,
+                    originalOrderIndex: snapshot.originalOrderIndex,
+                    payloadVersion: snapshot.payloadVersion,
+                    payloadData: snapshot.payloadData
+                )
+            }
+        )
+    }
+
     private func apply(_ snapshot: BackupSettingsSnapshot, to settings: AppSettings) {
         settings.settingsId = snapshot.settingsId
         settings.createdAt = snapshot.createdAt
@@ -437,7 +485,7 @@ final class BackupService {
         settings.theme = snapshot.theme
         settings.language = snapshot.language
         settings.overviewScope = snapshot.overviewScope
-        settings.weekStartDay = WeekStartDay.resolve(snapshot.weekStartDay).rawValue
+        WeekStartDaySettingsStore.set(WeekStartDay.resolve(snapshot.weekStartDay))
         settings.weekdayFilterEnabled = snapshot.weekdayFilterEnabled
         settings.dateFormat = snapshot.dateFormat
         settings.toggleMainPanelShortcut = snapshot.toggleMainPanelShortcut
@@ -445,6 +493,7 @@ final class BackupService {
         settings.syncEnabled = snapshot.syncEnabled
         settings.lastSyncAt = snapshot.lastSyncAt
         settings.backupEnabled = snapshot.backupEnabled
+        TrashRetentionSettingsStore.set(TrashRetentionPolicy.resolve(snapshot.trashRetentionPolicy))
         // The authorized backup destination is local to this Mac and is not restored from an archive.
         settings.automaticallyChecksForUpdates = snapshot.automaticallyChecksForUpdates
     }
@@ -514,11 +563,13 @@ extension ServiceContainer {
 
     func registerBackupService(
         modelContext: ModelContext,
-        notificationScheduleService: NotificationScheduleService
+        notificationScheduleService: NotificationScheduleService,
+        trashService: TrashService
     ) -> BackupService {
         let service = BackupService(
             modelContext: modelContext,
-            notificationScheduleService: notificationScheduleService
+            notificationScheduleService: notificationScheduleService,
+            trashService: trashService
         )
         register(service)
         return service

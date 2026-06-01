@@ -120,29 +120,11 @@ struct ContentView: View {
         .sheet(item: $overviewEditProject) { project in
             NewProjectView(editingProject: project)
         }
-        .alert(
-            "删除项目？",
-            isPresented: Binding(
-                get: { overviewDeleteProject != nil },
-                set: { if !$0 { overviewDeleteProject = nil } }
-            )
-        ) {
-            Button("删除", role: .destructive) {
-                if let project = overviewDeleteProject {
-                    if selection == .project(project) {
-                        selection = .overview
-                    }
-                    projectService?.deleteProject(project)
-                }
-                overviewDeleteProject = nil
+        .permanentProjectDeletionConfirmation(project: $overviewDeleteProject) { project in
+            if selection == .project(project) {
+                selection = .overview
             }
-            Button("取消", role: .cancel) {
-                overviewDeleteProject = nil
-            }
-        } message: {
-            if let project = overviewDeleteProject {
-                Text("“\(project.title)”将被永久删除，无法恢复。")
-            }
+            projectService?.deleteProject(project)
         }
         .archiveFolderPicker(
             isPresented: Binding(
@@ -235,7 +217,7 @@ struct ContentView: View {
             weekDoneOffset: weekDoneOffset,
             monthDoneOffset: monthDoneOffset,
             now: Date(),
-            weekStartDay: WeekStartDay.resolve(settingsRecords.first?.weekStartDay)
+            weekStartDay: WeekStartDaySettingsStore.value()
         )
     }
 
@@ -1027,6 +1009,7 @@ private extension Reminder {
                 TemplateMilestone.self,
                 TemplateSubTask.self,
                 AppSettings.self,
+                TrashItem.self,
             ],
             inMemory: true
         )

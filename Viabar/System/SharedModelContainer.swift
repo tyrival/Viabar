@@ -10,6 +10,7 @@ enum SharedStoreError: Error {
 enum SharedModelContainer {
     static let appGroupIdentifier = "group.com.tyrival.Viabar"
     static let storeFileName = "default.store"
+    static let trashStoreFileName = "trash.store"
     static let migrationMarkerFileName = ".viabar-shared-store-v1"
     static let widgetKind = "ViabarLargeWidget"
 
@@ -97,6 +98,7 @@ enum SharedModelContainer {
         }
         return try makeContainer(storeURL: shared)
     }
+
 }
 
 enum SharedStoreMigrator {

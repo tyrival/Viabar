@@ -43,7 +43,7 @@ struct BackupBrowserView: View {
                 showsFinalConfirmation = true
             }
         } message: {
-            Text("恢复将覆盖当前所有项目、归档、模板、提醒和个人设置。")
+            Text("恢复将覆盖当前所有项目、归档、模板、提醒、回收站和个人设置。")
         }
         .alert("再次确认恢复", isPresented: $showsFinalConfirmation) {
             Button("取消", role: .cancel) {}
