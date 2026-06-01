@@ -23,8 +23,8 @@ rg -q 'static let largeWidgetKind = "ViabarLargeWidget"' "$SHARED_CONTAINER" ||
     fail "SharedModelContainer must define the stable Large Widget kind"
 rg -q 'static let widgetKinds = \[mediumWidgetKind, largeWidgetKind\]' "$SHARED_CONTAINER" ||
     fail "SharedModelContainer must enumerate both Widget kinds"
-rg -q 'static let mediumWidgetRowBudget = 4' "$WIDGET_CONTENT" ||
-    fail "Medium Widget row budget must stay at 4"
+rg -q 'static let mediumWidgetRowBudget = 3' "$WIDGET_CONTENT" ||
+    fail "Medium Widget row budget must stay at 3"
 rg -q 'static let largeWidgetRowBudget = 10' "$WIDGET_CONTENT" ||
     fail "Large Widget row budget must stay at 10"
 rg -q 'struct ViabarMediumWidget: Widget' "$WIDGET_VIEW" ||
@@ -45,6 +45,10 @@ rg -q '"Viabar 中号项目" = "Viabar 中号项目";' "$ZH_STRINGS" ||
     fail "Chinese localization must distinguish the Medium Widget"
 rg -q '"Viabar 大号项目" = "Viabar 大号项目";' "$ZH_STRINGS" ||
     fail "Chinese localization must distinguish the Large Widget"
+rg -q '"还有 %lld 项未完成" = "%lld unfinished remaining";' "$EN_STRINGS" ||
+    fail "English localization must describe the hidden unfinished count"
+rg -q '"还有 %lld 项未完成" = "还有 %lld 项未完成";' "$ZH_STRINGS" ||
+    fail "Chinese localization must describe the hidden unfinished count"
 
 for source in "$PROJECT_SERVICE" "$REFRESH_INTENT" "$TOGGLE_INTENT"; do
     rg -q 'SharedModelContainer\.widgetKinds\.forEach' "$source" ||

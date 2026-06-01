@@ -80,7 +80,8 @@ Large：
 Medium：
 
 - 仅声明 `.systemMedium`
-- `rowBudget = 4`
+- `rowBudget = 3`
+- 超过 3 行任务或子任务时，显示本地化的剩余未完成数量。
 
 Medium 与 Large 的差异只限于空间适配和任务行预算。Medium 仍保留项目标题、进度、复选框、刷新按钮、提醒状态色和隐藏条目计数。空间不足时优先减少可见任务行，不删除核心交互。
 
@@ -193,7 +194,7 @@ scripts/reset_local_widget_cache.sh
 
 - `ViabarMediumWidget` 和 `ViabarLargeWidget` 使用两个稳定 kind。
 - 两者共用同一个项目选择 intent 和任务操作链路。
-- Medium `rowBudget = 4`。
+- Medium `rowBudget = 3`，超过预算时显示本地化的剩余未完成数量。
 - Large `rowBudget = 10`。
 - App 内仅嵌入一个 Widget Extension。
 - 主 App 与 Widget Extension 的 App Group entitlement 一致。
@@ -230,4 +231,3 @@ scripts/reset_local_widget_cache.sh
 - 不删除、重建或覆盖用户业务数据库。
 - 不把 frozen-local 脚本伪装成正式 Developer ID 分发流程。
 - 不承诺没有 Developer ID 和 notarization 时具备 Apple 官方信任链。
-

@@ -480,7 +480,7 @@ struct WidgetContentTests {
         #expect(content.hiddenItemCount == 2)
     }
 
-    @Test func mediumWidgetAllowsFourPlainTaskRows() {
+    @Test func mediumWidgetAllowsThreePlainTaskRows() {
         let project = Project(title: "Release")
         project.milestones = (0..<6).map { Milestone(title: "Task \($0)", orderIndex: $0) }
 
@@ -491,8 +491,8 @@ struct WidgetContentTests {
             calendar: calendar
         )
 
-        #expect(content.visibleItems.count == 4)
-        #expect(content.hiddenItemCount == 2)
+        #expect(content.visibleItems.count == 3)
+        #expect(content.hiddenItemCount == 3)
     }
 
     @Test func reminderSubtitleConsumesASecondBudgetRow() {

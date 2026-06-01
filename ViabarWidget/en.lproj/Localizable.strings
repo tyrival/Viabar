@@ -14,4 +14,4 @@
 "项目不可用，请重新选择项目" = "Project unavailable. Choose another project";
 "暂时无法读取数据" = "Unable to read data right now";
 "当前没有未完成任务" = "No unfinished tasks";
-"还有 %lld 项未完成" = "%lld more unfinished tasks";
+"还有 %lld 项未完成" = "%lld unfinished remaining";
