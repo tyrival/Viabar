@@ -18,7 +18,9 @@ for file in \
     Persistence/IOSPersistentRootView.swift \
     Persistence/IOSPersistentOverviewView.swift \
     Persistence/IOSPersistentProjectDetailView.swift \
-    Persistence/IOSPersistentArchiveView.swift; do
+    Persistence/IOSPersistentArchiveView.swift \
+    Persistence/IOSPersistentArchiveFolderPicker.swift \
+    Persistence/IOSPersistentReminderEditor.swift; do
     [[ -f "$IOS_DIR/$file" ]] || fail "missing ViabariOS/$file"
 done
 
@@ -32,6 +34,8 @@ rg -q 'registerNotificationScheduleService' "$IOS_APP" ||
     fail "iOS app must register NotificationScheduleService"
 rg -q 'registerTrashService' "$IOS_APP" ||
     fail "iOS app must register TrashService"
+rg -q 'cleanupExpired\(policy: TrashRetentionSettingsStore\.policy\(\)\)' "$IOS_APP" ||
+    fail "iOS app must clean expired trash items at launch"
 rg -q '\.environment\(serviceContainer\)' "$IOS_APP" ||
     fail "iOS app must inject ServiceContainer"
 rg -q 'IOSPersistentRootView' "$IOS_CONTENT" ||
@@ -40,6 +44,21 @@ rg -q '@Query\(sort: \\Project\.orderIndex\)' "$IOS_DIR/Persistence/IOSPersisten
     fail "persistent root must query real projects"
 rg -q 'GlobalSearchIndex\.results' "$IOS_DIR/Persistence/IOSPersistentOverviewView.swift" ||
     fail "iOS search must reuse GlobalSearchIndex"
+rg -q 'moveProjectToFolder' "$IOS_DIR/Persistence/IOSPersistentArchiveView.swift" ||
+    fail "archive view must support moving archived projects"
+rg -q 'contentShape\(Rectangle\(\)\)' "$IOS_DIR/Persistence/IOSPersistentOverviewView.swift" ||
+    fail "search result rows must define a full-row hit target"
+rg -q 'editingProject: Project\?' "$IOS_DIR/Persistence/IOSPersistentProjectCreationView.swift" ||
+    fail "project form must support create and edit modes"
+rg -q 'updateReminder\(.*for: milestone\)' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "milestone reminder editing must reuse ProjectService"
+rg -q 'updateReminder\(.*for: subtask\)' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "subtask reminder editing must reuse ProjectService"
+rg -q 'displaySummary\(' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" &&
+    rg -q 'dateFormatPattern: savedDateFormat' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "project detail reminder summaries must honor the saved date format"
+rg -q 'expandedFolderIDs' "$IOS_DIR/Persistence/IOSPersistentArchiveFolderPicker.swift" ||
+    fail "archive picker must own its collapsed-by-default expansion state"
 rg -q 'SharedModelContainer\.makeWidgetContainer' "$ROOT_DIR/ViabarWidget" --glob '*.swift' ||
     fail "Widget must continue to open the shared main store"
 

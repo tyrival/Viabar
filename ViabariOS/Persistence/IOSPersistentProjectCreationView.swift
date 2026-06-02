@@ -5,24 +5,59 @@ struct IOSPersistentProjectCreationView: View {
     @Environment(ServiceContainer.self) private var services
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ProjectTemplate.orderIndex) private var templates: [ProjectTemplate]
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
 
-    @State private var title = ""
+    let editingProject: Project?
+
+    @State private var title: String
     @State private var selectedTemplateID: UUID?
-    @State private var accentColor = ViabarColor.palette[0].hex
-    @State private var symbolName = commonSymbols[0]
+    @State private var accentColor: String
+    @State private var symbolName: String
+    @State private var projectReminder: Reminder?
     @State private var isSymbolPickerPresented = false
+    @State private var isReminderEditorPresented = false
+
+    init(editingProject: Project? = nil) {
+        self.editingProject = editingProject
+        _title = State(initialValue: editingProject?.title ?? "")
+        _selectedTemplateID = State(initialValue: nil)
+        _accentColor = State(initialValue: editingProject?.accentColor ?? ViabarColor.palette[0].hex)
+        _symbolName = State(initialValue: editingProject?.sfSymbolName ?? commonSymbols[0])
+        _projectReminder = State(initialValue: Self.copyReminder(editingProject?.reminder))
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("项目") {
-                    TextField("项目名称", text: $title)
-                    Picker("模板", selection: $selectedTemplateID) {
-                        Text("不使用模板").tag(UUID?.none)
-                        ForEach(templates) { template in
-                            Label(template.name, systemImage: template.sfSymbolName)
-                                .tag(Optional(template.templateId))
+                    HStack {
+                        TextField("项目名称", text: $title)
+                        Button {
+                            isReminderEditorPresented = true
+                        } label: {
+                            Image(systemName: projectReminder == nil ? "alarm" : "alarm.fill")
+                                .foregroundStyle(projectReminder == nil ? Color.secondary : .orange)
                         }
+                        .buttonStyle(.plain)
+                    }
+                    if editingProject == nil {
+                        Picker("模板", selection: $selectedTemplateID) {
+                            Text("不使用模板").tag(UUID?.none)
+                            ForEach(templates) { template in
+                                Label(template.name, systemImage: template.sfSymbolName)
+                                    .tag(Optional(template.templateId))
+                            }
+                        }
+                    }
+                }
+
+                if let projectReminder {
+                    Section("通知提醒") {
+                        IOSPersistentReminderSummary(
+                            reminder: projectReminder,
+                            dateFormatPattern: savedDateFormat,
+                            language: effectiveLanguage
+                        )
                     }
                 }
 
@@ -41,19 +76,24 @@ struct IOSPersistentProjectCreationView: View {
                     IOSPersistentAccentColorPicker(selection: $accentColor)
                 }
             }
-            .navigationTitle("新建项目")
+            .navigationTitle(LocalizedStringKey(editingProject == nil ? "新建项目" : "编辑项目"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("创建") { createProject() }
+                    Button(LocalizedStringKey(editingProject == nil ? "创建" : "保存")) { commitProject() }
                         .disabled(trimmedTitle.isEmpty)
                 }
             }
             .sheet(isPresented: $isSymbolPickerPresented) {
                 IOSPersistentSymbolPicker(selection: $symbolName)
+            }
+            .sheet(isPresented: $isReminderEditorPresented) {
+                IOSPersistentReminderEditor(reminder: projectReminder) {
+                    projectReminder = $0
+                }
             }
             .onChange(of: selectedTemplateID) { _, templateID in
                 guard let templateID,
@@ -63,20 +103,43 @@ struct IOSPersistentProjectCreationView: View {
                 symbolName = template.sfSymbolName
             }
         }
+        .presentationDetents([.medium])
     }
 
     private var trimmedTitle: String {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func createProject() {
+    private var savedDateFormat: String? {
+        settingsRecords.first?.dateFormat
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
+    private func commitProject() {
         guard !trimmedTitle.isEmpty, let projectService = services.projectService else { return }
-        let template = templates.first { $0.templateId == selectedTemplateID }
-        let project = projectService.createProject(title: trimmedTitle, template: template)
+        let template = editingProject == nil
+            ? templates.first { $0.templateId == selectedTemplateID }
+            : nil
+        let project = editingProject ?? projectService.createProject(title: trimmedTitle, template: template)
+        project.title = trimmedTitle
         project.accentColor = accentColor
         project.sfSymbolName = symbolName
+        project.reminder = Self.copyReminder(projectReminder)
         projectService.updateProject(project)
         dismiss()
+    }
+
+    private static func copyReminder(_ reminder: Reminder?) -> Reminder? {
+        guard let reminder else { return nil }
+        return Reminder(
+            type: reminder.type,
+            fireTime: reminder.fireTime,
+            fireTimestamp: reminder.fireTimestamp,
+            repeatIntervalDays: reminder.repeatIntervalDays
+        )
     }
 }
 

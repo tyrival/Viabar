@@ -19,6 +19,7 @@ struct IOSPersistentArchiveView: View {
     @State private var folderPendingDeletionID: UUID?
     @State private var projectPendingDeletionID: UUID?
     @State private var projectAwaitingFinalDeletionID: UUID?
+    @State private var movingProject: Project?
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -36,6 +37,7 @@ struct IOSPersistentArchiveView: View {
                                 onCreateChild: beginCreatingChild,
                                 onRename: beginRenaming,
                                 onDeleteFolder: requestFolderDeletion,
+                                onMoveProject: { movingProject = $0 },
                                 onDeleteProject: { projectPendingDeletionID = $0 }
                             )
                         }
@@ -63,6 +65,15 @@ struct IOSPersistentArchiveView: View {
             composerText = ""
             composerSession = .createRoot
             isComposerPresented = true
+        }
+        .sheet(item: $movingProject) { project in
+            IOSPersistentArchiveFolderPicker(
+                folders: archiveFolders,
+                currentFolderID: project.archiveFolder?.folderId,
+                actionTitle: "移动"
+            ) { folder in
+                services.projectService?.moveProjectToFolder(project, folder: folder)
+            }
         }
         .alert("删除非空文件夹？", isPresented: folderDeletionConfirmation) {
             Button("确认删除", role: .destructive) {
@@ -204,6 +215,7 @@ private struct IOSPersistentArchiveFolderNodeView: View {
     let onCreateChild: (ArchiveFolder) -> Void
     let onRename: (ArchiveFolder) -> Void
     let onDeleteFolder: (ArchiveFolder) -> Void
+    let onMoveProject: (Project) -> Void
     let onDeleteProject: (UUID) -> Void
 
     private var isExpanded: Bool {
@@ -224,6 +236,7 @@ private struct IOSPersistentArchiveFolderNodeView: View {
                             onCreateChild: onCreateChild,
                             onRename: onRename,
                             onDeleteFolder: onDeleteFolder,
+                            onMoveProject: onMoveProject,
                             onDeleteProject: onDeleteProject
                         )
                     }
@@ -244,6 +257,7 @@ private struct IOSPersistentArchiveFolderNodeView: View {
                 .frame(width: 12)
             Image(systemName: isExpanded ? "folder.fill" : "folder")
                 .foregroundStyle(.secondary)
+                .frame(width: 18, alignment: .leading)
             Text(folder.name)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
@@ -257,7 +271,7 @@ private struct IOSPersistentArchiveFolderNodeView: View {
         }
         .padding(.leading, CGFloat(level) * 16)
         .padding(.horizontal, 12)
-        .frame(height: 36)
+        .frame(height: 46)
         .contentShape(Rectangle())
         .onTapGesture {
             if isExpanded {
@@ -288,10 +302,12 @@ private struct IOSPersistentArchiveFolderNodeView: View {
         Button {
             coordinator.selectProject(project)
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
+                Color.clear
+                    .frame(width: 12)
                 Image(systemName: project.sfSymbolName)
                     .foregroundStyle(Color(hex: project.accentColor))
-                    .frame(width: 18)
+                    .frame(width: 18, alignment: .leading)
                 Text(project.title)
                     .font(.subheadline)
                     .foregroundStyle(.primary)
@@ -300,13 +316,16 @@ private struct IOSPersistentArchiveFolderNodeView: View {
                 IOSPrototypeProgressRing(progress: project.progress, size: 20, lineWidth: 4)
             }
             .padding(.horizontal, 12)
-            .frame(height: 36)
+            .frame(height: 46)
             .padding(.leading, CGFloat(level + 1) * 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .contextMenu {
+            Button("移动至...", systemImage: "folder") {
+                onMoveProject(project)
+            }
             Button("取消归档", systemImage: "arrow.uturn.backward") {
                 services.projectService?.unarchiveProject(project)
             }

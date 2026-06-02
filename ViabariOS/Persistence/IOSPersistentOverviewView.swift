@@ -8,8 +8,8 @@ struct IOSPersistentOverviewView: View {
     let projects: [Project]
     let archiveFolders: [ArchiveFolder]
 
-    @State private var editingProjectID: UUID?
-    @State private var composerText = ""
+    @State private var editingProject: Project?
+    @State private var archivePickerProject: Project?
     @State private var projectPendingDeletionID: UUID?
     @State private var projectAwaitingFinalDeletionID: UUID?
     @State private var isSettingsPresented = false
@@ -54,6 +54,18 @@ struct IOSPersistentOverviewView: View {
         .sheet(isPresented: $isProjectCreationPresented) {
             IOSPersistentProjectCreationView()
         }
+        .sheet(item: $editingProject) { project in
+            IOSPersistentProjectCreationView(editingProject: project)
+        }
+        .sheet(item: $archivePickerProject) { project in
+            IOSPersistentArchiveFolderPicker(
+                folders: archiveFolders,
+                currentFolderID: nil,
+                actionTitle: "归档"
+            ) { folder in
+                services.projectService?.archiveProject(project, to: folder)
+            }
+        }
         .alert("删除项目？", isPresented: firstDeletionConfirmation) {
             Button("继续", role: .destructive) {
                 projectAwaitingFinalDeletionID = projectPendingDeletionID
@@ -86,14 +98,7 @@ struct IOSPersistentOverviewView: View {
     @ViewBuilder
     private var footer: some View {
         VStack(spacing: 10) {
-            if editingProjectID != nil {
-                HStack(spacing: 10) {
-                    IOSPrototypeDetailComposer(text: $composerText, placeholder: "项目名称")
-                    IOSPrototypeDetachedActionButton(symbol: "paperplane.fill") {
-                        saveProjectTitle()
-                    }
-                }
-            } else if !isArchiveComposerPresented {
+            if !isArchiveComposerPresented {
                 if coordinator.isSearchPresented {
                     IOSPersistentSearchView(
                         coordinator: coordinator,
@@ -173,8 +178,8 @@ struct IOSPersistentOverviewView: View {
         } label: {
             IOSPersistentOverviewProjectCard(
                 project: project,
-                onEdit: { beginEditing(project) },
-                onArchive: { archive(project) },
+                onEdit: { editingProject = project },
+                onArchive: { archivePickerProject = project },
                 onToggleFavorite: { services.projectService?.toggleFavorite(project) },
                 onDelete: { projectPendingDeletionID = project.projectId }
             )
@@ -201,35 +206,6 @@ struct IOSPersistentOverviewView: View {
         activeProjects.filter { !$0.isFavorite }
     }
 
-    private func archive(_ project: Project) {
-        let folder = archiveFolders
-            .filter { $0.parent == nil }
-            .sorted { $0.orderIndex < $1.orderIndex }
-            .first
-            ?? services.projectService?.createArchiveFolder(name: "默认归档")
-        guard let folder else { return }
-        services.projectService?.archiveProject(project, to: folder)
-    }
-
-    private func beginEditing(_ project: Project) {
-        composerText = project.title
-        editingProjectID = project.projectId
-    }
-
-    private func saveProjectTitle() {
-        guard let editingProjectID,
-              let project = projects.first(where: { $0.projectId == editingProjectID })
-        else { return }
-        let title = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !title.isEmpty {
-            project.title = title
-            services.projectService?.updateProject(project)
-        }
-        composerText = ""
-        self.editingProjectID = nil
-        dismissIOSPrototypeKeyboard()
-    }
-
     private var pendingDeletionProject: Project? {
         guard let projectPendingDeletionID else { return nil }
         return projects.first { $0.projectId == projectPendingDeletionID }
@@ -251,6 +227,7 @@ struct IOSPersistentOverviewView: View {
 }
 
 struct IOSPersistentOverviewProjectCard: View {
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     let project: Project
     let onEdit: () -> Void
     let onArchive: () -> Void
@@ -316,10 +293,13 @@ struct IOSPersistentOverviewProjectCard: View {
                 Spacer(minLength: 0)
 
                 HStack(alignment: .bottom) {
-                    if let reminderDate = topMilestone?.reminder?.displayFireDate {
-                        Label(reminderDate.formatted(date: .numeric, time: .shortened), systemImage: "alarm.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(IOSPrototypeReminderStyle.color(for: reminderDate))
+                    if let reminder = topMilestone?.reminder {
+                        IOSPersistentReminderSummary(
+                            reminder: reminder,
+                            dateFormatPattern: savedDateFormat,
+                            language: effectiveLanguage,
+                            font: .system(size: 11)
+                        )
                             .padding(.leading, 8)
                     }
                     Spacer()
@@ -356,6 +336,14 @@ struct IOSPersistentOverviewProjectCard: View {
 
     private var topMilestone: Milestone? {
         project.unfinishedMilestones.first
+    }
+
+    private var savedDateFormat: String? {
+        settingsRecords.first?.dateFormat
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
     }
 }
 
@@ -436,9 +424,11 @@ struct IOSPersistentSearchView: View {
                                 Spacer(minLength: 0)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                             .padding(10)
                         }
                         .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                         if index < results.count - 1 {
                             Divider()

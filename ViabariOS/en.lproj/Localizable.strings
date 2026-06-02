@@ -307,3 +307,8 @@
 "新增备忘录" = "New Memo";
 "里程碑名称" = "Milestone Name";
 "备忘录内容" = "Memo Content";
+"编辑项目" = "Edit Project";
+"移动" = "Move";
+"移动至..." = "Move To...";
+"选择归档文件夹" = "Choose Archive Folder";
+"请先在归档页面新建文件夹" = "Create a folder from the Archive page first.";

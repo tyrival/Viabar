@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 private enum IOSPersistentDetailSession: Equatable {
@@ -10,13 +11,36 @@ private enum IOSPersistentDetailSession: Equatable {
     case editMemo(memoID: UUID)
 }
 
+private enum IOSPersistentReminderEditorTarget: Identifiable {
+    case milestone(Milestone)
+    case subtask(SubTask)
+
+    var id: UUID {
+        switch self {
+        case .milestone(let milestone): milestone.milestoneId
+        case .subtask(let subtask): subtask.taskId
+        }
+    }
+
+    var reminder: Reminder? {
+        switch self {
+        case .milestone(let milestone): milestone.reminder
+        case .subtask(let subtask): subtask.reminder
+        }
+    }
+}
+
 struct IOSPersistentProjectDetailView: View {
     @Environment(ServiceContainer.self) private var services
+    @Query(sort: \ArchiveFolder.orderIndex) private var archiveFolders: [ArchiveFolder]
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @Bindable var coordinator: IOSPersistenceCoordinator
     let project: Project
 
     @State private var session: IOSPersistentDetailSession = .idle
     @State private var composerText = ""
+    @State private var isArchiveFolderPickerPresented = false
+    @State private var reminderEditorTarget: IOSPersistentReminderEditorTarget?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -98,6 +122,25 @@ struct IOSPersistentProjectDetailView: View {
                 closeComposer()
             }
         }
+        .sheet(isPresented: $isArchiveFolderPickerPresented) {
+            IOSPersistentArchiveFolderPicker(
+                folders: archiveFolders,
+                currentFolderID: nil,
+                actionTitle: "归档"
+            ) { folder in
+                services.projectService?.archiveProject(project, to: folder)
+            }
+        }
+        .sheet(item: $reminderEditorTarget) { target in
+            IOSPersistentReminderEditor(reminder: target.reminder) { reminder in
+                switch target {
+                case .milestone(let milestone):
+                    services.projectService?.updateReminder(reminder, for: milestone)
+                case .subtask(let subtask):
+                    services.projectService?.updateReminder(reminder, for: subtask)
+                }
+            }
+        }
     }
 
     private var projectHeader: some View {
@@ -108,10 +151,12 @@ struct IOSPersistentProjectDetailView: View {
                 .foregroundStyle(IOSPrototypeProgressStyle.percentColor)
                 .monospacedDigit()
             Spacer()
-            if let reminderDate = project.reminder?.displayFireDate {
-                Label(reminderDate.formatted(date: .numeric, time: .shortened), systemImage: "alarm.fill")
-                    .font(.caption)
-                    .foregroundStyle(IOSPrototypeReminderStyle.color(for: reminderDate))
+            if let reminder = project.reminder {
+                IOSPersistentReminderSummary(
+                    reminder: reminder,
+                    dateFormatPattern: savedDateFormat,
+                    language: effectiveLanguage
+                )
             }
         }
         .padding(.vertical, 4)
@@ -139,11 +184,13 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     private func milestoneRow(_ milestone: Milestone) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
             milestoneCompletionControl(milestone)
             milestoneTitleControl(milestone)
 
-            reminderIcon(milestone.reminder)
+            reminderControl(milestone.reminder) {
+                reminderEditorTarget = .milestone(milestone)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
@@ -178,11 +225,13 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     private func subtaskRow(_ subtask: SubTask, milestone: Milestone) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
             subtaskCompletionControl(subtask)
             subtaskTitleControl(subtask, milestone: milestone)
 
-            reminderIcon(subtask.reminder)
+            reminderControl(subtask.reminder) {
+                reminderEditorTarget = .subtask(subtask)
+            }
         }
         .padding(.leading, 46)
         .padding(.trailing, 14)
@@ -215,7 +264,7 @@ struct IOSPersistentProjectDetailView: View {
 
     private func memoCard(_ memo: Memo) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(memo.createdAt.formatted(date: .numeric, time: .shortened))
+            Text(AppDateFormatter.string(from: memo.createdAt, pattern: savedDateFormat))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(memo.content)
@@ -258,10 +307,13 @@ struct IOSPersistentProjectDetailView: View {
                 Text(title)
                     .font(.subheadline)
                     .foregroundStyle(.primary)
-                if let reminderDate = reminder?.displayFireDate {
-                    Text(reminderDate.formatted(date: .numeric, time: .shortened))
+                if let reminder {
+                    Text(reminder.displaySummary(
+                        dateFormatPattern: savedDateFormat,
+                        language: effectiveLanguage
+                    ))
                         .font(.caption2)
-                        .foregroundStyle(IOSPrototypeReminderStyle.color(for: reminderDate))
+                        .foregroundStyle(reminderSummaryColor(for: reminder))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -340,13 +392,23 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func reminderIcon(_ reminder: Reminder?) -> some View {
-        if let reminderDate = reminder?.displayFireDate {
-            Image(systemName: "alarm.fill")
-                .foregroundStyle(IOSPrototypeReminderStyle.color(for: reminderDate))
+    private func reminderControl(
+        _ reminder: Reminder?,
+        onEdit: @escaping () -> Void
+    ) -> some View {
+        let icon = reminder == nil ? "alarm" : "alarm.fill"
+        let color = reminder?.displayFireDate
+            .map { AnyShapeStyle(IOSPrototypeReminderStyle.color(for: $0)) }
+            ?? AnyShapeStyle(.tertiary)
+        if project.isArchived {
+            Image(systemName: icon)
+                .foregroundStyle(color)
         } else {
-            Image(systemName: "alarm")
-                .foregroundStyle(.tertiary)
+            Button(action: onEdit) {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -409,6 +471,18 @@ struct IOSPersistentProjectDetailView: View {
         }
     }
 
+    private var savedDateFormat: String? {
+        settingsRecords.first?.dateFormat
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
+    private func reminderSummaryColor(for reminder: Reminder) -> Color {
+        reminder.displayFireDate.map { IOSPrototypeReminderStyle.color(for: $0) } ?? .gray
+    }
+
     private var accentColor: Color {
         project.progress >= 1 ? ViabarColor.success : Color(hex: project.accentColor)
     }
@@ -419,9 +493,7 @@ struct IOSPersistentProjectDetailView: View {
             projectService.unarchiveProject(project)
             return
         }
-        let folder = projectService.fetchRootFolders().first
-            ?? projectService.createArchiveFolder(name: "默认归档")
-        projectService.archiveProject(project, to: folder)
+        isArchiveFolderPickerPresented = true
     }
 
     private func beginEditing(_ milestone: Milestone) {
