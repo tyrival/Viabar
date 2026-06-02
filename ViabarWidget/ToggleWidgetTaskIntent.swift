@@ -4,7 +4,6 @@ import WidgetKit
 
 struct ToggleWidgetTaskIntent: AppIntent {
     static var title: LocalizedStringResource = "完成任务"
-    static var supportedModes: IntentModes = .background
 
     @Parameter(title: "任务类型")
     var kind: String

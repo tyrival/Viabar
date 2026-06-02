@@ -1,4 +1,8 @@
+#if os(macOS)
 import AppKit
+#elseif os(iOS)
+import UIKit
+#endif
 import Observation
 import SwiftData
 
@@ -170,8 +174,13 @@ final class TrashService {
     }
 
     func copyToPasteboard(_ item: TrashItem) throws {
+        let text = try item.copyText()
+#if os(macOS)
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(try item.copyText(), forType: .string)
+        NSPasteboard.general.setString(text, forType: .string)
+#elseif os(iOS)
+        UIPasteboard.general.string = text
+#endif
     }
 
     func cleanupExpired(

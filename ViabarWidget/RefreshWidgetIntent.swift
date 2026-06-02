@@ -3,7 +3,6 @@ import WidgetKit
 
 struct RefreshWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "刷新任务列表"
-    static var supportedModes: IntentModes = .background
 
     func perform() async throws -> some IntentResult {
         SharedModelContainer.widgetKinds.forEach {

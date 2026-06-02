@@ -162,7 +162,7 @@ private struct SettingsDetailView: View {
                 SettingsRow("图标") {
                     Picker("图标", selection: menuBarIconBinding) {
                         ForEach(MenuBarIcon.allCases) { icon in
-                            Image(systemName: icon.rawValue)
+                            MenuBarIconImage(icon: icon)
                                 .font(.system(size: 16))
                                 .accessibilityLabel(Text(icon.rawValue))
                                 .tag(icon)
@@ -589,6 +589,20 @@ private struct SettingsDetailView: View {
 
     private var versionText: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "--"
+    }
+}
+
+private struct MenuBarIconImage: View {
+    let icon: MenuBarIcon
+
+    @ViewBuilder
+    var body: some View {
+        if let systemImageName = icon.systemImageName {
+            Image(systemName: systemImageName)
+        } else if let assetName = icon.assetName {
+            Image(assetName)
+                .renderingMode(.template)
+        }
     }
 }
 

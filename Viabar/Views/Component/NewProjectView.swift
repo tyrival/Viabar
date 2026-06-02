@@ -471,64 +471,6 @@ struct CustomColorCircle: View {
     }
 }
 
-// MARK: - SF Symbol List (100)
-
-let commonSymbols: [String] = [
-    // 通用
-    "bookmark.fill", "circle.dashed", "circle.fill", "checkmark.circle.fill", "xmark.circle.fill",
-    "star.fill", "star.leadinghalf.filled", "heart.fill", "heart.circle.fill",
-    "flame.fill", "bolt.fill", "bolt.circle.fill", "shield.fill",
-    // 标记
-    "flag.fill", "flag.checkered", "tag.fill", "pin.fill",
-    "mappin.circle.fill", "location.fill", "paperclip",
-    // 文件/文档
-    "doc.fill", "doc.text.fill", "folder.fill", "tray.full.fill",
-    "archivebox.fill", "list.bullet.clipboard.fill", "chart.bar.fill",
-    "chart.pie.fill", "tablecells.fill",
-    // 工具/开发
-    "hammer.fill", "wrench.fill", "gearshape.fill", "gearshape.2.fill",
-    "pencil.tip", "pencil.circle.fill", "keyboard.fill", "printer.fill",
-    "scanner.fill", "display", "laptopcomputer", "keyboard",
-    // 物体
-    "cube.fill", "puzzlepiece.fill", "lightbulb.fill", "sparkles",
-    "crown.fill", "rosette", "medal.fill", "graduationcap.fill",
-    "building.columns.fill", "building.2.fill", "house.fill", "storefront.fill",
-    // 自然/天气
-    "leaf.fill", "camera.macro", "tree.fill", "sun.max.fill",
-    "moon.fill", "moon.stars.fill", "cloud.fill", "cloud.rain.fill",
-    "snowflake", "wind", "tornado", "drop.fill",
-    // 交通/出行
-    "car.fill", "bus.fill", "tram.fill", "bicycle",
-    "airplane", "ferry.fill", "fuelpump.fill", "figure.walk",
-    // 沟通/社交
-    "message.fill", "bubble.left.fill", "bubble.right.fill", "envelope.fill",
-    "phone.fill", "phone.down.fill", "video.fill", "mic.fill",
-    "at.circle.fill", "link.circle.fill", "person.fill", "person.2.fill",
-    "person.3.fill", "figure.mind.and.body",
-    // 媒体/娱乐
-    "play.fill", "pause.fill", "stop.fill", "backward.fill",
-    "forward.fill", "shuffle", "repeat", "music.note",
-    "music.mic", "guitars.fill", "tv.fill", "film.fill",
-    "gamecontroller.fill", "paintpalette.fill", "camera.fill", "photo.fill",
-    // 购物/金融
-    "cart.fill", "basket.fill", "creditcard.fill", "dollarsign.circle.fill",
-    "yensign.circle.fill", "eurosign.circle.fill", "sterlingsign.circle.fill",
-    "gift.fill", "bag.fill",
-    // 健康/医疗
-    "heart.text.square.fill", "cross.case.fill", "pills.fill", "bandage.fill",
-    "stethoscope", "syringe.fill", "ear.fill", "eye.fill", "brain.head.profile",
-    // 时间/日历
-    "clock.fill", "alarm.fill", "stopwatch", "timer",
-    "calendar", "calendar.badge.clock", "hourglass.bottomhalf.filled",
-    // 其他常用
-    "globe", "network", "wifi", "antenna.radiowaves.left.and.right",
-    "bell.fill", "ticket.fill", "key.fill",
-    "lock.fill", "lock.open.fill", "hand.thumbsup.fill", "hand.thumbsdown.fill",
-    "eye.slash.fill", "hand.raised.fill", "exclamationmark.triangle.fill",
-    "info.circle.fill", "questionmark.circle.fill", "plus.circle.fill",
-    "minus.circle.fill", "arrow.up.circle.fill", "arrow.down.circle.fill",
-]
-
 // MARK: - Preview
 
 #Preview {

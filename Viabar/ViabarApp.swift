@@ -24,6 +24,10 @@ struct ViabarApp: App {
         }
 
         let settings = AppSettingsStore.ensureDefaultSettings(in: sharedModelContainer.mainContext)
+        AppSettingsStore.adoptViabarMenuBarIconDefaultIfNeeded(
+            settings,
+            in: sharedModelContainer.mainContext
+        )
 
         // 初始化服务容器并注册核心服务
         let container = ServiceContainer()

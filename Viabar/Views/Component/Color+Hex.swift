@@ -1,5 +1,10 @@
-import AppKit
 import SwiftUI
+
+#if os(macOS)
+import AppKit
+#elseif os(iOS)
+import UIKit
+#endif
 
 extension Color {
     /// 从十六进制字符串创建 Color。支持 `"#FF6B6B"` / `"FF6B6B"` / `"#FFF"` 格式。
@@ -41,6 +46,7 @@ extension Color {
 
     /// 返回适合存储的 sRGB 十六进制字符串，不包含透明通道。
     var hexRGB: String? {
+#if os(macOS)
         guard let rgbColor = NSColor(self).usingColorSpace(.sRGB) else { return nil }
 
         return String(
@@ -49,5 +55,20 @@ extension Color {
             Int((rgbColor.greenComponent * 255).rounded()),
             Int((rgbColor.blueComponent * 255).rounded())
         )
+#else
+        let color = UIColor(self)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return nil }
+
+        return String(
+            format: "#%02X%02X%02X",
+            Int((red * 255).rounded()),
+            Int((green * 255).rounded()),
+            Int((blue * 255).rounded())
+        )
+#endif
     }
 }

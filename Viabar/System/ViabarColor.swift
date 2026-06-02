@@ -1,5 +1,10 @@
-import AppKit
 import SwiftUI
+
+#if os(macOS)
+import AppKit
+#elseif os(iOS)
+import UIKit
+#endif
 
 /// 品牌色板 —— 统一维护，全局引用
 enum ViabarColor {
@@ -19,6 +24,7 @@ enum ViabarColor {
     static let primaryGhost = Color(hex: "#F3FDFF")
 
     /// 主面板背景色；浅色维持系统窗口底色，深色使用自定义面板色。
+#if os(macOS)
     static let mainPanelBackground = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(calibratedRed: 0.10, green: 0.14, blue: 0.20, alpha: 0.95)
@@ -38,6 +44,11 @@ enum ViabarColor {
             ? NSColor(calibratedRed: 11 / 255, green: 24 / 255, blue: 44 / 255, alpha: 1)
             : NSColor.controlBackgroundColor
     })
+#else
+    static let mainPanelBackground = Color(uiColor: .systemBackground)
+    static let mainPanelMemoBackground = Color(uiColor: .secondarySystemBackground)
+    static let panelInputBackground = Color(uiColor: .tertiarySystemBackground)
+#endif
 
     // MARK: 状态色
 
@@ -68,6 +79,51 @@ extension ViabarColor {
         ("#7678ed", "紫"),
     ]
 }
+
+// MARK: - Project SF Symbol Candidates
+
+let commonSymbols: [String] = [
+    "bookmark.fill", "circle.dashed", "circle.fill", "checkmark.circle.fill", "xmark.circle.fill",
+    "star.fill", "star.leadinghalf.filled", "heart.fill", "heart.circle.fill",
+    "flame.fill", "bolt.fill", "bolt.circle.fill", "shield.fill",
+    "flag.fill", "flag.checkered", "tag.fill", "pin.fill",
+    "mappin.circle.fill", "location.fill", "paperclip",
+    "doc.fill", "doc.text.fill", "folder.fill", "tray.full.fill",
+    "archivebox.fill", "list.bullet.clipboard.fill", "chart.bar.fill",
+    "chart.pie.fill", "tablecells.fill",
+    "hammer.fill", "wrench.fill", "gearshape.fill", "gearshape.2.fill",
+    "pencil.tip", "pencil.circle.fill", "keyboard.fill", "printer.fill",
+    "scanner.fill", "display", "laptopcomputer", "keyboard",
+    "cube.fill", "puzzlepiece.fill", "lightbulb.fill", "sparkles",
+    "crown.fill", "rosette", "medal.fill", "graduationcap.fill",
+    "building.columns.fill", "building.2.fill", "house.fill", "storefront.fill",
+    "leaf.fill", "camera.macro", "tree.fill", "sun.max.fill",
+    "moon.fill", "moon.stars.fill", "cloud.fill", "cloud.rain.fill",
+    "snowflake", "wind", "tornado", "drop.fill",
+    "car.fill", "bus.fill", "tram.fill", "bicycle",
+    "airplane", "ferry.fill", "fuelpump.fill", "figure.walk",
+    "message.fill", "bubble.left.fill", "bubble.right.fill", "envelope.fill",
+    "phone.fill", "phone.down.fill", "video.fill", "mic.fill",
+    "at.circle.fill", "link.circle.fill", "person.fill", "person.2.fill",
+    "person.3.fill", "figure.mind.and.body",
+    "play.fill", "pause.fill", "stop.fill", "backward.fill",
+    "forward.fill", "shuffle", "repeat", "music.note",
+    "music.mic", "guitars.fill", "tv.fill", "film.fill",
+    "gamecontroller.fill", "paintpalette.fill", "camera.fill", "photo.fill",
+    "cart.fill", "basket.fill", "creditcard.fill", "dollarsign.circle.fill",
+    "yensign.circle.fill", "eurosign.circle.fill", "sterlingsign.circle.fill",
+    "gift.fill", "bag.fill",
+    "heart.text.square.fill", "cross.case.fill", "pills.fill", "bandage.fill",
+    "stethoscope", "syringe.fill", "ear.fill", "eye.fill", "brain.head.profile",
+    "clock.fill", "alarm.fill", "stopwatch", "timer",
+    "calendar", "calendar.badge.clock", "hourglass.bottomhalf.filled",
+    "globe", "network", "wifi", "antenna.radiowaves.left.and.right",
+    "bell.fill", "ticket.fill", "key.fill",
+    "lock.fill", "lock.open.fill", "hand.thumbsup.fill", "hand.thumbsdown.fill",
+    "eye.slash.fill", "hand.raised.fill", "exclamationmark.triangle.fill",
+    "info.circle.fill", "questionmark.circle.fill", "plus.circle.fill",
+    "minus.circle.fill", "arrow.up.circle.fill", "arrow.down.circle.fill",
+]
 
 // MARK: - Hex String Convenience
 

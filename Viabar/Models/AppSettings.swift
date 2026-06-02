@@ -131,6 +131,7 @@ enum WeekStartDaySettingsStore {
 }
 
 enum MenuBarIcon: String, CaseIterable, Identifiable {
+    case viabar = "MenuBarViabar"
     case bookmark
     case bookmarkFill = "bookmark.fill"
     case bookmarkCircle = "bookmark.circle"
@@ -147,7 +148,15 @@ enum MenuBarIcon: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static func resolve(_ storedValue: String?) -> MenuBarIcon {
-        MenuBarIcon(rawValue: storedValue ?? "") ?? .bookmarkFill
+        MenuBarIcon(rawValue: storedValue ?? "") ?? .viabar
+    }
+
+    var systemImageName: String? {
+        self == .viabar ? nil : rawValue
+    }
+
+    var assetName: String? {
+        self == .viabar ? rawValue : nil
     }
 }
 
@@ -306,6 +315,8 @@ final class AppSettings {
 
 @MainActor
 enum AppSettingsStore {
+    private static let didAdoptViabarMenuBarIconKey = "didAdoptViabarMenuBarIconDefault"
+
     @discardableResult
     static func ensureDefaultSettings(
         in context: ModelContext,
@@ -320,10 +331,22 @@ enum AppSettingsStore {
             return settings
         }
 
-        let settings = AppSettings()
+        let settings = AppSettings(menuBarIcon: MenuBarIcon.viabar.rawValue)
         context.insert(settings)
         try? context.save()
         return settings
+    }
+
+    static func adoptViabarMenuBarIconDefaultIfNeeded(
+        _ settings: AppSettings,
+        in context: ModelContext,
+        defaults: UserDefaults = .standard
+    ) {
+        guard !defaults.bool(forKey: didAdoptViabarMenuBarIconKey) else { return }
+        defaults.set(true, forKey: didAdoptViabarMenuBarIconKey)
+        guard settings.menuBarIcon == MenuBarIcon.bookmarkFill.rawValue else { return }
+        settings.menuBarIcon = MenuBarIcon.viabar.rawValue
+        try? context.save()
     }
 }
 

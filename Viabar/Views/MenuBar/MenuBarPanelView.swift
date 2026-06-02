@@ -547,8 +547,14 @@ private final class MenuBarPanelProbeView: NSView {
 struct MenuBarStatusLabelView: View {
     let icon: MenuBarIcon
 
+    @ViewBuilder
     var body: some View {
-        Image(systemName: icon.rawValue)
+        if let systemImageName = icon.systemImageName {
+            Image(systemName: systemImageName)
+        } else if let assetName = icon.assetName {
+            Image(assetName)
+                .renderingMode(.template)
+        }
     }
 }
 

@@ -82,6 +82,15 @@ enum SharedModelContainer {
         return container
     }
 
+    static func makeIOSAppContainer(fileManager: FileManager = .default) throws -> ModelContainer {
+        let shared = try sharedStoreURL(fileManager: fileManager)
+        try fileManager.createDirectory(
+            at: shared.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        return try makeContainer(storeURL: shared)
+    }
+
     static func makeWidgetContainer(fileManager: FileManager = .default) throws -> ModelContainer {
         let shared = try sharedStoreURL(fileManager: fileManager)
         guard fileManager.fileExists(atPath: shared.path) else {
