@@ -1206,10 +1206,6 @@ private struct ReminderStatusView: View {
             return AnyShapeStyle(.tertiary)
         }
 
-        guard !isCompleted else {
-            return AnyShapeStyle(.secondary)
-        }
-
         return AnyShapeStyle(.orange)
     }
 

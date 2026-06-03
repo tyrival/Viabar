@@ -26,6 +26,7 @@ struct IOSPersistentSettingsView: View {
                 }
             }
         }
+        .preferredColorScheme(preferredColorScheme)
     }
 
     private func settingsList(_ settings: AppSettings) -> some View {
@@ -140,5 +141,13 @@ struct IOSPersistentSettingsView: View {
 
     private var versionText: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "--"
+    }
+
+    private var preferredColorScheme: ColorScheme? {
+        switch AppTheme(rawValue: settingsRecords.first?.theme ?? "") ?? .system {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
     }
 }

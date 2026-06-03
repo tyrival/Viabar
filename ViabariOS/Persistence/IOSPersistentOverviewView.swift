@@ -4,6 +4,7 @@ import SwiftUI
 struct IOSPersistentOverviewView: View {
     @Environment(ServiceContainer.self) private var services
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
+    @Query(sort: \NotificationScheduleEntry.fireDate) private var notificationScheduleEntries: [NotificationScheduleEntry]
     @Bindable var coordinator: IOSPersistenceCoordinator
     let projects: [Project]
     let archiveFolders: [ArchiveFolder]
@@ -16,6 +17,10 @@ struct IOSPersistentOverviewView: View {
     @State private var isProjectCreationPresented = false
     @State private var archiveRootFolderCreationTrigger: UUID?
     @State private var isArchiveComposerPresented = false
+    @State private var weekTodoOffset: Int = 0
+    @State private var weekDoneOffset: Int = 0
+    @State private var monthDoneOffset: Int = -1
+    @State private var copiedReportKind: OverviewReportSectionKind?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -30,7 +35,7 @@ struct IOSPersistentOverviewView: View {
                 case .overview:
                     overview
                 case .reports:
-                    IOSPlaceholderView(symbol: "checkmark.seal.fill", title: "报告")
+                    reports
                 case .archive:
                     IOSPersistentArchiveView(
                         coordinator: coordinator,
@@ -172,6 +177,38 @@ struct IOSPersistentOverviewView: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
+    private var reports: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    Text("报告")
+                        .font(.title3.weight(.bold))
+                    Spacer()
+                }
+                .padding(.top, 14)
+                .padding(.bottom, 4)
+
+                ForEach(reportSections) { section in
+                    IOSPersistentReportSectionView(
+                        section: section,
+                        weekTodoOffset: $weekTodoOffset,
+                        weekDoneOffset: $weekDoneOffset,
+                        monthDoneOffset: $monthDoneOffset,
+                        showsCopiedTag: copiedReportKind == section.kind,
+                        onCopy: { copy(section) },
+                        onNavigate: navigateFromReport(project:destination:)
+                    )
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 112)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
     private func projectCardLink(_ project: Project) -> some View {
         Button {
             coordinator.selectProject(project)
@@ -196,6 +233,18 @@ struct IOSPersistentOverviewView: View {
 
     private var effectiveLanguage: EffectiveAppLanguage {
         AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
+    private var reportSections: [OverviewReportSection] {
+        OverviewReportBuilder.makeReport(
+            projects: projects,
+            scheduleEntries: notificationScheduleEntries,
+            weekTodoOffset: weekTodoOffset,
+            weekDoneOffset: weekDoneOffset,
+            monthDoneOffset: monthDoneOffset,
+            now: Date(),
+            weekStartDay: WeekStartDaySettingsStore.value()
+        )
     }
 
     private var favoriteProjects: [Project] {
@@ -223,6 +272,271 @@ struct IOSPersistentOverviewView: View {
             get: { projectAwaitingFinalDeletionID != nil },
             set: { if !$0 { projectAwaitingFinalDeletionID = nil } }
         )
+    }
+
+    private func copy(_ section: OverviewReportSection) {
+        guard !section.copyText.isEmpty else { return }
+        copyIOSPrototypeText(section.copyText)
+        withAnimation(.easeInOut(duration: 0.12)) {
+            copiedReportKind = section.kind
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                if copiedReportKind == section.kind {
+                    copiedReportKind = nil
+                }
+            }
+        }
+    }
+
+    private func navigateFromReport(project: Project, destination: GlobalSearchDestination) {
+        if project.isArchived {
+            coordinator.revealArchiveAncestors(for: project)
+        }
+        coordinator.navigate(to: GlobalSearchNavigationRequest(
+            projectID: project.projectId,
+            destination: destination
+        ))
+    }
+}
+
+private struct IOSPersistentReportSectionView: View {
+    let section: OverviewReportSection
+    @Binding var weekTodoOffset: Int
+    @Binding var weekDoneOffset: Int
+    @Binding var monthDoneOffset: Int
+    let showsCopiedTag: Bool
+    let onCopy: () -> Void
+    let onNavigate: (Project, GlobalSearchDestination) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                periodPicker
+
+                Spacer()
+
+                if showsCopiedTag {
+                    Text("已复制")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(.green.opacity(0.14), in: Capsule())
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+
+                Button(action: onCopy) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.title3)
+                        .foregroundStyle(section.cards.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
+                        .frame(width: 38, height: 38)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(section.cards.isEmpty)
+            }
+
+            if section.cards.isEmpty {
+                Text(emptyMessage)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
+            } else {
+                ForEach(section.cards) { card in
+                    IOSPersistentReportCardView(
+                        card: card,
+                        isTodo: section.kind == .weekTodo,
+                        onNavigate: onNavigate
+                    )
+                }
+            }
+        }
+    }
+
+    private var emptyMessage: LocalizedStringKey {
+        switch section.kind {
+        case .weekTodo: return "暂无待办提醒"
+        case .weekDone, .monthDone: return "暂无完成内容"
+        }
+    }
+
+    @ViewBuilder
+    private var periodPicker: some View {
+        switch section.kind {
+        case .weekTodo:
+            Picker("", selection: $weekTodoOffset) {
+                Text("本周待办").tag(0)
+                Text("下周待办").tag(1)
+            }
+            .iosReportCapsulePicker()
+
+        case .weekDone:
+            Picker("", selection: $weekDoneOffset) {
+                Text("本周完成").tag(0)
+                Text("上周完成").tag(-1)
+            }
+            .iosReportCapsulePicker()
+
+        case .monthDone:
+            Picker("", selection: $monthDoneOffset) {
+                Text("本月完成").tag(0)
+                Text("上月完成").tag(-1)
+            }
+            .iosReportCapsulePicker()
+        }
+    }
+}
+
+private struct IOSReportCapsulePickerStyle: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .font(.headline.weight(.semibold))
+            .tint(.secondary)
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .background(
+                IOSPrototypeSurfaceStyle.cardBackground(for: colorScheme),
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(Color(uiColor: .separator).opacity(colorScheme == .dark ? 0.58 : 0.22), lineWidth: 1)
+            }
+    }
+}
+
+private extension View {
+    func iosReportCapsulePicker() -> some View {
+        modifier(IOSReportCapsulePickerStyle())
+    }
+}
+
+private struct IOSPersistentReportCardView: View {
+    let card: OverviewReportProjectCard
+    let isTodo: Bool
+    let onNavigate: (Project, GlobalSearchDestination) -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .center, spacing: 7) {
+                Image(systemName: card.project.sfSymbolName)
+                    .foregroundStyle(Color(hex: card.project.accentColor))
+
+                Text(card.project.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(colorScheme == .dark ? AnyShapeStyle(Color.primary) : AnyShapeStyle(ViabarColor.primary))
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 8)
+
+                if isTodo, let projectReminder = card.projectReminderDate {
+                    reminderLabel(projectReminder, fontSize: 10, iconSize: 9)
+                }
+
+                if card.project.isFavorite, !card.project.isArchived {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(ViabarColor.warning)
+                }
+
+                if card.project.isArchived {
+                    Text("已归档")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onNavigate(card.project, .project)
+            }
+
+            ForEach(card.groups) { group in
+                VStack(alignment: .leading, spacing: 3) {
+                    taskRow(title: group.title, reminderDate: group.reminderDate, isPrimary: true)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onNavigate(card.project, .milestone(group.milestoneID))
+                        }
+
+                    ForEach(group.subtasks) { subtask in
+                        taskRow(title: subtask.title, reminderDate: subtask.reminderDate, isPrimary: false)
+                            .padding(.leading, 12)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                onNavigate(card.project, .subTask(milestoneID: group.milestoneID, subTaskID: subtask.taskID))
+                            }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(reportCardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(uiColor: .separator).opacity(colorScheme == .dark ? 0.36 : 0.1), lineWidth: 1)
+        }
+    }
+
+    private var reportCardBackground: Color {
+        colorScheme == .dark
+            ? Color(uiColor: .tertiarySystemGroupedBackground).opacity(0.7)
+            : .white
+    }
+
+    private func taskRow(title: String, reminderDate: Date?, isPrimary: Bool) -> some View {
+        HStack(alignment: .top, spacing: 5) {
+            Circle()
+                .fill(Color.gray.opacity(0.35))
+                .frame(width: 5, height: 5)
+                .padding(.top, 7)
+
+            Group {
+                if let reminderDate {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        reminderLabel(reminderDate, fontSize: 13, iconSize: 8)
+                        Text(title)
+                            .font(.callout)
+                            .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    }
+                } else {
+                    Text(title)
+                        .font(.callout)
+                        .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                }
+            }
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func reminderLabel(_ date: Date, fontSize: CGFloat, iconSize: CGFloat) -> some View {
+        HStack(alignment: .center, spacing: 3) {
+            Image(systemName: "alarm.fill")
+                .font(.system(size: iconSize))
+            Text(formatReminderDate(date))
+                .font(.system(size: fontSize))
+        }
+        .foregroundStyle(IOSPrototypeReminderStyle.color(for: date))
+        .fixedSize()
+    }
+
+    private func formatReminderDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        if Calendar.current.isDateInToday(date) {
+            formatter.dateFormat = "HH:mm"
+        } else {
+            formatter.dateFormat = "MM-dd HH:mm"
+        }
+        return formatter.string(from: date)
     }
 }
 

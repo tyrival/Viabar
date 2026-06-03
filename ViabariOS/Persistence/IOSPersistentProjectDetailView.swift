@@ -184,23 +184,23 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     private func milestoneRow(_ milestone: Milestone) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            milestoneCompletionControl(milestone)
-            milestoneTitleControl(milestone)
+        IOSPersistentHighlightedRow(
+            consume: coordinator.consumeHighlight,
+            triggerID: highlightID(for: milestone)
+        ) { isHighlighted in
+            HStack(alignment: .center, spacing: 10) {
+                milestoneCompletionControl(milestone, isHighlighted: isHighlighted)
+                milestoneTitleControl(milestone, isHighlighted: isHighlighted)
 
-            reminderControl(milestone.reminder) {
-                reminderEditorTarget = .milestone(milestone)
+                reminderControl(milestone.reminder, isHighlighted: isHighlighted) {
+                    reminderEditorTarget = .milestone(milestone)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
         .contentShape(Rectangle())
-        .background {
-            IOSPersistentRowHighlight(
-                consume: coordinator.consumeHighlight,
-                triggerID: highlightID(for: milestone)
-            )
-        }
         .overlay(alignment: .bottom) {
             Divider().padding(.leading, 48)
         }
@@ -225,24 +225,24 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     private func subtaskRow(_ subtask: SubTask, milestone: Milestone) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            subtaskCompletionControl(subtask)
-            subtaskTitleControl(subtask, milestone: milestone)
+        IOSPersistentHighlightedRow(
+            consume: coordinator.consumeHighlight,
+            triggerID: highlightID(for: subtask)
+        ) { isHighlighted in
+            HStack(alignment: .center, spacing: 10) {
+                subtaskCompletionControl(subtask, isHighlighted: isHighlighted)
+                subtaskTitleControl(subtask, milestone: milestone, isHighlighted: isHighlighted)
 
-            reminderControl(subtask.reminder) {
-                reminderEditorTarget = .subtask(subtask)
+                reminderControl(subtask.reminder, isHighlighted: isHighlighted) {
+                    reminderEditorTarget = .subtask(subtask)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 46)
+            .padding(.trailing, 14)
+            .padding(.vertical, 11)
         }
-        .padding(.leading, 46)
-        .padding(.trailing, 14)
-        .padding(.vertical, 11)
         .contentShape(Rectangle())
-        .background {
-            IOSPersistentRowHighlight(
-                consume: coordinator.consumeHighlight,
-                triggerID: highlightID(for: subtask)
-            )
-        }
         .overlay(alignment: .bottom) {
             Divider().padding(.leading, 76)
         }
@@ -301,19 +301,19 @@ struct IOSPersistentProjectDetailView: View {
         .id(memo.memoId)
     }
 
-    private func titleContent(_ title: String, reminder: Reminder?) -> some View {
+    private func titleContent(_ title: String, reminder: Reminder?, isHighlighted: Bool) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(isHighlighted ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
                 if let reminder {
                     Text(reminder.displaySummary(
                         dateFormatPattern: savedDateFormat,
                         language: effectiveLanguage
                     ))
                         .font(.caption2)
-                        .foregroundStyle(reminderSummaryColor(for: reminder))
+                        .foregroundStyle(isHighlighted ? .white : reminderSummaryColor(for: reminder))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -324,9 +324,9 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func milestoneCompletionControl(_ milestone: Milestone) -> some View {
+    private func milestoneCompletionControl(_ milestone: Milestone, isHighlighted: Bool) -> some View {
         let icon = milestone.score >= 1 ? "checkmark.circle.fill" : "circle"
-        let color = milestone.score >= 1 ? Color.accentColor : Color.secondary
+        let color = isHighlighted ? Color.white : milestone.score >= 1 ? Color.accentColor : Color.secondary
         if project.isArchived {
             Image(systemName: icon)
                 .font(.title3)
@@ -344,23 +344,23 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func milestoneTitleControl(_ milestone: Milestone) -> some View {
+    private func milestoneTitleControl(_ milestone: Milestone, isHighlighted: Bool) -> some View {
         if project.isArchived {
-            titleContent(milestone.title, reminder: milestone.reminder)
+            titleContent(milestone.title, reminder: milestone.reminder, isHighlighted: isHighlighted)
         } else {
             Button {
                 beginEditing(milestone)
             } label: {
-                titleContent(milestone.title, reminder: milestone.reminder)
+                titleContent(milestone.title, reminder: milestone.reminder, isHighlighted: isHighlighted)
             }
             .buttonStyle(.plain)
         }
     }
 
     @ViewBuilder
-    private func subtaskCompletionControl(_ subtask: SubTask) -> some View {
+    private func subtaskCompletionControl(_ subtask: SubTask, isHighlighted: Bool) -> some View {
         let icon = subtask.isCompleted ? "checkmark.circle.fill" : "circle"
-        let color = subtask.isCompleted ? Color.accentColor : Color.secondary
+        let color = isHighlighted ? Color.white : subtask.isCompleted ? Color.accentColor : Color.secondary
         if project.isArchived {
             Image(systemName: icon)
                 .font(.title3)
@@ -378,14 +378,14 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     @ViewBuilder
-    private func subtaskTitleControl(_ subtask: SubTask, milestone: Milestone) -> some View {
+    private func subtaskTitleControl(_ subtask: SubTask, milestone: Milestone, isHighlighted: Bool) -> some View {
         if project.isArchived {
-            titleContent(subtask.title, reminder: subtask.reminder)
+            titleContent(subtask.title, reminder: subtask.reminder, isHighlighted: isHighlighted)
         } else {
             Button {
                 beginEditing(subtask, milestone: milestone)
             } label: {
-                titleContent(subtask.title, reminder: subtask.reminder)
+                titleContent(subtask.title, reminder: subtask.reminder, isHighlighted: isHighlighted)
             }
             .buttonStyle(.plain)
         }
@@ -394,12 +394,11 @@ struct IOSPersistentProjectDetailView: View {
     @ViewBuilder
     private func reminderControl(
         _ reminder: Reminder?,
+        isHighlighted: Bool,
         onEdit: @escaping () -> Void
     ) -> some View {
         let icon = reminder == nil ? "alarm" : "alarm.fill"
-        let color = reminder?.displayFireDate
-            .map { AnyShapeStyle(IOSPrototypeReminderStyle.color(for: $0)) }
-            ?? AnyShapeStyle(.tertiary)
+        let color = reminderControlColor(reminder, isHighlighted: isHighlighted)
         if project.isArchived {
             Image(systemName: icon)
                 .foregroundStyle(color)
@@ -410,6 +409,15 @@ struct IOSPersistentProjectDetailView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private func reminderControlColor(_ reminder: Reminder?, isHighlighted: Bool) -> AnyShapeStyle {
+        if isHighlighted {
+            return AnyShapeStyle(.white)
+        }
+        return reminder?.displayFireDate
+            .map { AnyShapeStyle(IOSPrototypeReminderStyle.color(for: $0)) }
+            ?? AnyShapeStyle(.tertiary)
     }
 
     private var detailFooter: some View {
@@ -613,15 +621,19 @@ struct IOSPersistentProjectDetailView: View {
     }
 }
 
-private struct IOSPersistentRowHighlight: View {
+private struct IOSPersistentHighlightedRow<Content: View>: View {
     let consume: (UUID?) -> Bool
     let triggerID: UUID?
+    @ViewBuilder var content: (Bool) -> Content
 
     @State private var isHighlighted = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(isHighlighted ? Color.orange : .clear)
+        content(isHighlighted)
+            .background {
+                RoundedRectangle(cornerRadius: 0, style: .continuous)
+                    .fill(isHighlighted ? Color.orange : .clear)
+            }
             .task(id: triggerID) {
                 guard consume(triggerID) else {
                     isHighlighted = false

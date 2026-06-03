@@ -29,7 +29,7 @@ struct IOSPersistentProjectCreationView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("项目") {
+                Section {
                     HStack {
                         TextField("项目名称", text: $title)
                         Button {
@@ -49,16 +49,10 @@ struct IOSPersistentProjectCreationView: View {
                             }
                         }
                     }
-                }
-
-                if let projectReminder {
-                    Section("通知提醒") {
-                        IOSPersistentReminderSummary(
-                            reminder: projectReminder,
-                            dateFormatPattern: savedDateFormat,
-                            language: effectiveLanguage
-                        )
-                    }
+                } header: {
+                    Text("项目")
+                } footer: {
+                    projectReminderFooter
                 }
 
                 Section("图标与主题色") {
@@ -103,7 +97,7 @@ struct IOSPersistentProjectCreationView: View {
                 symbolName = template.sfSymbolName
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.fraction(0.62), .large])
     }
 
     private var trimmedTitle: String {
@@ -116,6 +110,19 @@ struct IOSPersistentProjectCreationView: View {
 
     private var effectiveLanguage: EffectiveAppLanguage {
         AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
+    @ViewBuilder
+    private var projectReminderFooter: some View {
+        if let projectReminder {
+            IOSPersistentReminderSummary(
+                reminder: projectReminder,
+                dateFormatPattern: savedDateFormat,
+                language: effectiveLanguage
+            )
+            .font(.caption)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
     }
 
     private func commitProject() {

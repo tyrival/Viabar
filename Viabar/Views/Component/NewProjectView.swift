@@ -149,6 +149,25 @@ struct NewProjectView: View {
                     ReminderSettingsPopover(reminder: $projectReminder)
                 }
             }
+            reminderSummaryRow
+        }
+    }
+
+    @ViewBuilder
+    private var reminderSummaryRow: some View {
+        if let projectReminder {
+            HStack(spacing: 6) {
+                Image(systemName: "alarm.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.orange)
+
+                Text(projectReminder.displaySummary(dateFormatPattern: settingsRecords.first?.dateFormat, language: effectiveLanguage))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.leading, 2)
+            .accessibilityLabel(Text("项目提醒"))
         }
     }
 
