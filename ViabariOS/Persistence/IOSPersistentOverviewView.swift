@@ -774,8 +774,8 @@ struct IOSPersistentOverviewProjectCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .contextMenu {
             Button("编辑", systemImage: "pencil", action: onEdit)
-            Button("归档", systemImage: "archivebox", action: onArchive)
             Button(LocalizedStringKey(project.isFavorite ? "取消收藏" : "收藏"), systemImage: project.isFavorite ? "star.slash" : "star", action: onToggleFavorite)
+            Button("归档", systemImage: "archivebox", action: onArchive)
             Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
         }
     }

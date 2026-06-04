@@ -112,7 +112,7 @@ struct IOSPersistentProjectDetailView: View {
                     if !project.isArchived {
                         Button(LocalizedStringKey(project.hideCompleted ? "显示已完成任务" : "隐藏已完成任务"), systemImage: project.hideCompleted ? "eye" : "eye.slash") {
                             project.hideCompleted.toggle()
-                            services.projectService?.updateProject(project)
+                            services.projectService?.updateProjectDisplayPreferences(project)
                         }
                     }
                 } label: {
@@ -228,17 +228,19 @@ struct IOSPersistentProjectDetailView: View {
             Divider().padding(.leading, 48)
         }
         .contextMenu {
-            Button("复制", systemImage: "doc.on.doc") {
-                copyIOSPrototypeText(milestone.title)
-            }
             if !project.isArchived {
+                Button("编辑", systemImage: "pencil") {
+                    beginEditing(milestone)
+                }
                 Button("新增子任务", systemImage: "list.bullet.below.rectangle") {
                     composerText = ""
                     session = .addSubtask(milestoneID: milestone.milestoneId)
                 }
-                Button("编辑", systemImage: "pencil") {
-                    beginEditing(milestone)
-                }
+            }
+            Button("复制", systemImage: "doc.on.doc") {
+                copyIOSPrototypeText(milestone.title)
+            }
+            if !project.isArchived {
                 Button("删除", systemImage: "trash", role: .destructive) {
                     services.projectService?.deleteMilestone(milestone)
                 }
@@ -281,13 +283,15 @@ struct IOSPersistentProjectDetailView: View {
             Divider().padding(.leading, 76)
         }
         .contextMenu {
-            Button("复制", systemImage: "doc.on.doc") {
-                copyIOSPrototypeText(subtask.title)
-            }
             if !project.isArchived {
                 Button("编辑", systemImage: "pencil") {
                     beginEditing(subtask, milestone: milestone)
                 }
+            }
+            Button("复制", systemImage: "doc.on.doc") {
+                copyIOSPrototypeText(subtask.title)
+            }
+            if !project.isArchived {
                 Button("删除", systemImage: "trash", role: .destructive) {
                     services.projectService?.deleteSubTask(subtask)
                 }
@@ -316,13 +320,15 @@ struct IOSPersistentProjectDetailView: View {
                 .frame(width: 320)
         }
         .contextMenu {
-            Button("复制", systemImage: "doc.on.doc") {
-                copyIOSPrototypeText(memo.content)
-            }
             if !project.isArchived {
                 Button("编辑", systemImage: "pencil") {
                     beginEditing(memo)
                 }
+            }
+            Button("复制", systemImage: "doc.on.doc") {
+                copyIOSPrototypeText(memo.content)
+            }
+            if !project.isArchived {
                 Button("删除", systemImage: "trash", role: .destructive) {
                     services.projectService?.deleteMemo(memo)
                 }

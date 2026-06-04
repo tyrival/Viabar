@@ -1497,6 +1497,32 @@ struct NotificationScheduleLifecycleTests {
         #expect(deliveredNotification?.body == "Next: Review")
     }
 
+    @Test func updatingDisplayPreferencesDoesNotProcessOverdueProjectEntries() throws {
+        var deliveredCount = 0
+        let (service, _, context) = try makeServices { _, _ in
+            deliveredCount += 1
+        }
+        let project = service.createProject(title: "Release")
+        _ = service.addMilestone(to: project, title: "Review")
+        let overdueDate = Date().addingTimeInterval(-60)
+        project.reminder = Reminder(type: "single", fireTimestamp: overdueDate)
+        context.insert(NotificationScheduleEntry(
+            ownerId: project.projectId,
+            ownerKind: "project",
+            projectId: project.projectId,
+            projectTitle: project.title,
+            body: "Next: Review",
+            fireDate: overdueDate
+        ))
+        try context.save()
+
+        project.hideCompleted.toggle()
+        service.updateProjectDisplayPreferences(project)
+
+        #expect(deliveredCount == 0)
+        #expect(fetchEntries(in: context).count == 1)
+    }
+
     private func makeServices(
         notificationPoster: @escaping (String, String) -> Void = { _, _ in }
     ) throws -> (ProjectService, NotificationScheduleService, ModelContext) {

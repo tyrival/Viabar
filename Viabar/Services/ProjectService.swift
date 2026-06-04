@@ -28,6 +28,7 @@ protocol ProjectServiceProtocol: AnyObject {
     func createProject(title: String, hideCompleted: Bool, orderIndex: Int, template: ProjectTemplate?) -> Project
     func allProjects() -> [Project]
     func updateProject(_ project: Project)
+    func updateProjectDisplayPreferences(_ project: Project)
     func deleteProject(_ project: Project)
     func toggleFavorite(_ project: Project)
 
@@ -163,6 +164,11 @@ final class ProjectService: ProjectServiceProtocol {
         // keeping this as an explicit entry point for future side-effects (sync, undo, etc.)
         save()
         syncReminderTimeline(for: project)
+    }
+
+    func updateProjectDisplayPreferences(_ project: Project) {
+        // Display-only settings should not rewrite reminder timeline entries.
+        save()
     }
 
     func deleteProject(_ project: Project) {

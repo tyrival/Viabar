@@ -125,7 +125,7 @@ struct MilestoneListView: View {
 
             Toggle(isOn: Binding(
                 get: { project.hideCompleted },
-                set: { project.hideCompleted = $0; projectService?.updateProject(project) }
+                set: { project.hideCompleted = $0; projectService?.updateProjectDisplayPreferences(project) }
             )) {
                 Text("隐藏已完成")
                     .font(.caption)

@@ -503,7 +503,7 @@ struct ContentView: View {
     private func hideCompletedButton(project: Project) -> some View {
         Button {
             project.hideCompleted.toggle()
-            projectService?.updateProject(project)
+            projectService?.updateProjectDisplayPreferences(project)
         } label: {
             Image(systemName: project.hideCompleted ? "eye.slash" : "eye")
                 .font(.system(size: toolbarButtonIconSize, weight: .medium))
