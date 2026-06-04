@@ -107,7 +107,7 @@ struct IOSPersistentTrashView: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("搜索项目、任务、子任务和备忘录", text: $query)
+            TextField("搜索项目、任务和备忘录", text: $query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if !query.isEmpty {
