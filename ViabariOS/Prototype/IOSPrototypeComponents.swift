@@ -47,6 +47,7 @@ enum IOSPrototypeBottomBarMetrics {
     static let iconSize: CGFloat = 16
     static let itemSpacing: CGFloat = 2
     static let capsulePadding: CGFloat = 4
+    static let capsuleContentHeight: CGFloat = controlSize - capsulePadding * 2
 }
 
 enum IOSPrototypeSurfaceStyle {
@@ -75,7 +76,7 @@ enum IOSPrototypeSurfaceStyle {
     static func selectedTabBackground(for colorScheme: ColorScheme) -> Color {
         colorScheme == .dark
             ? .white.opacity(0.16)
-            : .white.opacity(0.58)
+            : .black.opacity(0.07)
     }
 
     static func shadow(for colorScheme: ColorScheme) -> Color {
@@ -337,6 +338,7 @@ struct IOSPrototypeCircularIconButton: View {
 struct IOSPrototypeHomeTabBar: View {
     @Binding var selection: IOSPrototypeHomeTab
     @Environment(\.colorScheme) private var colorScheme
+    @Namespace private var selectedTabNamespace
 
     var body: some View {
         HStack(spacing: IOSPrototypeBottomBarMetrics.itemSpacing) {
@@ -345,14 +347,18 @@ struct IOSPrototypeHomeTabBar: View {
             item(.archive, symbol: "archivebox.fill", label: "归档")
         }
         .frame(maxWidth: .infinity)
+        .frame(height: IOSPrototypeBottomBarMetrics.capsuleContentHeight)
         .padding(IOSPrototypeBottomBarMetrics.capsulePadding)
+        .frame(height: IOSPrototypeBottomBarMetrics.controlSize)
         .iosPrototypeInteractiveCapsuleSurface()
         .shadow(color: IOSPrototypeSurfaceStyle.shadow(for: colorScheme), radius: 10, y: 4)
     }
 
     private func item(_ tab: IOSPrototypeHomeTab, symbol: String, label: LocalizedStringKey) -> some View {
         Button {
-            selection = tab
+            withAnimation(.snappy(duration: 0.24)) {
+                selection = tab
+            }
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: symbol)
@@ -362,8 +368,13 @@ struct IOSPrototypeHomeTabBar: View {
             }
             .foregroundStyle(selection == tab ? Color.accentColor : .primary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(selection == tab ? IOSPrototypeSurfaceStyle.selectedTabBackground(for: colorScheme) : .clear, in: Capsule())
+            .frame(height: IOSPrototypeBottomBarMetrics.capsuleContentHeight)
+            .background {
+                if selection == tab {
+                    IOSPrototypeSelectedTabIndicator(colorScheme: colorScheme)
+                        .matchedGeometryEffect(id: "home-selected-tab", in: selectedTabNamespace)
+                }
+            }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -373,6 +384,7 @@ struct IOSPrototypeHomeTabBar: View {
 struct IOSPrototypeDetailTabBar: View {
     @Binding var selection: IOSPrototypeDetailTab
     @Environment(\.colorScheme) private var colorScheme
+    @Namespace private var selectedTabNamespace
 
     var body: some View {
         HStack(spacing: IOSPrototypeBottomBarMetrics.itemSpacing) {
@@ -380,14 +392,18 @@ struct IOSPrototypeDetailTabBar: View {
             item(.memos, symbol: "scribble.variable", label: "备忘录")
         }
         .frame(maxWidth: .infinity)
+        .frame(height: IOSPrototypeBottomBarMetrics.capsuleContentHeight)
         .padding(IOSPrototypeBottomBarMetrics.capsulePadding)
+        .frame(height: IOSPrototypeBottomBarMetrics.controlSize)
         .iosPrototypeInteractiveCapsuleSurface()
         .shadow(color: IOSPrototypeSurfaceStyle.shadow(for: colorScheme), radius: 10, y: 4)
     }
 
     private func item(_ tab: IOSPrototypeDetailTab, symbol: String, label: LocalizedStringKey) -> some View {
         Button {
-            selection = tab
+            withAnimation(.snappy(duration: 0.24)) {
+                selection = tab
+            }
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: symbol)
@@ -397,11 +413,34 @@ struct IOSPrototypeDetailTabBar: View {
             }
             .foregroundStyle(selection == tab ? Color.accentColor : .primary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(selection == tab ? IOSPrototypeSurfaceStyle.selectedTabBackground(for: colorScheme) : .clear, in: Capsule())
+            .frame(height: IOSPrototypeBottomBarMetrics.capsuleContentHeight)
+            .background {
+                if selection == tab {
+                    IOSPrototypeSelectedTabIndicator(colorScheme: colorScheme)
+                        .matchedGeometryEffect(id: "detail-selected-tab", in: selectedTabNamespace)
+                }
+            }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct IOSPrototypeSelectedTabIndicator: View {
+    let colorScheme: ColorScheme
+
+    var body: some View {
+        let fill = IOSPrototypeSurfaceStyle.selectedTabBackground(for: colorScheme)
+
+        if #available(iOS 26.0, *) {
+            Capsule()
+                .fill(fill)
+                .glassEffect(.regular.tint(fill).interactive(), in: .capsule)
+                .glassEffectTransition(.matchedGeometry)
+        } else {
+            Capsule()
+                .fill(fill)
+        }
     }
 }
 

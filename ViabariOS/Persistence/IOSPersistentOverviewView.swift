@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct IOSPersistentOverviewView: View {
     @Environment(ServiceContainer.self) private var services
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @Query(sort: \NotificationScheduleEntry.fireDate) private var notificationScheduleEntries: [NotificationScheduleEntry]
     @Bindable var coordinator: IOSPersistenceCoordinator
@@ -57,7 +58,8 @@ struct IOSPersistentOverviewView: View {
         }
         .navigationBarBackButtonHidden()
         .sheet(isPresented: $isSettingsPresented) {
-            IOSPersistentSettingsView()
+            IOSPersistentSettingsView(systemColorScheme: colorScheme)
+                .id(colorScheme)
         }
         .sheet(isPresented: $isProjectCreationPresented) {
             IOSPersistentProjectCreationView()

@@ -5,6 +5,11 @@ struct IOSPersistentSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
+    let systemColorScheme: ColorScheme
+
+    init(systemColorScheme: ColorScheme = .light) {
+        self.systemColorScheme = systemColorScheme
+    }
 
     var body: some View {
         NavigationStack {
@@ -145,7 +150,7 @@ struct IOSPersistentSettingsView: View {
 
     private var preferredColorScheme: ColorScheme? {
         switch AppTheme(rawValue: settingsRecords.first?.theme ?? "") ?? .system {
-        case .system: nil
+        case .system: systemColorScheme
         case .light: .light
         case .dark: .dark
         }
