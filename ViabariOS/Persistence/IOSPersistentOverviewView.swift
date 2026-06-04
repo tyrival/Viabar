@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct IOSPersistentOverviewView: View {
     @Environment(ServiceContainer.self) private var services
@@ -21,6 +22,8 @@ struct IOSPersistentOverviewView: View {
     @State private var weekDoneOffset: Int = 0
     @State private var monthDoneOffset: Int = -1
     @State private var copiedReportKind: OverviewReportSectionKind?
+    @State private var draggingProjectID: UUID?
+    @State private var projectDropTarget: IOSProjectDropTarget?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -157,17 +160,17 @@ struct IOSPersistentOverviewView: View {
                 .padding(.bottom, 4)
 
                 if !favoriteProjects.isEmpty {
-                    IOSPrototypeSectionLabel(title: "星标项目")
-                    ForEach(favoriteProjects, id: \.projectId) { project in
-                        projectCardLink(project)
+                    VStack(alignment: .leading, spacing: 0) {
+                        IOSPrototypeSectionLabel(title: "星标项目")
+                        projectList(favoriteProjects)
                     }
                 }
 
                 if !regularProjects.isEmpty {
-                    IOSPrototypeSectionLabel(title: "其他项目")
-                        .padding(.top, 4)
-                    ForEach(regularProjects, id: \.projectId) { project in
-                        projectCardLink(project)
+                    VStack(alignment: .leading, spacing: 0) {
+                        IOSPrototypeSectionLabel(title: "其他项目")
+                            .padding(.top, 4)
+                        projectList(regularProjects)
                     }
                 }
             }
@@ -175,6 +178,18 @@ struct IOSPersistentOverviewView: View {
             .padding(.bottom, 112)
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func projectList(_ projects: [Project]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(projects.enumerated()), id: \.element.projectId) { index, project in
+                projectDropSeparator(targetID: project.projectId, placement: .before)
+                projectCardLink(project)
+                if index == projects.count - 1 {
+                    projectDropSeparator(targetID: project.projectId, placement: .after)
+                }
+            }
+        }
     }
 
     private var reports: some View {
@@ -210,18 +225,44 @@ struct IOSPersistentOverviewView: View {
     }
 
     private func projectCardLink(_ project: Project) -> some View {
-        Button {
+        IOSPersistentOverviewProjectCard(
+            project: project,
+            onEdit: { editingProject = project },
+            onArchive: { archivePickerProject = project },
+            onToggleFavorite: { services.projectService?.toggleFavorite(project) },
+            onDelete: { projectPendingDeletionID = project.projectId }
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onTapGesture {
             coordinator.selectProject(project)
-        } label: {
+        }
+        .onDrag {
+            draggingProjectID = project.projectId
+            return NSItemProvider(object: IOSProjectDragPayload.project(project.projectId).rawValue as NSString)
+        } preview: {
             IOSPersistentOverviewProjectCard(
                 project: project,
-                onEdit: { editingProject = project },
-                onArchive: { archivePickerProject = project },
-                onToggleFavorite: { services.projectService?.toggleFavorite(project) },
-                onDelete: { projectPendingDeletionID = project.projectId }
+                onEdit: {},
+                onArchive: {},
+                onToggleFavorite: {},
+                onDelete: {}
             )
+            .frame(width: 320)
         }
-        .buttonStyle(.plain)
+    }
+
+    private func projectDropSeparator(targetID: UUID, placement: ReorderPlacement) -> some View {
+        IOSReorderDropSeparator(isActive: projectDropTarget == IOSProjectDropTarget(id: targetID, placement: placement))
+            .onDrop(
+                of: [.text],
+                delegate: IOSProjectReorderDropDelegate(
+                    targetID: targetID,
+                    placement: placement,
+                    draggingProjectID: $draggingProjectID,
+                    dropTarget: $projectDropTarget,
+                    onMove: moveProject(id:targetID:placement:)
+                )
+            )
     }
 
     private var activeProjects: [Project] {
@@ -298,6 +339,11 @@ struct IOSPersistentOverviewView: View {
             destination: destination
         ))
     }
+
+    private func moveProject(id: UUID, targetID: UUID, placement: ReorderPlacement) {
+        guard id != targetID else { return }
+        services.projectService?.reorderActiveProject(movingID: id, targetID: targetID, placement: placement)
+    }
 }
 
 private struct IOSPersistentReportSectionView: View {
@@ -328,9 +374,9 @@ private struct IOSPersistentReportSectionView: View {
 
                 Button(action: onCopy) {
                     Image(systemName: "doc.on.doc")
-                        .font(.title3)
-                        .foregroundStyle(section.cards.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
-                        .frame(width: 38, height: 38)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(section.cards.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.blue))
+                        .frame(width: 24, height: 24)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -395,10 +441,12 @@ private struct IOSReportCapsulePickerStyle: ViewModifier {
         content
             .pickerStyle(.menu)
             .labelsHidden()
-            .font(.headline.weight(.semibold))
+            .font(.system(size: 12, weight: .semibold))
+            .lineLimit(1)
             .tint(.secondary)
-            .padding(.horizontal, 12)
-            .frame(height: 38)
+            .padding(.horizontal, 7)
+            .frame(height: 28)
+            .fixedSize(horizontal: true, vertical: false)
             .background(
                 IOSPrototypeSurfaceStyle.cardBackground(for: colorScheme),
                 in: Capsule()
@@ -501,7 +549,7 @@ private struct IOSPersistentReportCardView: View {
 
             Group {
                 if let reminderDate {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    HStack(alignment: .center, spacing: 5) {
                         reminderLabel(reminderDate, fontSize: 13, iconSize: 8)
                         Text(title)
                             .font(.callout)
@@ -537,6 +585,94 @@ private struct IOSPersistentReportCardView: View {
             formatter.dateFormat = "MM-dd HH:mm"
         }
         return formatter.string(from: date)
+    }
+}
+
+private struct IOSProjectDropTarget: Equatable {
+    let id: UUID
+    let placement: ReorderPlacement
+}
+
+private enum IOSProjectDragPayload {
+    case project(UUID)
+
+    var rawValue: String {
+        switch self {
+        case .project(let id):
+            return "project:\(id.uuidString)"
+        }
+    }
+
+    static func parse(_ value: String) -> IOSProjectDragPayload? {
+        let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2, parts[0] == "project", let id = UUID(uuidString: parts[1]) else {
+            return nil
+        }
+        return .project(id)
+    }
+}
+
+private struct IOSProjectReorderDropDelegate: DropDelegate {
+    let targetID: UUID
+    let placement: ReorderPlacement
+    @Binding var draggingProjectID: UUID?
+    @Binding var dropTarget: IOSProjectDropTarget?
+    let onMove: (UUID, UUID, ReorderPlacement) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingProjectID != nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateDropTarget(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateDropTarget(info: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        dropTarget = nil
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggingProjectID = nil
+            dropTarget = nil
+        }
+        guard let draggingProjectID else { return false }
+        onMove(draggingProjectID, targetID, placement)
+        return true
+    }
+
+    private func updateDropTarget(info: DropInfo) {
+        guard draggingProjectID != nil else { return }
+        dropTarget = IOSProjectDropTarget(id: targetID, placement: placement)
+    }
+}
+
+private struct IOSReorderDropSeparator: View {
+    let isActive: Bool
+
+    var body: some View {
+        ZStack(alignment: .center) {
+            Color.primary.opacity(0.001)
+            if isActive {
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(height: 2)
+                    .overlay(alignment: .leading) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 8, height: 8)
+                            .offset(x: -3)
+                    }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 10)
+        .contentShape(Rectangle())
     }
 }
 

@@ -63,6 +63,7 @@ protocol ProjectServiceProtocol: AnyObject {
 
     // Reorder
     func reorderActiveProjects(fromOffsets: IndexSet, toOffset: Int)
+    func reorderActiveProject(movingID: UUID, targetID: UUID?, placement: ReorderPlacement)
     func reorderMilestones(in project: Project, movingID: UUID, targetID: UUID?, placement: ReorderPlacement)
     func moveSubTask(_ subTaskID: UUID, to targetMilestoneID: UUID, targetSubTaskID: UUID?, placement: ReorderPlacement)
     func reorderFolderProjects(_ folder: ArchiveFolder, fromOffsets: IndexSet, toOffset: Int)
@@ -366,6 +367,24 @@ final class ProjectService: ProjectServiceProtocol {
         items.move(fromOffsets: fromOffsets, toOffset: toOffset)
         for (i, item) in items.enumerated() {
             item.orderIndex = i
+        }
+        save()
+    }
+
+    func reorderActiveProject(movingID: UUID, targetID: UUID?, placement: ReorderPlacement) {
+        var items = allActiveProjects()
+        guard let movingIndex = items.firstIndex(where: { $0.projectId == movingID }) else { return }
+        let moving = items.remove(at: movingIndex)
+
+        let insertionIndex = insertionIndex(
+            in: items,
+            targetID: targetID,
+            placement: placement,
+            id: \.projectId
+        )
+        items.insert(moving, at: insertionIndex)
+        for (index, item) in items.enumerated() {
+            item.orderIndex = index
         }
         save()
     }

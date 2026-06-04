@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Query(sort: \Project.orderIndex) private var allProjects: [Project]
@@ -605,9 +606,17 @@ struct OverviewDashboardView: View {
     let onArchiveProject: (Project) -> Void
     let onDeleteProject: (Project) -> Void
 
+    @Environment(ServiceContainer.self) private var container
+    @State private var draggingProjectID: UUID?
+    @State private var projectDropTarget: OverviewProjectDropTarget?
+
     private let cardMinimumWidth: CGFloat = 320
     private let cardSpacing: CGFloat = 12
     private let contentPadding: CGFloat = 16
+
+    private var projectService: ProjectService? {
+        container.projectService
+    }
 
     private var visibleProjects: [Project] {
         OverviewScope.visibleProjects(from: projects, storedValue: overviewScope)
@@ -638,6 +647,17 @@ struct OverviewDashboardView: View {
                                     onArchive: { onArchiveProject(project) },
                                     onDelete: { onDeleteProject(project) }
                                 )
+                                .overviewProjectDragDrop(
+                                    projectID: project.projectId,
+                                    draggingProjectID: $draggingProjectID,
+                                    projectDropTarget: $projectDropTarget,
+                                    onMoveProject: moveProject(id:targetID:placement:)
+                                )
+                                .overlay(alignment: projectDropLineAlignment(for: project.projectId)) {
+                                    if isProjectDropTarget(project.projectId) {
+                                        OverviewProjectDropLine()
+                                    }
+                                }
                             }
                         }
                     }
@@ -653,6 +673,17 @@ struct OverviewDashboardView: View {
                                     onArchive: { onArchiveProject(project) },
                                     onDelete: { onDeleteProject(project) }
                                 )
+                                .overviewProjectDragDrop(
+                                    projectID: project.projectId,
+                                    draggingProjectID: $draggingProjectID,
+                                    projectDropTarget: $projectDropTarget,
+                                    onMoveProject: moveProject(id:targetID:placement:)
+                                )
+                                .overlay(alignment: projectDropLineAlignment(for: project.projectId)) {
+                                    if isProjectDropTarget(project.projectId) {
+                                        OverviewProjectDropLine()
+                                    }
+                                }
                             }
                         }
                     }
@@ -684,6 +715,124 @@ struct OverviewDashboardView: View {
             repeating: GridItem(.flexible(minimum: cardMinimumWidth), spacing: cardSpacing, alignment: .top),
             count: columnCount
         )
+    }
+
+    private func moveProject(id: UUID, targetID: UUID, placement: ReorderPlacement) {
+        guard id != targetID else { return }
+        projectService?.reorderActiveProject(movingID: id, targetID: targetID, placement: placement)
+    }
+
+    private func isProjectDropTarget(_ id: UUID) -> Bool {
+        if case let .project(targetID, _) = projectDropTarget {
+            return targetID == id
+        }
+        return false
+    }
+
+    private func projectDropLineAlignment(for id: UUID) -> Alignment {
+        if case let .project(targetID, placement) = projectDropTarget,
+           targetID == id {
+            return placement == .before ? .leading : .trailing
+        }
+        return .trailing
+    }
+}
+
+private enum OverviewProjectDropTarget: Equatable {
+    case project(UUID, ReorderPlacement)
+}
+
+private extension View {
+    func overviewProjectDragDrop(
+        projectID: UUID,
+        draggingProjectID: Binding<UUID?>,
+        projectDropTarget: Binding<OverviewProjectDropTarget?>,
+        onMoveProject: @escaping (UUID, UUID, ReorderPlacement) -> Void
+    ) -> some View {
+        self
+            .onDrag {
+                draggingProjectID.wrappedValue = projectID
+                return NSItemProvider(object: "project:\(projectID.uuidString)" as NSString)
+            } preview: {
+                Image(systemName: "rectangle.stack")
+                    .font(.title3)
+                    .padding(8)
+            }
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onDrop(
+                            of: [.plainText],
+                            delegate: OverviewProjectDropDelegate(
+                                targetID: projectID,
+                                cardWidth: proxy.size.width,
+                                draggingProjectID: draggingProjectID,
+                                projectDropTarget: projectDropTarget,
+                                onMoveProject: onMoveProject
+                            )
+                        )
+                }
+            }
+    }
+}
+
+private struct OverviewProjectDropLine: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.blue)
+            .frame(width: 2)
+            .overlay(alignment: .top) {
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 8, height: 8)
+                    .offset(y: -3)
+            }
+            .allowsHitTesting(false)
+    }
+}
+
+private struct OverviewProjectDropDelegate: DropDelegate {
+    let targetID: UUID
+    let cardWidth: CGFloat
+    @Binding var draggingProjectID: UUID?
+    @Binding var projectDropTarget: OverviewProjectDropTarget?
+    let onMoveProject: (UUID, UUID, ReorderPlacement) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingProjectID != nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateDropTarget(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateDropTarget(info: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        projectDropTarget = nil
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggingProjectID = nil
+            projectDropTarget = nil
+        }
+
+        guard let draggingProjectID,
+              case let .project(targetID, placement) = projectDropTarget
+        else { return false }
+
+        onMoveProject(draggingProjectID, targetID, placement)
+        return true
+    }
+
+    private func updateDropTarget(info: DropInfo) {
+        guard draggingProjectID != nil else { return }
+        let placement: ReorderPlacement = info.location.x < max(cardWidth / 2, 1) ? .before : .after
+        projectDropTarget = .project(targetID, placement)
     }
 }
 

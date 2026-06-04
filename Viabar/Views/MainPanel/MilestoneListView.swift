@@ -474,6 +474,7 @@ private struct SafeMilestoneListView: View {
                     SafeMilestoneRowView(
                         snapshot: snapshot,
                         highlightRequestID: snapshot.id == scrollTargetID ? navigationRequestID : nil,
+                        highlightCornerStyle: highlightCornerStyle(for: snapshot.id),
                         onToggleMilestone: onToggleMilestone,
                         onUpdateMilestoneTitle: onUpdateMilestoneTitle,
                         onDeleteMilestone: onDeleteMilestone,
@@ -497,6 +498,7 @@ private struct SafeMilestoneListView: View {
                             parentID: snapshot.id,
                             leadingIndent: subTaskLeadingIndent,
                             highlightRequestID: subtask.id == scrollTargetID ? navigationRequestID : nil,
+                            highlightCornerStyle: highlightCornerStyle(for: subtask.id),
                             reminder: subTaskReminderBinding(subtask.id),
                             onToggle: onToggleSubTask,
                             onUpdateTitle: onUpdateSubTaskTitle,
@@ -571,6 +573,28 @@ private struct SafeMilestoneListView: View {
         }
     }
 
+    private var firstVisibleTaskID: UUID? {
+        snapshots.first?.id
+    }
+
+    private var lastVisibleTaskID: UUID? {
+        guard let lastSnapshot = snapshots.last else { return nil }
+        return lastSnapshot.subtasks.last?.id ?? lastSnapshot.id
+    }
+
+    private func highlightCornerStyle(for id: UUID) -> TaskHighlightCornerStyle {
+        switch (id == firstVisibleTaskID, id == lastVisibleTaskID) {
+        case (true, true):
+            return .all
+        case (true, false):
+            return .top
+        case (false, true):
+            return .bottom
+        case (false, false):
+            return .middle
+        }
+    }
+
     private func performDrop(_ item: TaskDragItem, target: TaskDropTarget) {
         switch (item, target) {
         case let (.milestone(movingID), .milestone(targetID, placement)):
@@ -628,6 +652,42 @@ private struct TaskDropLine: View {
                     .offset(x: -3)
             }
             .allowsHitTesting(false)
+    }
+}
+
+private enum TaskHighlightCornerStyle {
+    case all
+    case top
+    case bottom
+    case middle
+
+    var radii: RectangleCornerRadii {
+        switch self {
+        case .all:
+            return RectangleCornerRadii(topLeading: 8, bottomLeading: 8, bottomTrailing: 8, topTrailing: 8)
+        case .top:
+            return RectangleCornerRadii(topLeading: 8, bottomLeading: 0, bottomTrailing: 0, topTrailing: 8)
+        case .bottom:
+            return RectangleCornerRadii(topLeading: 0, bottomLeading: 8, bottomTrailing: 8, topTrailing: 0)
+        case .middle:
+            return RectangleCornerRadii(topLeading: 0, bottomLeading: 0, bottomTrailing: 0, topTrailing: 0)
+        }
+    }
+}
+
+private struct TaskRowBackground: View {
+    let isSearchHighlighted: Bool
+    let isRowHovered: Bool
+    let highlightCornerStyle: TaskHighlightCornerStyle
+
+    var body: some View {
+        if isSearchHighlighted {
+            UnevenRoundedRectangle(cornerRadii: highlightCornerStyle.radii, style: .continuous)
+                .fill(.orange)
+        } else {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
+        }
     }
 }
 
@@ -727,6 +787,7 @@ private enum TaskRowDropTarget {
 private struct SafeMilestoneRowView: View {
     let snapshot: MilestoneSnapshot
     let highlightRequestID: UUID?
+    let highlightCornerStyle: TaskHighlightCornerStyle
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
     let onDeleteMilestone: (UUID) -> Void
@@ -805,12 +866,11 @@ private struct SafeMilestoneRowView: View {
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    isSearchHighlighted
-                        ? AnyShapeStyle(.orange)
-                        : AnyShapeStyle(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
-                )
+            TaskRowBackground(
+                isSearchHighlighted: isSearchHighlighted,
+                isRowHovered: isRowHovered,
+                highlightCornerStyle: highlightCornerStyle
+            )
         }
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .focusable(false)
@@ -989,6 +1049,7 @@ private struct SafeSubTaskRowView: View {
     let parentID: UUID
     let leadingIndent: CGFloat
     var highlightRequestID: UUID? = nil
+    let highlightCornerStyle: TaskHighlightCornerStyle
     @Binding var reminder: Reminder?
     let onToggle: (UUID) -> Void
     let onUpdateTitle: (UUID, String) -> Void
@@ -1043,12 +1104,11 @@ private struct SafeSubTaskRowView: View {
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    isSearchHighlighted
-                        ? AnyShapeStyle(.orange)
-                        : AnyShapeStyle(Color(nsColor: .separatorColor).opacity(isRowHovered ? 0.16 : 0))
-                )
+            TaskRowBackground(
+                isSearchHighlighted: isSearchHighlighted,
+                isRowHovered: isRowHovered,
+                highlightCornerStyle: highlightCornerStyle
+            )
         }
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -1204,6 +1264,10 @@ private struct ReminderStatusView: View {
 
         guard hasReminder else {
             return AnyShapeStyle(.tertiary)
+        }
+
+        if isCompleted {
+            return AnyShapeStyle(.secondary)
         }
 
         return AnyShapeStyle(.orange)

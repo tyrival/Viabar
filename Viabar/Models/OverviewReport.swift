@@ -134,13 +134,13 @@ enum OverviewReportBuilder {
                         milestoneID: milestone.milestoneId,
                         title: milestone.title,
                         subtasks: [],
-                        reminderDate: nil
+                        reminderDate: milestone.reminder?.displayFireDate
                     )
                 }
 
                 let subtasks = sortedSubtasks(in: milestone)
                     .filter { $0.isCompleted && contains($0.completedAt, in: interval) }
-                    .map { OverviewReportSubTaskRow(taskID: $0.taskId, title: $0.title, reminderDate: nil) }
+                    .map { OverviewReportSubTaskRow(taskID: $0.taskId, title: $0.title, reminderDate: $0.reminder?.displayFireDate) }
                 guard !subtasks.isEmpty else { return nil }
 
                 return OverviewReportTaskGroup(

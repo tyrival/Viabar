@@ -94,8 +94,8 @@ private struct OverviewReportSectionView: View {
 
                 Button(action: onCopy) {
                     Image(systemName: "doc.on.doc")
-                        .font(.caption)
-                        .foregroundStyle(isCopyButtonHovered ? AnyShapeStyle(ViabarColor.primary) : AnyShapeStyle(.tertiary))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(isCopyButtonHovered ? AnyShapeStyle(.blue) : AnyShapeStyle(.blue.opacity(0.72)))
                 }
                 .buttonStyle(.plain)
                 .disabled(section.cards.isEmpty)
@@ -141,35 +141,47 @@ private struct OverviewReportSectionView: View {
     private var periodPicker: some View {
         switch section.kind {
         case .weekTodo:
-            Picker("", selection: $weekTodoOffset) {
-                Text("本周待办").tag(0)
-                Text("下周待办").tag(1)
+            periodMenu(title: weekTodoOffset == 0 ? LocalizedStringKey("本周待办") : LocalizedStringKey("下周待办")) {
+                Button("本周待办") { weekTodoOffset = 0 }
+                Button("下周待办") { weekTodoOffset = 1 }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .scaleEffect(0.82)
-            .offset(x: -8)
 
         case .weekDone:
-            Picker("", selection: $weekDoneOffset) {
-                Text("本周完成").tag(0)
-                Text("上周完成").tag(-1)
+            periodMenu(title: weekDoneOffset == 0 ? LocalizedStringKey("本周完成") : LocalizedStringKey("上周完成")) {
+                Button("本周完成") { weekDoneOffset = 0 }
+                Button("上周完成") { weekDoneOffset = -1 }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .scaleEffect(0.82)
-            .offset(x: -8)
 
         case .monthDone:
-            Picker("", selection: $monthDoneOffset) {
-                Text("本月完成").tag(0)
-                Text("上月完成").tag(-1)
+            periodMenu(title: monthDoneOffset == 0 ? LocalizedStringKey("本月完成") : LocalizedStringKey("上月完成")) {
+                Button("本月完成") { monthDoneOffset = 0 }
+                Button("上月完成") { monthDoneOffset = -1 }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .scaleEffect(0.82)
-            .offset(x: -8)
         }
+    }
+
+    private func periodMenu<Content: View>(
+        title: LocalizedStringKey,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Menu {
+            content()
+        } label: {
+            HStack(spacing: 3) {
+                Text(title)
+                    .font(.caption2.weight(.medium))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: true)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(ViabarColor.panelInputBackground, in: Capsule())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize(horizontal: true, vertical: true)
     }
 }
 
@@ -258,25 +270,30 @@ private struct OverviewReportCardView: View {
 
     private func taskRow(title: String, reminderDate: Date?, isPrimary: Bool) -> some View {
         HStack(alignment: .top, spacing: 5) {
-            Circle()
-                .fill(Color.gray.opacity(0.35))
-                .frame(width: 5, height: 5)
-                .padding(.top, 7)
-
-            Group {
-                if let date = reminderDate {
-                    let color = reminderColor(date)
-                    (Text(Image(systemName: "alarm.fill")).font(.system(size: 8)).foregroundStyle(color)
-                     + Text(" \(formatReminderDate(date))").font(.callout).foregroundStyle(color)
-                     + Text("  \(title)").font(.callout).foregroundStyle(isPrimary ? .primary : .secondary))
-                } else {
-                    Text(title)
-                        .font(.callout)
-                        .foregroundStyle(isPrimary ? .primary : .secondary)
+            if let date = reminderDate {
+                let color = reminderColor(date)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Image(systemName: "alarm.fill")
+                        .font(.system(size: 8))
+                    Text(formatReminderDate(date))
+                        .font(.system(size: 10, weight: .medium))
                 }
+                .foregroundStyle(color)
+                .fixedSize(horizontal: true, vertical: true)
+                .padding(.top, 2)
+            } else {
+                Circle()
+                    .fill(Color.gray.opacity(0.35))
+                    .frame(width: 5, height: 5)
+                    .padding(.top, 7)
             }
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
+
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(isPrimary ? .primary : .secondary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
         }
     }
 

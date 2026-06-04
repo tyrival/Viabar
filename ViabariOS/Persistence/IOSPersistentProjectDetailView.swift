@@ -1,5 +1,7 @@
 import SwiftData
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 private enum IOSPersistentDetailSession: Equatable {
     case idle
@@ -41,6 +43,10 @@ struct IOSPersistentProjectDetailView: View {
     @State private var composerText = ""
     @State private var isArchiveFolderPickerPresented = false
     @State private var reminderEditorTarget: IOSPersistentReminderEditorTarget?
+    @State private var draggingTaskItem: IOSPersistentTaskDragItem?
+    @State private var taskDropTarget: IOSPersistentDropIndicator?
+    @State private var draggingMemoID: UUID?
+    @State private var memoDropTarget: IOSPersistentDropIndicator?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -163,44 +169,61 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     private var taskList: some View {
-        VStack(spacing: 0) {
-            ForEach(sortedMilestones, id: \.milestoneId) { milestone in
-                milestoneRow(milestone)
-
-                ForEach(visibleSubtasks(for: milestone), id: \.taskId) { subtask in
-                    subtaskRow(subtask, milestone: milestone)
-                }
+        let rows = taskRows
+        return VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                taskRowWithDropZones(
+                    row,
+                    index: index,
+                    count: rows.count,
+                    nextRow: index < rows.count - 1 ? rows[index + 1] : nil
+                )
             }
         }
         .iosPrototypeCardSurface(cornerRadius: 14)
     }
 
     private var memoList: some View {
-        VStack(spacing: 10) {
-            ForEach(sortedMemos, id: \.memoId) { memo in
+        VStack(spacing: 0) {
+            ForEach(Array(sortedMemos.enumerated()), id: \.element.memoId) { index, memo in
+                memoDropSeparator(targetID: memo.memoId, placement: .before)
                 memoCard(memo)
+                if index == sortedMemos.count - 1 {
+                    memoDropSeparator(targetID: memo.memoId, placement: .after)
+                }
             }
         }
     }
 
-    private func milestoneRow(_ milestone: Milestone) -> some View {
+    private func milestoneRow(_ milestone: Milestone, highlightCorners: UIRectCorner) -> some View {
         IOSPersistentHighlightedRow(
             consume: coordinator.consumeHighlight,
-            triggerID: highlightID(for: milestone)
+            triggerID: highlightID(for: milestone),
+            highlightCorners: highlightCorners
         ) { isHighlighted in
-            HStack(alignment: .center, spacing: 10) {
+            taskRowContent {
                 milestoneCompletionControl(milestone, isHighlighted: isHighlighted)
                 milestoneTitleControl(milestone, isHighlighted: isHighlighted)
 
-                reminderControl(milestone.reminder, isHighlighted: isHighlighted) {
+                reminderControl(milestone.reminder, isCompleted: milestone.score >= 1, isHighlighted: isHighlighted) {
                     reminderEditorTarget = .milestone(milestone)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
         }
         .contentShape(Rectangle())
+        .onDrag {
+            draggingTaskItem = .milestone(milestone.milestoneId)
+            return NSItemProvider(object: IOSPersistentTaskDragItem.milestone(milestone.milestoneId).providerValue as NSString)
+        } preview: {
+            taskRowContent {
+                milestoneCompletionControl(milestone, isHighlighted: false)
+                milestoneTitleControl(milestone, isHighlighted: false)
+                reminderControl(milestone.reminder, isCompleted: milestone.score >= 1, isHighlighted: false) {}
+            }
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: 320)
+        }
         .overlay(alignment: .bottom) {
             Divider().padding(.leading, 48)
         }
@@ -224,25 +247,36 @@ struct IOSPersistentProjectDetailView: View {
         .id(milestone.milestoneId)
     }
 
-    private func subtaskRow(_ subtask: SubTask, milestone: Milestone) -> some View {
+    private func subtaskRow(_ subtask: SubTask, milestone: Milestone, highlightCorners: UIRectCorner) -> some View {
         IOSPersistentHighlightedRow(
             consume: coordinator.consumeHighlight,
-            triggerID: highlightID(for: subtask)
+            triggerID: highlightID(for: subtask),
+            highlightCorners: highlightCorners
         ) { isHighlighted in
-            HStack(alignment: .center, spacing: 10) {
+            taskRowContent {
                 subtaskCompletionControl(subtask, isHighlighted: isHighlighted)
                 subtaskTitleControl(subtask, milestone: milestone, isHighlighted: isHighlighted)
 
-                reminderControl(subtask.reminder, isHighlighted: isHighlighted) {
+                reminderControl(subtask.reminder, isCompleted: subtask.isCompleted, isHighlighted: isHighlighted) {
                     reminderEditorTarget = .subtask(subtask)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 46)
-            .padding(.trailing, 14)
-            .padding(.vertical, 11)
+            .padding(.leading, 32)
         }
         .contentShape(Rectangle())
+        .onDrag {
+            draggingTaskItem = .subtask(subtask.taskId)
+            return NSItemProvider(object: IOSPersistentTaskDragItem.subtask(subtask.taskId).providerValue as NSString)
+        } preview: {
+            taskRowContent {
+                subtaskCompletionControl(subtask, isHighlighted: false)
+                subtaskTitleControl(subtask, milestone: milestone, isHighlighted: false)
+                reminderControl(subtask.reminder, isCompleted: subtask.isCompleted, isHighlighted: false) {}
+            }
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: 320)
+        }
         .overlay(alignment: .bottom) {
             Divider().padding(.leading, 76)
         }
@@ -263,18 +297,7 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     private func memoCard(_ memo: Memo) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(AppDateFormatter.string(from: memo.createdAt, pattern: savedDateFormat))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(memo.content)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(14)
-        .iosPrototypeCardSurface(cornerRadius: 14)
+        memoCardContent(memo)
         .contentShape(Rectangle())
         .onTapGesture {
             if !project.isArchived {
@@ -285,6 +308,13 @@ struct IOSPersistentProjectDetailView: View {
             consume: coordinator.consumeHighlight,
             triggerID: highlightID(for: memo)
         )
+        .onDrag {
+            draggingMemoID = memo.memoId
+            return NSItemProvider(object: "memo:\(memo.memoId.uuidString)" as NSString)
+        } preview: {
+            memoCardContent(memo)
+                .frame(width: 320)
+        }
         .contextMenu {
             Button("复制", systemImage: "doc.on.doc") {
                 copyIOSPrototypeText(memo.content)
@@ -301,7 +331,185 @@ struct IOSPersistentProjectDetailView: View {
         .id(memo.memoId)
     }
 
-    private func titleContent(_ title: String, reminder: Reminder?, isHighlighted: Bool) -> some View {
+    private func memoCardContent(_ memo: Memo) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(AppDateFormatter.string(from: memo.createdAt, pattern: savedDateFormat))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(memo.content)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .iosPrototypeCardSurface(cornerRadius: 14)
+    }
+
+    private func taskRowContent<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+    }
+
+    @ViewBuilder
+    private func taskRowWithDropZones(
+        _ row: IOSPersistentTaskRow,
+        index: Int,
+        count: Int,
+        nextRow: IOSPersistentTaskRow?
+    ) -> some View {
+        let zones = taskDropZones(for: row, index: index, nextRow: nextRow)
+
+        switch row {
+        case let .milestone(milestone):
+            milestoneRow(
+                milestone,
+                highlightCorners: highlightCorners(for: index, count: count)
+            )
+            .overlay(alignment: .top) {
+                if let topZone = zones.top {
+                    taskDropZoneOverlay(topZone, edge: .top)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if let bottomZone = zones.bottom {
+                    taskDropZoneOverlay(bottomZone, edge: .bottom)
+                }
+            }
+        case let .subtask(subtask, milestone):
+            subtaskRow(
+                subtask,
+                milestone: milestone,
+                highlightCorners: highlightCorners(for: index, count: count)
+            )
+            .overlay(alignment: .top) {
+                if let topZone = zones.top {
+                    taskDropZoneOverlay(topZone, edge: .top)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if let bottomZone = zones.bottom {
+                    taskDropZoneOverlay(bottomZone, edge: .bottom)
+                }
+            }
+        }
+    }
+
+    private func taskDropZoneOverlay(_ zone: IOSPersistentTaskDropZone, edge: IOSPersistentDropSeparatorEdge) -> some View {
+        IOSPersistentReorderDropSeparator(
+            isActive: taskDropTarget == IOSPersistentDropIndicator(id: zone.target.id, placement: zone.placement),
+            edge: edge
+        )
+            .onDrop(
+                of: [.text],
+                delegate: IOSPersistentTaskDropDelegate(
+                    target: zone.target,
+                    placement: zone.placement,
+                    draggingTaskItem: $draggingTaskItem,
+                    dropTarget: $taskDropTarget,
+                    onMove: moveTask(_:to:placement:)
+                )
+            )
+    }
+
+    private func taskDropZones(
+        for row: IOSPersistentTaskRow,
+        index: Int,
+        nextRow: IOSPersistentTaskRow?
+    ) -> IOSPersistentTaskDropZones {
+        guard let draggingTaskItem else {
+            return .empty
+        }
+
+        switch draggingTaskItem {
+        case .milestone:
+            return milestoneDropZones(for: row, index: index, nextRow: nextRow)
+        case .subtask:
+            return subtaskDropZones(for: row, nextRow: nextRow)
+        }
+    }
+
+    private func milestoneDropZones(
+        for row: IOSPersistentTaskRow,
+        index: Int,
+        nextRow: IOSPersistentTaskRow?
+    ) -> IOSPersistentTaskDropZones {
+        let top: IOSPersistentTaskDropZone?
+        if index == 0, case let .milestone(milestone) = row {
+            top = IOSPersistentTaskDropZone(target: .milestone(milestone.milestoneId), placement: .before)
+        } else {
+            top = nil
+        }
+
+        guard isLastVisibleRowInMilestoneGroup(row, nextRow: nextRow) else {
+            return IOSPersistentTaskDropZones(top: top, bottom: nil)
+        }
+
+        let bottom: IOSPersistentTaskDropZone?
+        if case let .milestone(nextMilestone)? = nextRow {
+            bottom = IOSPersistentTaskDropZone(target: .milestone(nextMilestone.milestoneId), placement: .before)
+        } else if let milestoneID = row.milestoneID {
+            bottom = IOSPersistentTaskDropZone(target: .milestone(milestoneID), placement: .after)
+        } else {
+            bottom = nil
+        }
+        return IOSPersistentTaskDropZones(top: top, bottom: bottom)
+    }
+
+    private func subtaskDropZones(
+        for row: IOSPersistentTaskRow,
+        nextRow: IOSPersistentTaskRow?
+    ) -> IOSPersistentTaskDropZones {
+        let bottom: IOSPersistentTaskDropZone?
+        switch row {
+        case let .milestone(milestone):
+            if case let .subtask(subtask, nextMilestone)? = nextRow,
+               nextMilestone.milestoneId == milestone.milestoneId {
+                bottom = IOSPersistentTaskDropZone(
+                    target: .subtask(parentID: milestone.milestoneId, subtaskID: subtask.taskId),
+                    placement: .before
+                )
+            } else {
+                bottom = IOSPersistentTaskDropZone(target: .milestone(milestone.milestoneId), placement: .end)
+            }
+        case let .subtask(_, milestone):
+            if case let .subtask(nextSubtask, nextMilestone)? = nextRow,
+               nextMilestone.milestoneId == milestone.milestoneId {
+                bottom = IOSPersistentTaskDropZone(
+                    target: .subtask(parentID: milestone.milestoneId, subtaskID: nextSubtask.taskId),
+                    placement: .before
+                )
+            } else {
+                bottom = IOSPersistentTaskDropZone(target: .milestone(milestone.milestoneId), placement: .end)
+            }
+        }
+        return IOSPersistentTaskDropZones(top: nil, bottom: bottom)
+    }
+
+    private func isLastVisibleRowInMilestoneGroup(_ row: IOSPersistentTaskRow, nextRow: IOSPersistentTaskRow?) -> Bool {
+        guard let nextRow else { return true }
+        return row.milestoneID != nextRow.milestoneID
+    }
+
+    private func memoDropSeparator(targetID: UUID, placement: ReorderPlacement) -> some View {
+        IOSPersistentReorderDropSeparator(isActive: memoDropTarget == IOSPersistentDropIndicator(id: targetID, placement: placement))
+            .onDrop(
+                of: [.text],
+                delegate: IOSPersistentMemoDropDelegate(
+                    targetID: targetID,
+                    placement: placement,
+                    draggingMemoID: $draggingMemoID,
+                    dropTarget: $memoDropTarget,
+                    onMove: moveMemo(id:targetID:placement:)
+                )
+            )
+    }
+
+    private func titleContent(_ title: String, reminder: Reminder?, isCompleted: Bool, isHighlighted: Bool) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -313,7 +521,7 @@ struct IOSPersistentProjectDetailView: View {
                         language: effectiveLanguage
                     ))
                         .font(.caption2)
-                        .foregroundStyle(isHighlighted ? .white : reminderSummaryColor(for: reminder))
+                        .foregroundStyle(isHighlighted ? .white : reminderSummaryColor(for: reminder, isCompleted: isCompleted))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -346,12 +554,12 @@ struct IOSPersistentProjectDetailView: View {
     @ViewBuilder
     private func milestoneTitleControl(_ milestone: Milestone, isHighlighted: Bool) -> some View {
         if project.isArchived {
-            titleContent(milestone.title, reminder: milestone.reminder, isHighlighted: isHighlighted)
+            titleContent(milestone.title, reminder: milestone.reminder, isCompleted: milestone.score >= 1, isHighlighted: isHighlighted)
         } else {
             Button {
                 beginEditing(milestone)
             } label: {
-                titleContent(milestone.title, reminder: milestone.reminder, isHighlighted: isHighlighted)
+                titleContent(milestone.title, reminder: milestone.reminder, isCompleted: milestone.score >= 1, isHighlighted: isHighlighted)
             }
             .buttonStyle(.plain)
         }
@@ -380,12 +588,12 @@ struct IOSPersistentProjectDetailView: View {
     @ViewBuilder
     private func subtaskTitleControl(_ subtask: SubTask, milestone: Milestone, isHighlighted: Bool) -> some View {
         if project.isArchived {
-            titleContent(subtask.title, reminder: subtask.reminder, isHighlighted: isHighlighted)
+            titleContent(subtask.title, reminder: subtask.reminder, isCompleted: subtask.isCompleted, isHighlighted: isHighlighted)
         } else {
             Button {
                 beginEditing(subtask, milestone: milestone)
             } label: {
-                titleContent(subtask.title, reminder: subtask.reminder, isHighlighted: isHighlighted)
+                titleContent(subtask.title, reminder: subtask.reminder, isCompleted: subtask.isCompleted, isHighlighted: isHighlighted)
             }
             .buttonStyle(.plain)
         }
@@ -394,11 +602,12 @@ struct IOSPersistentProjectDetailView: View {
     @ViewBuilder
     private func reminderControl(
         _ reminder: Reminder?,
+        isCompleted: Bool,
         isHighlighted: Bool,
         onEdit: @escaping () -> Void
     ) -> some View {
         let icon = reminder == nil ? "alarm" : "alarm.fill"
-        let color = reminderControlColor(reminder, isHighlighted: isHighlighted)
+        let color = reminderControlColor(reminder, isCompleted: isCompleted, isHighlighted: isHighlighted)
         if project.isArchived {
             Image(systemName: icon)
                 .foregroundStyle(color)
@@ -411,9 +620,12 @@ struct IOSPersistentProjectDetailView: View {
         }
     }
 
-    private func reminderControlColor(_ reminder: Reminder?, isHighlighted: Bool) -> AnyShapeStyle {
+    private func reminderControlColor(_ reminder: Reminder?, isCompleted: Bool, isHighlighted: Bool) -> AnyShapeStyle {
         if isHighlighted {
             return AnyShapeStyle(.white)
+        }
+        if reminder != nil, isCompleted {
+            return AnyShapeStyle(.secondary)
         }
         return reminder?.displayFireDate
             .map { AnyShapeStyle(IOSPrototypeReminderStyle.color(for: $0)) }
@@ -470,6 +682,23 @@ struct IOSPersistentProjectDetailView: View {
             .sorted { $0.orderIndex < $1.orderIndex }
     }
 
+    private var taskRows: [IOSPersistentTaskRow] {
+        sortedMilestones.flatMap { milestone -> [IOSPersistentTaskRow] in
+            [.milestone(milestone)] + visibleSubtasks(for: milestone).map { .subtask($0, milestone: milestone) }
+        }
+    }
+
+    private func highlightCorners(for index: Int, count: Int) -> UIRectCorner {
+        var corners: UIRectCorner = []
+        if index == 0 {
+            corners.formUnion([.topLeft, .topRight])
+        }
+        if index == count - 1 {
+            corners.formUnion([.bottomLeft, .bottomRight])
+        }
+        return corners
+    }
+
     private var sortedMemos: [Memo] {
         project.memos.sorted {
             if $0.orderIndex == $1.orderIndex {
@@ -487,12 +716,40 @@ struct IOSPersistentProjectDetailView: View {
         AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
     }
 
-    private func reminderSummaryColor(for reminder: Reminder) -> Color {
-        reminder.displayFireDate.map { IOSPrototypeReminderStyle.color(for: $0) } ?? .gray
+    private func reminderSummaryColor(for reminder: Reminder, isCompleted: Bool) -> Color {
+        if isCompleted {
+            return .secondary
+        }
+        return reminder.displayFireDate.map { IOSPrototypeReminderStyle.color(for: $0) } ?? .gray
     }
 
     private var accentColor: Color {
         project.progress >= 1 ? ViabarColor.success : Color(hex: project.accentColor)
+    }
+
+    private func moveTask(
+        _ item: IOSPersistentTaskDragItem,
+        to target: IOSPersistentTaskDropTarget,
+        placement: ReorderPlacement
+    ) {
+        guard !project.isArchived else { return }
+        switch (item, target) {
+        case let (.milestone(movingID), .milestone(targetID)):
+            guard movingID != targetID else { return }
+            services.projectService?.reorderMilestones(in: project, movingID: movingID, targetID: targetID, placement: placement)
+        case let (.subtask(movingID), .subtask(parentID, targetID)):
+            guard movingID != targetID else { return }
+            services.projectService?.moveSubTask(movingID, to: parentID, targetSubTaskID: targetID, placement: placement)
+        case let (.subtask(movingID), .milestone(targetID)):
+            services.projectService?.moveSubTask(movingID, to: targetID, targetSubTaskID: nil, placement: .end)
+        case (.milestone, .subtask):
+            return
+        }
+    }
+
+    private func moveMemo(id: UUID, targetID: UUID, placement: ReorderPlacement) {
+        guard !project.isArchived, id != targetID else { return }
+        services.projectService?.reorderMemos(in: project, movingID: id, targetID: targetID, placement: placement)
     }
 
     private func toggleArchive() {
@@ -621,9 +878,208 @@ struct IOSPersistentProjectDetailView: View {
     }
 }
 
+private enum IOSPersistentTaskRow: Identifiable {
+    case milestone(Milestone)
+    case subtask(SubTask, milestone: Milestone)
+
+    var id: UUID {
+        switch self {
+        case let .milestone(milestone):
+            return milestone.milestoneId
+        case let .subtask(subtask, _):
+            return subtask.taskId
+        }
+    }
+
+    var milestoneID: UUID? {
+        switch self {
+        case let .milestone(milestone):
+            return milestone.milestoneId
+        case let .subtask(_, milestone):
+            return milestone.milestoneId
+        }
+    }
+}
+
+private enum IOSPersistentTaskDragItem: Equatable {
+    case milestone(UUID)
+    case subtask(UUID)
+
+    var providerValue: String {
+        switch self {
+        case let .milestone(id):
+            return "milestone:\(id.uuidString)"
+        case let .subtask(id):
+            return "subtask:\(id.uuidString)"
+        }
+    }
+}
+
+private enum IOSPersistentTaskDropTarget {
+    case milestone(UUID)
+    case subtask(parentID: UUID, subtaskID: UUID)
+
+    var id: UUID {
+        switch self {
+        case let .milestone(id):
+            return id
+        case let .subtask(_, subtaskID):
+            return subtaskID
+        }
+    }
+}
+
+private struct IOSPersistentTaskDropZone {
+    let target: IOSPersistentTaskDropTarget
+    let placement: ReorderPlacement
+}
+
+private struct IOSPersistentTaskDropZones {
+    let top: IOSPersistentTaskDropZone?
+    let bottom: IOSPersistentTaskDropZone?
+
+    static let empty = IOSPersistentTaskDropZones(top: nil, bottom: nil)
+}
+
+private struct IOSPersistentDropIndicator: Equatable {
+    let id: UUID
+    let placement: ReorderPlacement
+}
+
+private struct IOSPersistentTaskDropDelegate: DropDelegate {
+    let target: IOSPersistentTaskDropTarget
+    let placement: ReorderPlacement
+    @Binding var draggingTaskItem: IOSPersistentTaskDragItem?
+    @Binding var dropTarget: IOSPersistentDropIndicator?
+    let onMove: (IOSPersistentTaskDragItem, IOSPersistentTaskDropTarget, ReorderPlacement) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard let draggingTaskItem else { return false }
+        switch (draggingTaskItem, target) {
+        case (.milestone, .milestone):
+            return true
+        case (.milestone, .subtask):
+            return false
+        case (.subtask, _):
+            return true
+        }
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateDropTarget(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateDropTarget(info: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        dropTarget = nil
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggingTaskItem = nil
+            dropTarget = nil
+        }
+        guard let draggingTaskItem else { return false }
+        onMove(draggingTaskItem, target, placement)
+        return true
+    }
+
+    private func updateDropTarget(info: DropInfo) {
+        guard validateDrop(info: info) else { return }
+        dropTarget = IOSPersistentDropIndicator(id: target.id, placement: placement)
+    }
+}
+
+private struct IOSPersistentMemoDropDelegate: DropDelegate {
+    let targetID: UUID
+    let placement: ReorderPlacement
+    @Binding var draggingMemoID: UUID?
+    @Binding var dropTarget: IOSPersistentDropIndicator?
+    let onMove: (UUID, UUID, ReorderPlacement) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingMemoID != nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateDropTarget(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateDropTarget(info: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        dropTarget = nil
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggingMemoID = nil
+            dropTarget = nil
+        }
+        guard let draggingMemoID else { return false }
+        onMove(draggingMemoID, targetID, placement)
+        return true
+    }
+
+    private func updateDropTarget(info: DropInfo) {
+        guard draggingMemoID != nil else { return }
+        dropTarget = IOSPersistentDropIndicator(id: targetID, placement: placement)
+    }
+}
+
+private enum IOSPersistentDropSeparatorEdge {
+    case center
+    case top
+    case bottom
+}
+
+private struct IOSPersistentReorderDropSeparator: View {
+    let isActive: Bool
+    var edge: IOSPersistentDropSeparatorEdge = .center
+
+    var body: some View {
+        ZStack(alignment: alignment) {
+            Color.primary.opacity(0.001)
+            if isActive {
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(height: 2)
+                    .overlay(alignment: .leading) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 8, height: 8)
+                            .offset(x: -3)
+                    }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 10)
+        .contentShape(Rectangle())
+    }
+
+    private var alignment: Alignment {
+        switch edge {
+        case .center:
+            return .center
+        case .top:
+            return .top
+        case .bottom:
+            return .bottom
+        }
+    }
+}
+
 private struct IOSPersistentHighlightedRow<Content: View>: View {
     let consume: (UUID?) -> Bool
     let triggerID: UUID?
+    let highlightCorners: UIRectCorner
     @ViewBuilder var content: (Bool) -> Content
 
     @State private var isHighlighted = false
@@ -631,7 +1087,7 @@ private struct IOSPersistentHighlightedRow<Content: View>: View {
     var body: some View {
         content(isHighlighted)
             .background {
-                RoundedRectangle(cornerRadius: 0, style: .continuous)
+                IOSPersistentHighlightShape(corners: highlightCorners, radius: 14)
                     .fill(isHighlighted ? Color.orange : .clear)
             }
             .task(id: triggerID) {
@@ -646,5 +1102,20 @@ private struct IOSPersistentHighlightedRow<Content: View>: View {
                     isHighlighted = false
                 }
             }
+    }
+}
+
+private struct IOSPersistentHighlightShape: Shape {
+    let corners: UIRectCorner
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(
+            UIBezierPath(
+                roundedRect: rect,
+                byRoundingCorners: corners,
+                cornerRadii: CGSize(width: radius, height: radius)
+            ).cgPath
+        )
     }
 }
