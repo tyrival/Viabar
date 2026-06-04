@@ -470,7 +470,24 @@ private struct SafeMilestoneListView: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(snapshots) { snapshot in
+                ForEach(Array(snapshots.enumerated()), id: \.element.id) { index, snapshot in
+                    if index == 0 {
+                        TaskReorderDropSeparator(
+                            isActive: dropTarget == .milestone(snapshot.id, .before)
+                        )
+                        .onDrop(
+                            of: [.plainText],
+                            delegate: TaskBoundaryDropDelegate(
+                                milestoneTarget: .milestone(snapshot.id, .before),
+                                subTaskTarget: nil,
+                                draggingItem: $draggingItem,
+                                dropTarget: $dropTarget,
+                                onPerformDrop: performDrop(_:target:)
+                            )
+                        )
+                        .safeListRow()
+                    }
+
                     SafeMilestoneRowView(
                         snapshot: snapshot,
                         highlightRequestID: snapshot.id == scrollTargetID ? navigationRequestID : nil,
@@ -485,14 +502,28 @@ private struct SafeMilestoneListView: View {
                         onBeginAddSubTask: {
                             addingSubTaskFor = snapshot.id
                         },
-                        draggingItem: $draggingItem,
-                        dropTarget: $dropTarget,
-                        onPerformDrop: performDrop(_:target:)
+                        draggingItem: $draggingItem
                     )
                     .id(snapshot.id)
                     .safeListRow()
 
                     ForEach(snapshot.subtasks) { subtask in
+                        TaskReorderDropSeparator(
+                            isActive: dropTarget == .subTask(parentID: snapshot.id, subTaskID: subtask.id, placement: .before),
+                            leadingPadding: subTaskLeadingIndent
+                        )
+                        .onDrop(
+                            of: [.plainText],
+                            delegate: TaskBoundaryDropDelegate(
+                                milestoneTarget: nil,
+                                subTaskTarget: .subTask(parentID: snapshot.id, subTaskID: subtask.id, placement: .before),
+                                draggingItem: $draggingItem,
+                                dropTarget: $dropTarget,
+                                onPerformDrop: performDrop(_:target:)
+                            )
+                        )
+                        .safeListRow()
+
                         SafeSubTaskRowView(
                             subtask: subtask,
                             parentID: snapshot.id,
@@ -506,13 +537,34 @@ private struct SafeMilestoneListView: View {
                             onReminderChange: { reminder in
                                 onSubTaskReminderChange(subtask.id, reminder)
                             },
-                            draggingItem: $draggingItem,
-                            dropTarget: $dropTarget,
-                            onPerformDrop: performDrop(_:target:)
+                            draggingItem: $draggingItem
                         )
                         .id(subtask.id)
                         .safeListRow()
                     }
+
+                    let milestoneBoundaryTarget: TaskDropTarget = {
+                        if index < snapshots.count - 1 {
+                            return .milestone(snapshots[index + 1].id, .before)
+                        }
+                        return .milestone(snapshot.id, .after)
+                    }()
+                    let subTaskBoundaryTarget: TaskDropTarget = .subTask(parentID: snapshot.id, subTaskID: nil, placement: .end)
+                    TaskReorderDropSeparator(
+                        isActive: dropTarget == milestoneBoundaryTarget || dropTarget == subTaskBoundaryTarget,
+                        leadingPadding: dropTarget == subTaskBoundaryTarget ? subTaskLeadingIndent : 0
+                    )
+                    .onDrop(
+                        of: [.plainText],
+                        delegate: TaskBoundaryDropDelegate(
+                            milestoneTarget: milestoneBoundaryTarget,
+                            subTaskTarget: subTaskBoundaryTarget,
+                            draggingItem: $draggingItem,
+                            dropTarget: $dropTarget,
+                            onPerformDrop: performDrop(_:target:)
+                        )
+                    )
+                    .safeListRow()
 
                     if addingSubTaskFor == snapshot.id {
                         SafeSubTaskComposerView(
@@ -655,6 +707,24 @@ private struct TaskDropLine: View {
     }
 }
 
+private struct TaskReorderDropSeparator: View {
+    let isActive: Bool
+    var leadingPadding: CGFloat = 0
+
+    var body: some View {
+        ZStack(alignment: .center) {
+            Color.primary.opacity(0.001)
+            if isActive {
+                TaskDropLine()
+                    .padding(.leading, leadingPadding)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 8)
+        .contentShape(Rectangle())
+    }
+}
+
 private enum TaskHighlightCornerStyle {
     case all
     case top
@@ -691,23 +761,24 @@ private struct TaskRowBackground: View {
     }
 }
 
-private struct TaskRowDropDelegate: DropDelegate {
-    let target: TaskRowDropTarget
-    let rowHeight: CGFloat
+private struct TaskBoundaryDropDelegate: DropDelegate {
+    let milestoneTarget: TaskDropTarget?
+    let subTaskTarget: TaskDropTarget?
     @Binding var draggingItem: TaskDragItem?
     @Binding var dropTarget: TaskDropTarget?
     let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
-        draggingItem != nil
+        guard let draggingItem else { return false }
+        return target(for: draggingItem) != nil
     }
 
     func dropEntered(info: DropInfo) {
-        updateDropTarget(info: info)
+        updateDropTarget()
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        updateDropTarget(info: info)
+        updateDropTarget()
         return DropProposal(operation: .move)
     }
 
@@ -729,19 +800,20 @@ private struct TaskRowDropDelegate: DropDelegate {
         return true
     }
 
-    private func updateDropTarget(info: DropInfo) {
-        guard let draggingItem else { return }
-
-        let placement: ReorderPlacement = info.location.y < max(rowHeight / 2, 1) ? .before : .after
-        switch (draggingItem, target) {
-        case (.milestone, let .milestone(id)):
-            dropTarget = .milestone(id, placement)
-        case (.subTask, let .milestone(id)):
-            dropTarget = .subTask(parentID: id, subTaskID: nil, placement: .end)
-        case (.subTask, let .subTask(parentID: parentID, subTaskID: subTaskID)):
-            dropTarget = .subTask(parentID: parentID, subTaskID: subTaskID, placement: placement)
-        case (.milestone, .subTask):
+    private func updateDropTarget() {
+        guard let draggingItem else {
             dropTarget = nil
+            return
+        }
+        dropTarget = target(for: draggingItem)
+    }
+
+    private func target(for draggingItem: TaskDragItem) -> TaskDropTarget? {
+        switch draggingItem {
+        case .milestone:
+            return milestoneTarget
+        case .subTask:
+            return subTaskTarget
         }
     }
 }
@@ -779,11 +851,6 @@ private struct TaskEndDropDelegate: DropDelegate {
     }
 }
 
-private enum TaskRowDropTarget {
-    case milestone(UUID)
-    case subTask(parentID: UUID, subTaskID: UUID)
-}
-
 private struct SafeMilestoneRowView: View {
     let snapshot: MilestoneSnapshot
     let highlightRequestID: UUID?
@@ -795,8 +862,6 @@ private struct SafeMilestoneRowView: View {
     let onReminderChange: (Reminder?) -> Void
     let onBeginAddSubTask: () -> Void
     @Binding var draggingItem: TaskDragItem?
-    @Binding var dropTarget: TaskDropTarget?
-    let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
 
     @State private var isEditing = false
     @State private var titleDraft = ""
@@ -883,26 +948,6 @@ private struct SafeMilestoneRowView: View {
                 .font(.title3)
                 .padding(8)
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onDrop(
-                        of: [.plainText],
-                        delegate: TaskRowDropDelegate(
-                            target: .milestone(snapshot.id),
-                            rowHeight: proxy.size.height,
-                            draggingItem: $draggingItem,
-                            dropTarget: $dropTarget,
-                            onPerformDrop: onPerformDrop
-                        )
-                    )
-            }
-        }
-        .overlay(alignment: dropLineAlignment) {
-            if isCurrentMilestoneDropTarget {
-                TaskDropLine()
-            }
-        }
         .contextMenu {
             Button {
                 onBeginAddSubTask()
@@ -920,27 +965,6 @@ private struct SafeMilestoneRowView: View {
             } label: {
                 Label("删除", systemImage: "trash")
             }
-        }
-    }
-
-    private var isCurrentMilestoneDropTarget: Bool {
-        if case let .milestone(id, _) = dropTarget {
-            return id == snapshot.id
-        }
-        if case let .subTask(parentID: parentID, subTaskID: nil, placement: _) = dropTarget {
-            return parentID == snapshot.id
-        }
-        return false
-    }
-
-    private var dropLineAlignment: Alignment {
-        switch dropTarget {
-        case let .milestone(id, placement) where id == snapshot.id:
-            return placement == .before ? .top : .bottom
-        case let .subTask(parentID: parentID, subTaskID: nil, placement: _) where parentID == snapshot.id:
-            return .bottom
-        default:
-            return .bottom
         }
     }
 
@@ -1056,8 +1080,6 @@ private struct SafeSubTaskRowView: View {
     let onDelete: (UUID) -> Void
     let onReminderChange: (Reminder?) -> Void
     @Binding var draggingItem: TaskDragItem?
-    @Binding var dropTarget: TaskDropTarget?
-    let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
 
     @State private var isEditing = false
     @State private var titleDraft = ""
@@ -1122,27 +1144,6 @@ private struct SafeSubTaskRowView: View {
                 .font(.title3)
                 .padding(8)
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onDrop(
-                        of: [.plainText],
-                        delegate: TaskRowDropDelegate(
-                            target: .subTask(parentID: parentID, subTaskID: subtask.id),
-                            rowHeight: proxy.size.height,
-                            draggingItem: $draggingItem,
-                            dropTarget: $dropTarget,
-                            onPerformDrop: onPerformDrop
-                        )
-                    )
-            }
-        }
-        .overlay(alignment: dropLineAlignment) {
-            if isCurrentSubTaskDropTarget {
-                TaskDropLine()
-                    .padding(.leading, leadingIndent)
-            }
-        }
         .contextMenu {
             Button {
                 beginTitleEdit()
@@ -1173,21 +1174,6 @@ private struct SafeSubTaskRowView: View {
                 isSearchHighlighted = false
             }
         }
-    }
-
-    private var isCurrentSubTaskDropTarget: Bool {
-        if case let .subTask(parentID: _, subTaskID: subTaskID, placement: _) = dropTarget {
-            return subTaskID == subtask.id
-        }
-        return false
-    }
-
-    private var dropLineAlignment: Alignment {
-        if case let .subTask(parentID: _, subTaskID: subTaskID, placement: placement) = dropTarget,
-           subTaskID == subtask.id {
-            return placement == .before ? .top : .bottom
-        }
-        return .bottom
     }
 
     @ViewBuilder

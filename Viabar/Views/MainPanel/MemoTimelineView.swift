@@ -77,8 +77,24 @@ struct MemoTimelineView: View {
     private var memoTimeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(visibleMemos) { memo in
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(visibleMemos.enumerated()), id: \.element.memoId) { index, memo in
+                        if index == 0 {
+                            MemoReorderDropSeparator(
+                                isActive: memoDropTarget == .memo(memo.memoId, .before)
+                            )
+                            .onDrop(
+                                of: [.plainText],
+                                delegate: MemoBoundaryDropDelegate(
+                                    targetID: memo.memoId,
+                                    placement: .before,
+                                    draggingMemoID: $draggingMemoID,
+                                    memoDropTarget: $memoDropTarget,
+                                    onMoveMemo: moveMemo(id:targetID:placement:)
+                                )
+                            )
+                        }
+
                         MemoCardView(
                             memo: memo,
                             highlightRequestID: memo.memoId == targetedMemoID ? navigationRequest?.id : nil
@@ -92,26 +108,20 @@ struct MemoTimelineView: View {
                                     .font(.title3)
                                     .padding(8)
                             }
-                            .background {
-                                GeometryReader { proxy in
-                                    Color.clear
-                                        .onDrop(
-                                            of: [.plainText],
-                                            delegate: MemoDropDelegate(
-                                                targetID: memo.memoId,
-                                                rowHeight: proxy.size.height,
-                                                draggingMemoID: $draggingMemoID,
-                                                memoDropTarget: $memoDropTarget,
-                                                onMoveMemo: moveMemo(id:targetID:placement:)
-                                            )
-                                        )
-                                }
-                            }
-                            .overlay(alignment: memoDropLineAlignment(for: memo.memoId)) {
-                                if isMemoDropTarget(memo.memoId) {
-                                    MemoDropLine()
-                                }
-                            }
+
+                        MemoReorderDropSeparator(
+                            isActive: memoDropTarget == .memo(memo.memoId, .after)
+                        )
+                        .onDrop(
+                            of: [.plainText],
+                            delegate: MemoBoundaryDropDelegate(
+                                targetID: memo.memoId,
+                                placement: .after,
+                                draggingMemoID: $draggingMemoID,
+                                memoDropTarget: $memoDropTarget,
+                                onMoveMemo: moveMemo(id:targetID:placement:)
+                            )
+                        )
                     }
 
                     Color.clear
@@ -243,21 +253,6 @@ struct MemoTimelineView: View {
     private func moveMemo(id: UUID, targetID: UUID, placement: ReorderPlacement) {
         guard id != targetID else { return }
         projectService?.reorderMemos(in: project, movingID: id, targetID: targetID, placement: placement)
-    }
-
-    private func isMemoDropTarget(_ id: UUID) -> Bool {
-        if case let .memo(targetID, _) = memoDropTarget {
-            return targetID == id
-        }
-        return false
-    }
-
-    private func memoDropLineAlignment(for id: UUID) -> Alignment {
-        if case let .memo(targetID, placement) = memoDropTarget,
-           targetID == id {
-            return placement == .before ? .top : .bottom
-        }
-        return .bottom
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -405,9 +400,25 @@ private struct MemoDropLine: View {
     }
 }
 
-private struct MemoDropDelegate: DropDelegate {
+private struct MemoReorderDropSeparator: View {
+    let isActive: Bool
+
+    var body: some View {
+        ZStack {
+            Color.primary.opacity(0.001)
+            if isActive {
+                MemoDropLine()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 8)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct MemoBoundaryDropDelegate: DropDelegate {
     let targetID: UUID
-    let rowHeight: CGFloat
+    let placement: ReorderPlacement
     @Binding var draggingMemoID: UUID?
     @Binding var memoDropTarget: MemoDropTarget?
     let onMoveMemo: (UUID, UUID, ReorderPlacement) -> Void
@@ -445,7 +456,6 @@ private struct MemoDropDelegate: DropDelegate {
 
     private func updateDropTarget(info: DropInfo) {
         guard draggingMemoID != nil else { return }
-        let placement: ReorderPlacement = info.location.y < max(rowHeight / 2, 1) ? .before : .after
         memoDropTarget = .memo(targetID, placement)
     }
 }
