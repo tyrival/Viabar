@@ -616,6 +616,7 @@ private enum ActiveProjectRowMetrics {
     static let selectedLift: CGFloat = 0
     static let projectRowSpacing: CGFloat = 8
     static let projectDropLineGapOffset: CGFloat = 5
+    static let projectReorderPersistDelay: Double = 0.45
     static let projectTitleFont = Font.callout
     static let shadowAnimationDuration: Double = 0.15
     static let shadowAnimation = Animation.easeInOut(duration: shadowAnimationDuration)
@@ -1041,10 +1042,14 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
         let finalProjects = finalDisplayProjects()
         resetDragState(restoresDisplayOrder: false)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + ActiveProjectRowMetrics.projectReorderPersistDelay) {
             projectDropLog("performDrop persist begin")
-            for (index, project) in finalProjects.enumerated() where project.orderIndex != index {
-                project.orderIndex = index
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                for (index, project) in finalProjects.enumerated() where project.orderIndex != index {
+                    project.orderIndex = index
+                }
             }
             service.save()
             projectDropLog("performDrop persist end")
