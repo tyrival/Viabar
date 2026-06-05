@@ -328,7 +328,7 @@ struct MemoCardView: View {
     @State private var isEditingMemo = false
     @State private var editDraft = ""
     @State private var showsDeleteConfirmation = false
-    @FocusState private var isEditFocused: Bool
+    @State private var editFocusRequest = 0
 
     private var projectService: ProjectService? {
         container.projectService
@@ -424,10 +424,8 @@ struct MemoCardView: View {
         if isEditingMemo {
             ShiftReturnMemoEditor(
                 text: $editDraft,
-                isFocused: Binding(
-                    get: { isEditFocused },
-                    set: { isEditFocused = $0 }
-                ),
+                isFocused: .constant(false),
+                focusRequest: editFocusRequest,
                 onCommit: commitMemoEdit
             )
             .padding(.horizontal, 12)
@@ -443,7 +441,7 @@ struct MemoCardView: View {
             }
             .onAppear {
                 DispatchQueue.main.async {
-                    isEditFocused = true
+                    editFocusRequest += 1
                 }
             }
         } else {
@@ -462,10 +460,9 @@ struct MemoCardView: View {
 
     private func beginMemoEdit() {
         editDraft = memo.content
-        isEditFocused = false
         isEditingMemo = true
         DispatchQueue.main.async {
-            isEditFocused = true
+            editFocusRequest += 1
         }
     }
 
@@ -662,6 +659,7 @@ private enum MemoTimelineStyle {
 private struct ShiftReturnMemoEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
+    var focusRequest: Int = 0
     let onCommit: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -706,7 +704,10 @@ private struct ShiftReturnMemoEditor: NSViewRepresentable {
 
         textView.wantsFocusAtEnd = isFocused
 
-        if isFocused, textView.window?.firstResponder !== textView {
+        if focusRequest != context.coordinator.lastFocusRequest {
+            context.coordinator.lastFocusRequest = focusRequest
+            textView.requestFocusAtEnd()
+        } else if isFocused, textView.window?.firstResponder !== textView {
             textView.focusAtEnd()
             DispatchQueue.main.async {
                 textView.focusAtEnd()
@@ -719,6 +720,7 @@ private struct ShiftReturnMemoEditor: NSViewRepresentable {
         @Binding var isFocused: Bool
         weak var textView: MemoTextView?
         let onCommit: () -> Void
+        var lastFocusRequest = 0
 
         init(text: Binding<String>, isFocused: Binding<Bool>, onCommit: @escaping () -> Void) {
             _text = text
@@ -743,6 +745,17 @@ private struct ShiftReturnMemoEditor: NSViewRepresentable {
     final class MemoTextView: NSTextView {
         var onCommit: (() -> Void)?
         var wantsFocusAtEnd = false
+
+        func requestFocusAtEnd() {
+            wantsFocusAtEnd = true
+            focusAtEnd()
+            DispatchQueue.main.async { [weak self] in
+                self?.focusAtEnd()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.focusAtEnd()
+            }
+        }
 
         func focusAtEnd() {
             guard let window else {
