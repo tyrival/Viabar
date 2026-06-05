@@ -325,6 +325,10 @@ struct MemoCardView: View {
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var showsCopiedTag = false
     @State private var isCopyButtonHovered = false
+    @State private var isEditingMemo = false
+    @State private var editDraft = ""
+    @State private var showsDeleteConfirmation = false
+    @FocusState private var isEditFocused: Bool
 
     private var projectService: ProjectService? {
         container.projectService
@@ -371,13 +375,7 @@ struct MemoCardView: View {
                 }
             }
 
-            Text(memo.content)
-                .font(.callout)
-                .foregroundStyle(.primary)
-                .lineLimit(nil)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            memoBody
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
@@ -394,14 +392,94 @@ struct MemoCardView: View {
         )
         .contentShape(Rectangle())
         .contextMenu {
-            Button("复制") {
+            Button {
+                beginMemoEdit()
+            } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+            Button {
                 copyMemoContent()
+            } label: {
+                Label("复制", systemImage: "doc.on.doc")
             }
             Divider()
+            Button {
+                showsDeleteConfirmation = true
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+        }
+        .alert("删除备忘录？", isPresented: $showsDeleteConfirmation) {
+            Button("取消", role: .cancel) {}
             Button("删除", role: .destructive) {
                 projectService?.deleteMemo(memo)
             }
+        } message: {
+            Text("这条备忘录将被移入回收站，可在回收站中恢复。")
         }
+    }
+
+    @ViewBuilder
+    private var memoBody: some View {
+        if isEditingMemo {
+            ShiftReturnMemoEditor(
+                text: $editDraft,
+                isFocused: Binding(
+                    get: { isEditFocused },
+                    set: { isEditFocused = $0 }
+                ),
+                onCommit: commitMemoEdit
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(minHeight: 68, maxHeight: 140, alignment: .topLeading)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(MemoTimelineStyle.inputBackground)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(MemoTimelineStyle.inputBorder, lineWidth: 1)
+            }
+            .onAppear {
+                DispatchQueue.main.async {
+                    isEditFocused = true
+                }
+            }
+        } else {
+            Text(memo.content)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    beginMemoEdit()
+                }
+        }
+    }
+
+    private func beginMemoEdit() {
+        editDraft = memo.content
+        isEditFocused = false
+        isEditingMemo = true
+        DispatchQueue.main.async {
+            isEditFocused = true
+        }
+    }
+
+    private func commitMemoEdit() {
+        let trimmed = editDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            editDraft = memo.content
+            isEditingMemo = false
+            return
+        }
+
+        memo.content = trimmed
+        projectService?.save()
+        isEditingMemo = false
     }
 
     private func copyMemoContent() {
@@ -626,8 +704,13 @@ private struct ShiftReturnMemoEditor: NSViewRepresentable {
 
         textView.onCommit = onCommit
 
+        textView.wantsFocusAtEnd = isFocused
+
         if isFocused, textView.window?.firstResponder !== textView {
-            textView.window?.makeFirstResponder(textView)
+            textView.focusAtEnd()
+            DispatchQueue.main.async {
+                textView.focusAtEnd()
+            }
         }
     }
 
@@ -659,6 +742,25 @@ private struct ShiftReturnMemoEditor: NSViewRepresentable {
 
     final class MemoTextView: NSTextView {
         var onCommit: (() -> Void)?
+        var wantsFocusAtEnd = false
+
+        func focusAtEnd() {
+            guard let window else {
+                wantsFocusAtEnd = true
+                return
+            }
+            window.makeFirstResponder(self)
+            setSelectedRange(NSRange(location: string.count, length: 0))
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+
+            guard wantsFocusAtEnd else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.focusAtEnd()
+            }
+        }
 
         override func keyDown(with event: NSEvent) {
             let isReturn = event.keyCode == 36 || event.keyCode == 76

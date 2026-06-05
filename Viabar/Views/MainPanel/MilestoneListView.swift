@@ -25,6 +25,7 @@ struct MilestoneListView: View {
     @State private var selectedMilestoneID: UUID?
     @State private var selectedSubTaskID: UUID?
     @State private var scrollToBottomTrigger = 0
+    @State private var pendingTaskDeletion: TaskDeletionConfirmation?
 
     private var projectService: ProjectService? {
         container.projectService
@@ -112,6 +113,22 @@ struct MilestoneListView: View {
             addMilestoneBar
         }
         .background(ViabarColor.mainPanelBackground)
+        .alert(
+            pendingTaskDeletion?.title ?? "",
+            isPresented: Binding(
+                get: { pendingTaskDeletion != nil },
+                set: { if !$0 { pendingTaskDeletion = nil } }
+            )
+        ) {
+            Button("取消", role: .cancel) {
+                pendingTaskDeletion = nil
+            }
+            Button("删除", role: .destructive) {
+                confirmPendingTaskDeletion()
+            }
+        } message: {
+            Text(pendingTaskDeletion?.message ?? "")
+        }
     }
 
     // MARK: - Header
@@ -145,13 +162,13 @@ struct MilestoneListView: View {
                 snapshots: milestoneSnapshots,
                 onToggleMilestone: toggleMilestone(id:),
                 onUpdateMilestoneTitle: updateMilestoneTitle(id:title:),
-                onDeleteMilestone: deleteMilestone(id:),
+                onDeleteMilestone: requestDeleteMilestone(id:),
                 onMilestoneReminderChange: syncMilestoneReminder(id:reminder:),
                 reminderBinding: milestoneReminderBinding(id:),
                 onAddSubTask: addSubTask(milestoneID:title:),
                 onToggleSubTask: toggleSubTask(id:),
                 onUpdateSubTaskTitle: updateSubTaskTitle(id:title:),
-                onDeleteSubTask: deleteSubTask(id:),
+                onDeleteSubTask: requestDeleteSubTask(id:),
                 onSubTaskReminderChange: syncSubTaskReminder(id:reminder:),
                 scrollToBottomTrigger: scrollToBottomTrigger,
                 onMoveMilestone: moveMilestone(id:targetID:placement:),
@@ -334,6 +351,37 @@ struct MilestoneListView: View {
         }
     }
 
+    private func requestDeleteMilestone(id: UUID) {
+        guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
+        pendingTaskDeletion = .milestone(
+            id: id,
+            title: milestone.title,
+            subtaskCount: milestone.subtasks.count
+        )
+    }
+
+    private func requestDeleteSubTask(id: UUID) {
+        for milestone in project.milestones {
+            if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                pendingTaskDeletion = .subTask(id: id, title: subtask.title)
+                return
+            }
+        }
+    }
+
+    private func confirmPendingTaskDeletion() {
+        guard let pendingTaskDeletion else { return }
+
+        switch pendingTaskDeletion {
+        case .milestone(let id, _, _):
+            deleteMilestone(id: id)
+        case .subTask(let id, _):
+            deleteSubTask(id: id)
+        }
+
+        self.pendingTaskDeletion = nil
+    }
+
     private func moveMilestone(id: UUID, targetID: UUID?, placement: ReorderPlacement) {
         projectService?.reorderMilestones(in: project, movingID: id, targetID: targetID, placement: placement)
     }
@@ -443,6 +491,39 @@ private struct SubTaskSnapshot: Identifiable, Equatable {
     let hasReminder: Bool
 }
 
+private enum TaskDeletionConfirmation: Identifiable {
+    case milestone(id: UUID, title: String, subtaskCount: Int)
+    case subTask(id: UUID, title: String)
+
+    var id: UUID {
+        switch self {
+        case .milestone(let id, _, _), .subTask(let id, _):
+            return id
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .milestone:
+            return "删除任务？"
+        case .subTask:
+            return "删除子任务？"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .milestone(_, let title, let subtaskCount):
+            if subtaskCount > 0 {
+                return "“\(title)”及其 \(subtaskCount) 个子任务将被移入回收站。子任务会随任务一起移除，无法单独保留在当前项目中。"
+            }
+            return "“\(title)”将被移入回收站，可在回收站中恢复。"
+        case .subTask(_, let title):
+            return "“\(title)”将被移入回收站，可在回收站中恢复。"
+        }
+    }
+}
+
 private struct SafeMilestoneListView: View {
     let snapshots: [MilestoneSnapshot]
     let onToggleMilestone: (UUID) -> Void
@@ -513,8 +594,6 @@ private struct SafeMilestoneListView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .tint(Color(nsColor: .tertiaryLabelColor))
-            .accentColor(Color(nsColor: .tertiaryLabelColor))
             .onChange(of: scrollToBottomTrigger) { _, _ in
                 scrollToBottom(proxy)
             }
@@ -901,6 +980,31 @@ private struct TaskRowBackground: View {
     }
 }
 
+private struct TaskInlineEditorChrome: ViewModifier {
+    let minHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: minHeight, alignment: .topLeading)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(ViabarColor.panelInputBackground)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
+            }
+    }
+}
+
+private extension View {
+    func taskInlineEditorChrome(minHeight: CGFloat) -> some View {
+        modifier(TaskInlineEditorChrome(minHeight: minHeight))
+    }
+}
+
 private struct SafeMilestoneRowView: View {
     let snapshot: MilestoneSnapshot
     let highlightRequestID: UUID?
@@ -1010,7 +1114,7 @@ private struct SafeMilestoneRowView: View {
             } label: {
                 Label("编辑", systemImage: "pencil")
             }
-            Button(role: .destructive) {
+            Button {
                 onDeleteMilestone(snapshot.id)
             } label: {
                 Label("删除", systemImage: "trash")
@@ -1031,6 +1135,7 @@ private struct SafeMilestoneRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
+                .taskInlineEditorChrome(minHeight: 32)
         } else {
             Text(snapshot.title)
                 .font(.body)
@@ -1200,7 +1305,7 @@ private struct SafeSubTaskRowView: View {
             } label: {
                 Label("编辑", systemImage: "pencil")
             }
-            Button(role: .destructive) {
+            Button {
                 onDelete(subtask.id)
             } label: {
                 Label("删除", systemImage: "trash")
@@ -1238,6 +1343,7 @@ private struct SafeSubTaskRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
+                .taskInlineEditorChrome(minHeight: 30)
         } else {
             Text(subtask.title)
                 .font(.callout)
@@ -1447,6 +1553,7 @@ struct MilestoneRowView: View {
     @State private var editingTitle = false
     @State private var titleDraft: String = ""
     @State private var showingReminderPopover = false
+    @State private var showingDeleteConfirmation = false
     @State private var isHovering = false
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNewSubTaskFocused: Bool
@@ -1527,10 +1634,22 @@ struct MilestoneRowView: View {
                 Label("编辑", systemImage: "pencil")
             }
             Divider()
-            Button(role: .destructive) {
-                projectService?.deleteMilestone(milestone)
+            Button {
+                showingDeleteConfirmation = true
             } label: {
                 Label("删除", systemImage: "trash")
+            }
+        }
+        .alert("删除任务？", isPresented: $showingDeleteConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                projectService?.deleteMilestone(milestone)
+            }
+        } message: {
+            if milestone.subtasks.isEmpty {
+                Text("“\(milestone.title)”将被移入回收站，可在回收站中恢复。")
+            } else {
+                Text("“\(milestone.title)”及其 \(milestone.subtasks.count) 个子任务将被移入回收站。子任务会随任务一起移除，无法单独保留在当前项目中。")
             }
         }
     }
@@ -1675,6 +1794,7 @@ struct MilestoneRowView: View {
                         guard !focused else { return }
                         commitTitleEdit()
                     }
+                    .taskInlineEditorChrome(minHeight: 32)
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(milestone.title)
@@ -1728,6 +1848,7 @@ struct SubTaskRowView: View {
     @State private var editingTitle = false
     @State private var titleDraft: String = ""
     @State private var showingReminderPopover = false
+    @State private var showingDeleteConfirmation = false
     @State private var isHovering = false
     @FocusState private var isTitleFocused: Bool
 
@@ -1793,11 +1914,19 @@ struct SubTaskRowView: View {
                 Label("编辑", systemImage: "pencil")
             }
             Divider()
-            Button(role: .destructive) {
-                projectService?.deleteSubTask(subTask)
+            Button {
+                showingDeleteConfirmation = true
             } label: {
                 Label("删除", systemImage: "trash")
             }
+        }
+        .alert("删除子任务？", isPresented: $showingDeleteConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                projectService?.deleteSubTask(subTask)
+            }
+        } message: {
+            Text("“\(subTask.title)”将被移入回收站，可在回收站中恢复。")
         }
     }
 
@@ -1815,6 +1944,7 @@ struct SubTaskRowView: View {
                         guard !focused else { return }
                         commitTitleEdit()
                     }
+                    .taskInlineEditorChrome(minHeight: 30)
             } else {
                 Text(subTaskDisplayTitle)
                     .font(.callout)
