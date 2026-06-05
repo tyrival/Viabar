@@ -10,6 +10,122 @@ private func projectDropLog(_ message: String) {
     print(String(format: "[ProjectDrop +%.3fs] %@", elapsed, message))
 }
 
+private func sidebarContextLog(_ message: String) {
+    print("[SidebarContext] \(message)")
+}
+
+private struct RightClickContextReader: NSViewRepresentable {
+    let onRightClick: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = RightClickContextView()
+        view.onRightClick = onRightClick
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? RightClickContextView)?.onRightClick = onRightClick
+    }
+
+    private final class RightClickContextView: NSView {
+        var onRightClick: (() -> Void)?
+
+        override func rightMouseDown(with event: NSEvent) {
+            onRightClick?()
+            super.rightMouseDown(with: event)
+        }
+    }
+}
+
+private enum SidebarMenuEntry {
+    case item(String, systemImage: String? = nil, action: () -> Void)
+    case separator
+}
+
+private struct SidebarRightClickMenu: NSViewRepresentable {
+    let source: String
+    let entries: () -> [SidebarMenuEntry]
+    let onRightClick: () -> Void
+
+    func makeNSView(context: Context) -> MenuHostView {
+        let view = MenuHostView()
+        view.source = source
+        view.entries = entries
+        view.onRightClick = onRightClick
+        view.installMonitor()
+        return view
+    }
+
+    func updateNSView(_ nsView: MenuHostView, context: Context) {
+        nsView.source = source
+        nsView.entries = entries
+        nsView.onRightClick = onRightClick
+    }
+
+    static func dismantleNSView(_ nsView: MenuHostView, coordinator: ()) {
+        nsView.removeMonitor()
+    }
+
+    final class MenuHostView: NSView {
+        var source = ""
+        var entries: (() -> [SidebarMenuEntry])?
+        var onRightClick: (() -> Void)?
+        private var monitor: Any?
+
+        func installMonitor() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+                guard let self,
+                      let window,
+                      event.window === window
+                else { return event }
+
+                let pointInView = convert(event.locationInWindow, from: nil)
+                guard bounds.contains(pointInView) else { return event }
+
+                onRightClick?()
+                sidebarContextLog("show menu source=\(source) point=\(String(format: "%.1f,%.1f", pointInView.x, pointInView.y)) bounds=\(String(format: "%.1fx%.1f", bounds.width, bounds.height))")
+                let menu = NSMenu()
+                for entry in entries?() ?? [] {
+                    switch entry {
+                    case .separator:
+                        menu.addItem(.separator())
+                    case .item(let title, let systemImage, let action):
+                        let item = ClosureMenuItem(title: title, action: #selector(ClosureMenuItem.invoke), keyEquivalent: "")
+                        item.handler = action
+                        item.target = item
+                        if let systemImage {
+                            item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
+                        }
+                        menu.addItem(item)
+                    }
+                }
+                menu.popUp(positioning: nil, at: pointInView, in: self)
+                return nil
+            }
+        }
+
+        func removeMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        deinit {
+            removeMonitor()
+        }
+    }
+
+    private final class ClosureMenuItem: NSMenuItem {
+        var handler: (() -> Void)?
+
+        @objc func invoke() {
+            handler?()
+        }
+    }
+}
+
 // MARK: - Sidebar Selection
 
 enum SidebarSelection: Hashable {
@@ -126,9 +242,54 @@ struct SidebarView: View {
     @State private var isCreateProjectButtonHovered = false
     @State private var isTemplateButtonHovered = false
     @State private var isCreateArchiveFolderButtonHovered = false
+    @State private var contextProjectId: UUID?
+    @State private var contextArchiveFolderId: UUID?
 
     private var projectService: ProjectService? {
         container.projectService
+    }
+
+    private func setContextProject(_ project: Project, source: String) {
+        contextProjectId = project.projectId
+        sidebarContextLog("set project source=\(source) title=\(project.title) id=\(project.projectId)")
+    }
+
+    private func setContextArchiveFolder(_ folder: ArchiveFolder, source: String) {
+        contextArchiveFolderId = folder.folderId
+        sidebarContextLog("set folder source=\(source) name=\(folder.name) id=\(folder.folderId)")
+    }
+
+    private func contextProject(fallback project: Project) -> Project {
+        guard let contextProjectId,
+              let target = allProjects.first(where: { $0.projectId == contextProjectId })
+        else {
+            sidebarContextLog("resolve project fallback title=\(project.title) id=\(project.projectId) context=\(contextProjectId?.uuidString ?? "nil")")
+            return project
+        }
+        sidebarContextLog("resolve project fallback=\(project.title) -> target=\(target.title) id=\(target.projectId)")
+        return target
+    }
+
+    private func contextArchiveFolder(fallback folder: ArchiveFolder) -> ArchiveFolder {
+        guard let contextArchiveFolderId,
+              let target = allFolders.first(where: { $0.folderId == contextArchiveFolderId })
+        else {
+            sidebarContextLog("resolve folder fallback name=\(folder.name) id=\(folder.folderId) context=\(contextArchiveFolderId?.uuidString ?? "nil")")
+            return folder
+        }
+        sidebarContextLog("resolve folder fallback=\(folder.name) -> target=\(target.name) id=\(target.folderId)")
+        return target
+    }
+
+    private func selectionDescription(_ value: SidebarSelection?) -> String {
+        switch value {
+        case .overview:
+            return "overview"
+        case .project(let project):
+            return "project title=\(project.title) id=\(project.projectId)"
+        case nil:
+            return "nil"
+        }
     }
 
     private var activeProjects: [Project] {
@@ -278,6 +439,9 @@ struct SidebarView: View {
         .onChange(of: revealRequest?.id) { _, _ in
             revealArchivedProject(revealRequest?.projectID)
         }
+        .onChange(of: selection) { oldValue, newValue in
+            sidebarContextLog("selection old=\(selectionDescription(oldValue)) new=\(selectionDescription(newValue))")
+        }
         .archiveFolderPicker(
             isPresented: Binding(
                 get: { archivePickerProject != nil },
@@ -363,13 +527,39 @@ struct SidebarView: View {
                             project: project,
                             isSelected: selection == .project(project),
                             highlightRequestID: projectHighlightRequestID(for: project),
-                            onEdit: { editingProject = project },
-                            onArchive: { archivePickerProject = project },
-                            onDelete: { showDeleteProjectConfirmation(project) },
+                            isFavoriteForContext: {
+                                contextProject(fallback: project).isFavorite
+                            },
+                            onEdit: {
+                                sidebarContextLog("action active.edit fallback=\(project.title)")
+                                editingProject = contextProject(fallback: project)
+                            },
+                            onArchive: {
+                                sidebarContextLog("action active.archive fallback=\(project.title)")
+                                archivePickerProject = contextProject(fallback: project)
+                            },
+                            onToggleFavorite: {
+                                sidebarContextLog("action active.favorite fallback=\(project.title)")
+                                projectService?.toggleFavorite(contextProject(fallback: project))
+                            },
+                            onDelete: {
+                                sidebarContextLog("action active.delete fallback=\(project.title)")
+                                showDeleteProjectConfirmation(contextProject(fallback: project))
+                            },
                             onSelect: {
                                 selection = .project(project)
                             }
                         )
+                        .onHover { hovering in
+                            if hovering {
+                                setContextProject(project, source: "active.hover")
+                            }
+                        }
+                        .background {
+                            RightClickContextReader {
+                                setContextProject(project, source: "active.rightMouseDown")
+                            }
+                        }
                         .onDrag {
                             draggingActiveProjectId = project.projectId
                             activeProjectDisplayOrder = displayedActiveProjects.map(\.projectId)
@@ -391,6 +581,9 @@ struct SidebarView: View {
                         isCommittingDrop: $isCommittingActiveProjectDrop
                     )
                 }
+                .selectionDisabled()
+                .focusable(false)
+                .focusEffectDisabled()
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -528,13 +721,31 @@ struct SidebarView: View {
                         archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
                         folderDisplayOrderByParent: $archiveFolderDisplayOrderByParent,
                         projectDisplayOrderByFolder: $archiveProjectDisplayOrderByFolder,
+                        contextProjectId: $contextProjectId,
+                        contextArchiveFolderId: $contextArchiveFolderId,
                         allProjects: allProjects,
                         allFolders: allFolders,
                         service: projectService,
-                        onCreateSubfolder: showCreateSubfolderPrompt,
-                        onRenameFolder: showRenameFolderPrompt,
-                        onDeleteFolder: requestDeleteFolder,
-                        onDeleteProject: showDeleteProjectConfirmation,
+                        onCreateSubfolder: { folder in
+                            sidebarContextLog("action folder.createChild fallback=\(folder.name)")
+                            showCreateSubfolderPrompt(parent: contextArchiveFolder(fallback: folder))
+                        },
+                        onRenameFolder: { folder in
+                            sidebarContextLog("action folder.rename fallback=\(folder.name)")
+                            showRenameFolderPrompt(folder: contextArchiveFolder(fallback: folder))
+                        },
+                        onDeleteFolder: { folder in
+                            sidebarContextLog("action folder.delete fallback=\(folder.name)")
+                            requestDeleteFolder(contextArchiveFolder(fallback: folder))
+                        },
+                        onUnarchiveProject: { project in
+                            sidebarContextLog("action archiveProject.unarchive fallback=\(project.title)")
+                            projectService?.unarchiveProject(contextProject(fallback: project))
+                        },
+                        onDeleteProject: { project in
+                            sidebarContextLog("action archiveProject.delete fallback=\(project.title)")
+                            showDeleteProjectConfirmation(contextProject(fallback: project))
+                        },
                         onSelectProject: { selection = .project($0) }
                     )
                     .id(folder.folderId)
@@ -552,11 +763,31 @@ struct SidebarView: View {
                         onDragStart: {
                             draggingActiveProjectId = project.projectId
                         },
-                        onDelete: { showDeleteProjectConfirmation(project) }
+                        onContextTarget: {
+                            setContextProject(project, source: "archiveRootProject.contextTarget")
+                        },
+                        onUnarchive: {
+                            sidebarContextLog("action archiveRootProject.unarchive fallback=\(project.title)")
+                            projectService?.unarchiveProject(contextProject(fallback: project))
+                        },
+                        onDelete: {
+                            sidebarContextLog("action archiveRootProject.delete fallback=\(project.title)")
+                            showDeleteProjectConfirmation(contextProject(fallback: project))
+                        }
                     ) {
                         selection = .project(project)
                     }
                     .id(project.projectId)
+                    .onHover { hovering in
+                        if hovering {
+                            setContextProject(project, source: "archiveRootProject.hover")
+                        }
+                    }
+                    .background {
+                        RightClickContextReader {
+                            setContextProject(project, source: "archiveRootProject.rightMouseDown")
+                        }
+                    }
                     .onDrop(
                         of: [.plainText],
                         delegate: ArchiveProjectNestedDropDelegate(
@@ -574,6 +805,9 @@ struct SidebarView: View {
                     )
                 }
             }
+            .selectionDisabled()
+            .focusable(false)
+            .focusEffectDisabled()
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
@@ -795,24 +1029,16 @@ private struct ArchiveFolderFlatRow: View {
         } preview: {
             dragPreview
         }
-        .contextMenu {
-            Button {
-                onCreateSubfolder()
-            } label: {
-                Label("新建子文件夹", systemImage: "folder.badge.plus")
-            }
-            Button {
-                onRename()
-            } label: {
-                Label("重命名", systemImage: "pencil")
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("删除文件夹", systemImage: "trash")
+        .background {
+            SidebarRightClickMenu(source: "archiveFolder:\(folder.name)") {
+                [
+                    .item("新建子文件夹", systemImage: "folder.badge.plus", action: onCreateSubfolder),
+                    .item("重命名", systemImage: "pencil", action: onRename),
+                    .separator,
+                    .item("删除文件夹", systemImage: "trash", action: onDelete)
+                ]
+            } onRightClick: {
+                sidebarContextLog("row rightClick archiveFolder name=\(folder.name) id=\(folder.folderId)")
             }
         }
     }
@@ -830,12 +1056,15 @@ private struct ArchiveFolderBranchView: View {
     @Binding var archiveProjectDropTargetFolderId: UUID?
     @Binding var folderDisplayOrderByParent: [ArchiveOrderScope: [UUID]]
     @Binding var projectDisplayOrderByFolder: [ArchiveOrderScope: [UUID]]
+    @Binding var contextProjectId: UUID?
+    @Binding var contextArchiveFolderId: UUID?
     let allProjects: [Project]
     let allFolders: [ArchiveFolder]
     weak var service: ProjectService?
     let onCreateSubfolder: (ArchiveFolder) -> Void
     let onRenameFolder: (ArchiveFolder) -> Void
     let onDeleteFolder: (ArchiveFolder) -> Void
+    let onUnarchiveProject: (Project) -> Void
     let onDeleteProject: (Project) -> Void
     let onSelectProject: (Project) -> Void
 
@@ -905,6 +1134,18 @@ private struct ArchiveFolderBranchView: View {
                 onDelete: { onDeleteFolder(folder) }
             )
             .id(folder.folderId)
+            .onHover { hovering in
+                if hovering {
+                    contextArchiveFolderId = folder.folderId
+                    sidebarContextLog("set folder source=folder.hover name=\(folder.name) id=\(folder.folderId)")
+                }
+            }
+            .background {
+                RightClickContextReader {
+                    contextArchiveFolderId = folder.folderId
+                    sidebarContextLog("set folder source=folder.rightMouseDown name=\(folder.name) id=\(folder.folderId)")
+                }
+            }
             .onDrop(
                 of: [.plainText],
                 delegate: ArchiveFolderNestedDropDelegate(
@@ -935,12 +1176,15 @@ private struct ArchiveFolderBranchView: View {
                         archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
                         folderDisplayOrderByParent: $folderDisplayOrderByParent,
                         projectDisplayOrderByFolder: $projectDisplayOrderByFolder,
+                        contextProjectId: $contextProjectId,
+                        contextArchiveFolderId: $contextArchiveFolderId,
                         allProjects: allProjects,
                         allFolders: allFolders,
                         service: service,
                         onCreateSubfolder: onCreateSubfolder,
                         onRenameFolder: onRenameFolder,
                         onDeleteFolder: onDeleteFolder,
+                        onUnarchiveProject: onUnarchiveProject,
                         onDeleteProject: onDeleteProject,
                         onSelectProject: onSelectProject
                     )
@@ -959,11 +1203,28 @@ private struct ArchiveFolderBranchView: View {
                         onDragStart: {
                             draggingActiveProjectId = project.projectId
                         },
+                        onContextTarget: {
+                            contextProjectId = project.projectId
+                            sidebarContextLog("set project source=archiveProject.contextTarget title=\(project.title) id=\(project.projectId)")
+                        },
+                        onUnarchive: { onUnarchiveProject(project) },
                         onDelete: { onDeleteProject(project) }
                     ) {
                         onSelectProject(project)
                     }
                     .id(project.projectId)
+                    .onHover { hovering in
+                        if hovering {
+                            contextProjectId = project.projectId
+                            sidebarContextLog("set project source=archiveProject.hover title=\(project.title) id=\(project.projectId)")
+                        }
+                    }
+                    .background {
+                        RightClickContextReader {
+                            contextProjectId = project.projectId
+                            sidebarContextLog("set project source=archiveProject.rightMouseDown title=\(project.title) id=\(project.projectId)")
+                        }
+                    }
                     .onDrop(
                         of: [.plainText],
                         delegate: ArchiveProjectNestedDropDelegate(
@@ -1423,17 +1684,14 @@ struct ActiveProjectRow: View {
     let project: Project
     let isSelected: Bool
     var highlightRequestID: UUID? = nil
+    let isFavoriteForContext: () -> Bool
     let onEdit: () -> Void
     let onArchive: () -> Void
+    let onToggleFavorite: () -> Void
     let onDelete: () -> Void
     let onSelect: () -> Void
 
-    @Environment(ServiceContainer.self) private var container
     @State private var isHovered = false
-
-    private var projectService: ProjectService? {
-        container.projectService
-    }
 
     /// 填充色：100% → success，否则 → 项目自定义主题色
     private var accentColor: Color {
@@ -1594,27 +1852,17 @@ struct ActiveProjectRow: View {
         .onTapGesture {
             onSelect()
         }
-        .contextMenu {
-            Button { onEdit() } label: {
-                Label("编辑", systemImage: "pencil")
-            }
-            Button { onArchive() } label: {
-                Label("归档", systemImage: "archivebox")
-            }
-            Button {
-                projectService?.toggleFavorite(project)
-            } label: {
-                if project.isFavorite {
-                    Label("取消收藏", systemImage: "star.slash")
-                } else {
-                    Label("收藏", systemImage: "star")
-                }
-            }
-            Divider()
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("删除", systemImage: "trash")
+        .background {
+            SidebarRightClickMenu(source: "activeProject:\(project.title)") {
+                [
+                    .item("编辑", systemImage: "pencil", action: onEdit),
+                    .item("归档", systemImage: "archivebox", action: onArchive),
+                    .item(isFavoriteForContext() ? "取消收藏" : "收藏", systemImage: isFavoriteForContext() ? "star.slash" : "star", action: onToggleFavorite),
+                    .separator,
+                    .item("删除", systemImage: "trash", action: onDelete)
+                ]
+            } onRightClick: {
+                sidebarContextLog("row rightClick activeProject title=\(project.title) id=\(project.projectId)")
             }
         }
     }
@@ -2100,6 +2348,8 @@ struct RecursiveFolderRow: View {
                             || (index < sortedProjects.count - 1
                                 && archiveProjectDropTarget == ArchiveProjectDropTarget(projectId: sortedProjects[index + 1].projectId, placement: .before)),
                         onDragStart: { draggingActiveProjectId = project.projectId },
+                        onContextTarget: {},
+                        onUnarchive: { service?.unarchiveProject(project) },
                         onDelete: { onDeleteProject(project) }
                     ) {
                         selection = .project(project)
@@ -2262,15 +2512,12 @@ struct ArchivedProjectSelectableRow: View {
     let showsTopDropLine: Bool
     let showsBottomDropLine: Bool
     let onDragStart: () -> Void
+    let onContextTarget: () -> Void
+    let onUnarchive: () -> Void
     let onDelete: () -> Void
     let onSelect: () -> Void
 
-    @Environment(ServiceContainer.self) private var container
     @State private var isHovered = false
-
-    private var projectService: ProjectService? {
-        container.projectService
-    }
 
     private var accentColor: Color {
         project.progress >= 1.0
@@ -2358,7 +2605,12 @@ struct ArchivedProjectSelectableRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                onContextTarget()
+            }
+        }
         .searchTargetHighlight(
             triggerID: highlightRequestID,
             isActive: highlightRequestID != nil,
@@ -2382,15 +2634,16 @@ struct ArchivedProjectSelectableRow: View {
             onDragStart()
             return NSItemProvider(object: project.projectId.uuidString as NSString)
         }
-        .contextMenu {
-            Button("取消归档") {
-                projectService?.unarchiveProject(project)
-            }
-            Divider()
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("删除项目", systemImage: "trash")
+        .background {
+            SidebarRightClickMenu(source: "archivedProject:\(project.title)") {
+                [
+                    .item("取消归档", systemImage: "arrow.uturn.backward", action: onUnarchive),
+                    .separator,
+                    .item("删除项目", systemImage: "trash", action: onDelete)
+                ]
+            } onRightClick: {
+                onContextTarget()
+                sidebarContextLog("row rightClick archivedProject title=\(project.title) id=\(project.projectId)")
             }
         }
     }
