@@ -470,62 +470,30 @@ private struct SafeMilestoneListView: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(Array(snapshots.enumerated()), id: \.element.id) { index, snapshot in
-                    SafeMilestoneRowView(
-                        snapshot: snapshot,
-                        highlightRequestID: snapshot.id == scrollTargetID ? navigationRequestID : nil,
-                        highlightCornerStyle: highlightCornerStyle(for: snapshot.id),
-                        dropLine: milestoneDropLine(
-                            for: snapshot,
-                            index: index,
-                            nextSnapshot: index < snapshots.count - 1 ? snapshots[index + 1] : nil
-                        ),
-                        onToggleMilestone: onToggleMilestone,
-                        onUpdateMilestoneTitle: onUpdateMilestoneTitle,
-                        onDeleteMilestone: onDeleteMilestone,
-                        reminder: reminderBinding(snapshot.id),
-                        onReminderChange: { reminder in
-                            onMilestoneReminderChange(snapshot.id, reminder)
-                        },
-                        onBeginAddSubTask: {
-                            addingSubTaskFor = snapshot.id
-                        },
-                        draggingItem: $draggingItem,
-                        dropTarget: $dropTarget,
-                        onPerformDrop: performDrop(_:target:)
-                    )
-                    .id(snapshot.id)
-                    .safeListRow()
-
-                    ForEach(Array(snapshot.subtasks.enumerated()), id: \.element.id) { subtaskIndex, subtask in
-                        SafeSubTaskRowView(
-                            subtask: subtask,
-                            parentID: snapshot.id,
-                            leadingIndent: subTaskLeadingIndent,
-                            highlightRequestID: subtask.id == scrollTargetID ? navigationRequestID : nil,
-                            highlightCornerStyle: highlightCornerStyle(for: subtask.id),
-                            dropLine: subTaskDropLine(
-                                for: subtask,
-                                index: subtaskIndex,
-                                subtasks: snapshot.subtasks,
-                                parentID: snapshot.id
-                            ),
-                            reminder: subTaskReminderBinding(subtask.id),
-                            onToggle: onToggleSubTask,
-                            onUpdateTitle: onUpdateSubTaskTitle,
-                            onDelete: onDeleteSubTask,
-                            onReminderChange: { reminder in
-                                onSubTaskReminderChange(subtask.id, reminder)
-                            },
-                            draggingItem: $draggingItem,
-                            dropTarget: $dropTarget,
-                            onPerformDrop: performDrop(_:target:)
-                        )
-                        .id(subtask.id)
+                ForEach(Array(taskRows.enumerated()), id: \.element.id) { index, row in
+                    taskRow(row)
+                        .overlay(alignment: .top) {
+                            taskDropSeparator(
+                                topTaskDropZone(for: row, index: index),
+                                edge: .top,
+                                showsLine: index == 0
+                            )
+                        }
+                        .overlay(alignment: .bottom) {
+                            taskDropSeparator(
+                                bottomTaskDropZone(
+                                    for: row,
+                                    nextRow: index < taskRows.count - 1 ? taskRows[index + 1] : nil
+                                ),
+                                edge: .bottom,
+                                showsLine: true
+                            )
+                        }
+                        .id(row.id)
                         .safeListRow()
-                    }
 
-                    if addingSubTaskFor == snapshot.id {
+                    if case let .milestone(snapshot) = row,
+                       addingSubTaskFor == snapshot.id {
                         SafeSubTaskComposerView(
                             milestoneID: snapshot.id,
                             leadingIndent: subTaskLeadingIndent,
@@ -541,14 +509,6 @@ private struct SafeMilestoneListView: View {
                 Color.clear
                     .frame(height: 96)
                     .id(bottomAnchorID)
-                    .onDrop(
-                        of: [.plainText],
-                        delegate: TaskEndDropDelegate(
-                            draggingItem: $draggingItem,
-                            dropTarget: $dropTarget,
-                            onMoveMilestone: onMoveMilestone
-                        )
-                    )
                     .safeListRow()
             }
             .listStyle(.plain)
@@ -593,6 +553,12 @@ private struct SafeMilestoneListView: View {
         return lastSnapshot.subtasks.last?.id ?? lastSnapshot.id
     }
 
+    private var taskRows: [SafeTaskRow] {
+        snapshots.flatMap { snapshot -> [SafeTaskRow] in
+            [.milestone(snapshot)] + snapshot.subtasks.map { .subTask($0, parentID: snapshot.id) }
+        }
+    }
+
     private func highlightCornerStyle(for id: UUID) -> TaskHighlightCornerStyle {
         switch (id == firstVisibleTaskID, id == lastVisibleTaskID) {
         case (true, true):
@@ -621,50 +587,125 @@ private struct SafeMilestoneListView: View {
         }
     }
 
-    private func milestoneDropLine(
-        for snapshot: MilestoneSnapshot,
-        index: Int,
-        nextSnapshot: MilestoneSnapshot?
-    ) -> TaskDropLinePlacement {
-        switch dropTarget {
-        case let .milestone(id, .before) where index == 0 && id == snapshot.id:
-            return .top()
-        case let .milestone(id, .after) where id == snapshot.id:
-            return .bottom()
-        case let .milestone(id, .before) where id == nextSnapshot?.id:
-            return .bottom()
-        case let .subTask(parentID: parentID, subTaskID: subTaskID, placement: .before)
-            where parentID == snapshot.id && subTaskID == snapshot.subtasks.first?.id:
-            return .bottom(leadingPadding: subTaskLeadingIndent)
-        case let .subTask(parentID: parentID, subTaskID: nil, placement: .end)
-            where parentID == snapshot.id && snapshot.subtasks.isEmpty:
-            return .bottom(leadingPadding: subTaskLeadingIndent)
-        default:
-            return .none
+    @ViewBuilder
+    private func taskRow(_ row: SafeTaskRow) -> some View {
+        switch row {
+        case let .milestone(snapshot):
+            SafeMilestoneRowView(
+                snapshot: snapshot,
+                highlightRequestID: snapshot.id == scrollTargetID ? navigationRequestID : nil,
+                highlightCornerStyle: highlightCornerStyle(for: snapshot.id),
+                onToggleMilestone: onToggleMilestone,
+                onUpdateMilestoneTitle: onUpdateMilestoneTitle,
+                onDeleteMilestone: onDeleteMilestone,
+                reminder: reminderBinding(snapshot.id),
+                onReminderChange: { reminder in
+                    onMilestoneReminderChange(snapshot.id, reminder)
+                },
+                onBeginAddSubTask: {
+                    addingSubTaskFor = snapshot.id
+                },
+                draggingItem: $draggingItem
+            )
+        case let .subTask(subtask, parentID):
+            SafeSubTaskRowView(
+                subtask: subtask,
+                parentID: parentID,
+                leadingIndent: subTaskLeadingIndent,
+                highlightRequestID: subtask.id == scrollTargetID ? navigationRequestID : nil,
+                highlightCornerStyle: highlightCornerStyle(for: subtask.id),
+                reminder: subTaskReminderBinding(subtask.id),
+                onToggle: onToggleSubTask,
+                onUpdateTitle: onUpdateSubTaskTitle,
+                onDelete: onDeleteSubTask,
+                onReminderChange: { reminder in
+                    onSubTaskReminderChange(subtask.id, reminder)
+                },
+                draggingItem: $draggingItem
+            )
         }
     }
 
-    private func subTaskDropLine(
-        for subtask: SubTaskSnapshot,
-        index: Int,
-        subtasks: [SubTaskSnapshot],
-        parentID: UUID
-    ) -> TaskDropLinePlacement {
-        let nextSubtaskID = index < subtasks.count - 1 ? subtasks[index + 1].id : nil
-        switch dropTarget {
-        case let .subTask(parentID: targetParentID, subTaskID: targetID, placement: .after)
-            where targetParentID == parentID && targetID == Optional(subtask.id):
-            return .bottom(leadingPadding: subTaskLeadingIndent)
-        case let .subTask(parentID: targetParentID, subTaskID: targetID, placement: .before)
-            where targetParentID == parentID && targetID == nextSubtaskID:
-            return .bottom(leadingPadding: subTaskLeadingIndent)
-        case let .subTask(parentID: targetParentID, subTaskID: nil, placement: .end)
-            where targetParentID == parentID && index == subtasks.count - 1:
-            return .bottom(leadingPadding: subTaskLeadingIndent)
+    private func topTaskDropZone(for row: SafeTaskRow, index: Int) -> TaskDropZone? {
+        guard let draggingItem else { return nil }
+
+        switch (draggingItem, row) {
+        case (.milestone, let .milestone(snapshot)):
+            return TaskDropZone(target: .milestone(snapshot.id, .before), leadingPadding: 0)
+        case (.subTask, let .subTask(subtask, parentID)):
+            return TaskDropZone(
+                target: .subTask(parentID: parentID, subTaskID: subtask.id, placement: .before),
+                leadingPadding: subTaskLeadingIndent
+            )
         default:
-            return .none
+            return nil
         }
     }
+
+    private func bottomTaskDropZone(for row: SafeTaskRow, nextRow: SafeTaskRow?) -> TaskDropZone? {
+        guard let draggingItem else { return nil }
+
+        switch draggingItem {
+        case .milestone:
+            guard row.isLastVisibleRowInMilestoneGroup(nextRow: nextRow),
+                  let milestoneID = row.milestoneID
+            else { return nil }
+
+            if case let .milestone(nextSnapshot)? = nextRow {
+                return TaskDropZone(target: .milestone(nextSnapshot.id, .before), leadingPadding: 0)
+            }
+            return TaskDropZone(target: .milestone(milestoneID, .after), leadingPadding: 0)
+        case .subTask:
+            switch row {
+            case let .milestone(snapshot):
+                if case let .subTask(nextSubtask, parentID)? = nextRow,
+                   parentID == snapshot.id {
+                    return TaskDropZone(
+                        target: .subTask(parentID: snapshot.id, subTaskID: nextSubtask.id, placement: .before),
+                        leadingPadding: subTaskLeadingIndent
+                    )
+                }
+                return TaskDropZone(
+                    target: .subTask(parentID: snapshot.id, subTaskID: nil, placement: .end),
+                    leadingPadding: subTaskLeadingIndent
+                )
+            case let .subTask(_, parentID):
+                if case let .subTask(nextSubtask, nextParentID)? = nextRow,
+                   nextParentID == parentID {
+                    return TaskDropZone(
+                        target: .subTask(parentID: parentID, subTaskID: nextSubtask.id, placement: .before),
+                        leadingPadding: subTaskLeadingIndent
+                    )
+                }
+                return TaskDropZone(
+                    target: .subTask(parentID: parentID, subTaskID: nil, placement: .end),
+                    leadingPadding: subTaskLeadingIndent
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func taskDropSeparator(_ zone: TaskDropZone?, edge: TaskDropSeparatorEdge, showsLine: Bool) -> some View {
+        if let zone {
+            TaskReorderDropSeparator(
+                isActive: dropTarget == zone.target,
+                leadingPadding: zone.leadingPadding,
+                edge: edge,
+                showsLine: showsLine
+            )
+            .onDrop(
+                of: [.plainText],
+                delegate: TaskSeparatorDropDelegate(
+                    target: zone.target,
+                    draggingItem: $draggingItem,
+                    dropTarget: $dropTarget,
+                    onPerformDrop: performDrop(_:target:)
+                )
+            )
+        }
+    }
+
 }
 
 private extension View {
@@ -689,11 +730,45 @@ private enum TaskDragItem: Equatable {
             return "subtask:\(id.uuidString)"
         }
     }
+
 }
 
 private enum TaskDropTarget: Equatable {
     case milestone(UUID, ReorderPlacement)
     case subTask(parentID: UUID, subTaskID: UUID?, placement: ReorderPlacement)
+}
+
+private enum SafeTaskRow: Identifiable, Equatable {
+    case milestone(MilestoneSnapshot)
+    case subTask(SubTaskSnapshot, parentID: UUID)
+
+    var id: UUID {
+        switch self {
+        case let .milestone(snapshot):
+            return snapshot.id
+        case let .subTask(snapshot, _):
+            return snapshot.id
+        }
+    }
+
+    var milestoneID: UUID? {
+        switch self {
+        case let .milestone(snapshot):
+            return snapshot.id
+        case let .subTask(_, parentID):
+            return parentID
+        }
+    }
+
+    func isLastVisibleRowInMilestoneGroup(nextRow: SafeTaskRow?) -> Bool {
+        guard let nextRow else { return true }
+        return milestoneID != nextRow.milestoneID
+    }
+}
+
+private struct TaskDropZone {
+    let target: TaskDropTarget
+    let leadingPadding: CGFloat
 }
 
 private struct TaskDropLine: View {
@@ -705,38 +780,88 @@ private struct TaskDropLine: View {
     }
 }
 
-private enum TaskDropLinePlacement: Equatable {
-    case none
-    case top(leadingPadding: CGFloat = 0)
-    case bottom(leadingPadding: CGFloat = 0)
+private enum TaskDropSeparatorEdge {
+    case top
+    case bottom
+}
 
-    var alignment: Alignment {
-        switch self {
-        case .none, .bottom:
-            return .bottom
+private struct TaskReorderDropSeparator: View {
+    let isActive: Bool
+    let leadingPadding: CGFloat
+    let edge: TaskDropSeparatorEdge
+    let showsLine: Bool
+
+    var body: some View {
+        ZStack(alignment: alignment) {
+            Color.primary.opacity(0.001)
+            if isActive && showsLine {
+                TaskDropLine()
+                    .padding(.leading, leadingPadding)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 18)
+        .contentShape(Rectangle())
+    }
+
+    private var alignment: Alignment {
+        switch edge {
         case .top:
             return .top
-        }
-    }
-
-    var leadingPadding: CGFloat {
-        switch self {
-        case .none:
-            return 0
-        case let .top(leadingPadding), let .bottom(leadingPadding):
-            return leadingPadding
-        }
-    }
-
-    var yOffset: CGFloat {
-        switch self {
-        case .none:
-            return 0
-        case .top:
-            return -milestoneRowOuterVerticalPadding
         case .bottom:
-            return milestoneRowOuterVerticalPadding
+            return .bottom
         }
+    }
+}
+
+private struct TaskSeparatorDropDelegate: DropDelegate {
+    let target: TaskDropTarget
+    @Binding var draggingItem: TaskDragItem?
+    @Binding var dropTarget: TaskDropTarget?
+    let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard let draggingItem else { return false }
+        switch (draggingItem, target) {
+        case (.milestone, .milestone):
+            return true
+        case (.milestone, .subTask):
+            return false
+        case (.subTask, .subTask):
+            return true
+        case (.subTask, .milestone):
+            return false
+        }
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateDropTarget(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateDropTarget(info: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        dropTarget = nil
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggingItem = nil
+            dropTarget = nil
+        }
+
+        guard let draggingItem else { return false }
+
+        onPerformDrop(draggingItem, target)
+        return true
+    }
+
+    private func updateDropTarget(info: DropInfo) {
+        guard validateDrop(info: info) else { return }
+        dropTarget = target
     }
 }
 
@@ -776,104 +901,10 @@ private struct TaskRowBackground: View {
     }
 }
 
-private struct TaskRowDropDelegate: DropDelegate {
-    let target: TaskRowDropTarget
-    let rowHeight: CGFloat
-    @Binding var draggingItem: TaskDragItem?
-    @Binding var dropTarget: TaskDropTarget?
-    let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
-
-    func validateDrop(info: DropInfo) -> Bool {
-        draggingItem != nil
-    }
-
-    func dropEntered(info: DropInfo) {
-        updateDropTarget(info: info)
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        updateDropTarget(info: info)
-        return DropProposal(operation: .move)
-    }
-
-    func dropExited(info: DropInfo) {
-        dropTarget = nil
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggingItem = nil
-            dropTarget = nil
-        }
-
-        guard let draggingItem,
-              let dropTarget
-        else { return false }
-
-        onPerformDrop(draggingItem, dropTarget)
-        return true
-    }
-
-    private func updateDropTarget(info: DropInfo) {
-        guard let draggingItem else { return }
-
-        let placement: ReorderPlacement = info.location.y < max(rowHeight / 2, 1) ? .before : .after
-        switch (draggingItem, target) {
-        case (.milestone, let .milestone(id)):
-            dropTarget = .milestone(id, placement)
-        case (.subTask, let .milestone(id)):
-            dropTarget = .subTask(parentID: id, subTaskID: nil, placement: .end)
-        case (.subTask, let .subTask(parentID: parentID, subTaskID: subTaskID)):
-            dropTarget = .subTask(parentID: parentID, subTaskID: subTaskID, placement: placement)
-        case (.milestone, .subTask):
-            dropTarget = nil
-        }
-    }
-}
-
-private struct TaskEndDropDelegate: DropDelegate {
-    @Binding var draggingItem: TaskDragItem?
-    @Binding var dropTarget: TaskDropTarget?
-    let onMoveMilestone: (UUID, UUID?, ReorderPlacement) -> Void
-
-    func validateDrop(info: DropInfo) -> Bool {
-        if case .some(.milestone) = draggingItem {
-            return true
-        }
-        return false
-    }
-
-    func dropEntered(info: DropInfo) {
-        if case .some(.milestone) = draggingItem {
-            dropTarget = nil
-        }
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggingItem = nil
-            dropTarget = nil
-        }
-        guard case let .some(.milestone(id)) = draggingItem else { return false }
-        onMoveMilestone(id, nil, .end)
-        return true
-    }
-}
-
-private enum TaskRowDropTarget {
-    case milestone(UUID)
-    case subTask(parentID: UUID, subTaskID: UUID)
-}
-
 private struct SafeMilestoneRowView: View {
     let snapshot: MilestoneSnapshot
     let highlightRequestID: UUID?
     let highlightCornerStyle: TaskHighlightCornerStyle
-    let dropLine: TaskDropLinePlacement
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
     let onDeleteMilestone: (UUID) -> Void
@@ -881,8 +912,6 @@ private struct SafeMilestoneRowView: View {
     let onReminderChange: (Reminder?) -> Void
     let onBeginAddSubTask: () -> Void
     @Binding var draggingItem: TaskDragItem?
-    @Binding var dropTarget: TaskDropTarget?
-    let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
 
     @State private var isEditing = false
     @State private var titleDraft = ""
@@ -968,29 +997,6 @@ private struct SafeMilestoneRowView: View {
             Image(systemName: "line.3.horizontal")
                 .font(.title3)
                 .padding(8)
-        }
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onDrop(
-                        of: [.plainText],
-                        delegate: TaskRowDropDelegate(
-                            target: .milestone(snapshot.id),
-                            rowHeight: proxy.size.height,
-                            draggingItem: $draggingItem,
-                            dropTarget: $dropTarget,
-                            onPerformDrop: onPerformDrop
-                        )
-                    )
-            }
-        }
-        .overlay(alignment: dropLine.alignment) {
-            if dropLine != .none {
-                TaskDropLine()
-                    .padding(.leading, dropLine.leadingPadding)
-                    .offset(y: dropLine.yOffset)
-                    .zIndex(1)
-            }
         }
         .contextMenu {
             Button {
@@ -1118,15 +1124,12 @@ private struct SafeSubTaskRowView: View {
     let leadingIndent: CGFloat
     var highlightRequestID: UUID? = nil
     let highlightCornerStyle: TaskHighlightCornerStyle
-    let dropLine: TaskDropLinePlacement
     @Binding var reminder: Reminder?
     let onToggle: (UUID) -> Void
     let onUpdateTitle: (UUID, String) -> Void
     let onDelete: (UUID) -> Void
     let onReminderChange: (Reminder?) -> Void
     @Binding var draggingItem: TaskDragItem?
-    @Binding var dropTarget: TaskDropTarget?
-    let onPerformDrop: (TaskDragItem, TaskDropTarget) -> Void
 
     @State private var isEditing = false
     @State private var titleDraft = ""
@@ -1190,29 +1193,6 @@ private struct SafeSubTaskRowView: View {
             Image(systemName: "circle.grid.cross")
                 .font(.title3)
                 .padding(8)
-        }
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .onDrop(
-                        of: [.plainText],
-                        delegate: TaskRowDropDelegate(
-                            target: .subTask(parentID: parentID, subTaskID: subtask.id),
-                            rowHeight: proxy.size.height,
-                            draggingItem: $draggingItem,
-                            dropTarget: $dropTarget,
-                            onPerformDrop: onPerformDrop
-                        )
-                    )
-            }
-        }
-        .overlay(alignment: dropLine.alignment) {
-            if dropLine != .none {
-                TaskDropLine()
-                    .padding(.leading, dropLine.leadingPadding)
-                    .offset(y: dropLine.yOffset)
-                    .zIndex(1)
-            }
         }
         .contextMenu {
             Button {

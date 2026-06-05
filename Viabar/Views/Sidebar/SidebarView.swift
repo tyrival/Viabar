@@ -3,6 +3,10 @@ import SwiftData
 import UniformTypeIdentifiers
 import AppKit
 
+private func projectDropLog(_ message: String) {
+    print("[ProjectDrop] \(message)")
+}
+
 // MARK: - Sidebar Selection
 
 enum SidebarSelection: Hashable {
@@ -293,51 +297,57 @@ struct SidebarView: View {
                     onAction: { showNewProjectSheet = true }
                 )
             } else {
-                ForEach(Array(activeProjects.enumerated()), id: \.element.projectId) { index, project in
-                    ActiveProjectRow(
-                        project: project,
-                        isSelected: selection == .project(project),
-                        highlightRequestID: projectHighlightRequestID(for: project),
-                        onEdit: { editingProject = project },
-                        onArchive: { archivePickerProject = project },
-                        onDelete: { showDeleteProjectConfirmation(project) },
-                        onSelect: {
-                            selection = .project(project)
-                        }
-                    )
-                    .overlay(alignment: .top) {
-                        if index == 0,
-                           activeProjectDropTarget == ActiveProjectDropTarget(projectId: project.projectId, placement: .before) {
-                            ActiveProjectDropIndicator()
-                                .offset(y: -ActiveProjectRowMetrics.projectDropLineGapOffset)
-                        }
-                    }
-                    .overlay(alignment: .bottom) {
-                        if activeProjectDropTarget == ActiveProjectDropTarget(projectId: project.projectId, placement: .after)
-                            || (index < activeProjects.count - 1
-                                && activeProjectDropTarget == ActiveProjectDropTarget(projectId: activeProjects[index + 1].projectId, placement: .before)) {
-                            ActiveProjectDropIndicator()
-                                .offset(y: ActiveProjectRowMetrics.projectDropLineGapOffset)
-                        }
-                    }
-                    .onDrag {
-                        draggingActiveProjectId = project.projectId
-                        let provider = NSItemProvider(object: project.projectId.uuidString as NSString)
-                        return provider
-                    }
-                    .onDrop(
-                        of: [.plainText],
-                        delegate: ActiveProjectReorderDropDelegate(
-                            targetProject: project,
-                            activeProjects: activeProjects,
-                            service: projectService,
-                            draggingProjectId: $draggingActiveProjectId,
-                            dropTarget: $activeProjectDropTarget
+                VStack(spacing: ActiveProjectRowMetrics.projectRowSpacing) {
+                    ForEach(activeProjects, id: \.projectId) { project in
+                        ActiveProjectRow(
+                            project: project,
+                            isSelected: selection == .project(project),
+                            highlightRequestID: projectHighlightRequestID(for: project),
+                            onEdit: { editingProject = project },
+                            onArchive: { archivePickerProject = project },
+                            onDelete: { showDeleteProjectConfirmation(project) },
+                            onSelect: {
+                                selection = .project(project)
+                            }
                         )
+                        .onDrag {
+                            draggingActiveProjectId = project.projectId
+                            projectDropLog("drag start project=\(project.title) id=\(project.projectId)")
+                            let provider = NSItemProvider(object: project.projectId.uuidString as NSString)
+                            return provider
+                        }
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: ActiveProjectRowFramePreferenceKey.self,
+                                    value: [project.projectId: proxy.frame(in: .named("activeProjectRows"))]
+                                )
+                            }
+                        }
+                    }
+                }
+                .coordinateSpace(name: "activeProjectRows")
+                .overlayPreferenceValue(ActiveProjectRowFramePreferenceKey.self) { frames in
+                    ActiveProjectDropOverlay(
+                        projects: activeProjects,
+                        frames: frames,
+                        draggingProjectId: draggingActiveProjectId,
+                        activeDropTarget: activeProjectDropTarget,
+                        showsDebugBorder: draggingActiveProjectId != nil,
+                        service: projectService,
+                        draggingProjectIdBinding: $draggingActiveProjectId,
+                        dropTarget: $activeProjectDropTarget
                     )
                 }
-                .onMove { offsets, target in
-                    projectService?.reorderActiveProjects(fromOffsets: offsets, toOffset: target)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .onChange(of: draggingActiveProjectId) { _, newValue in
+                    projectDropLog("draggingActiveProjectId changed to \(newValue?.uuidString ?? "nil")")
+                    if newValue == nil {
+                        projectDropLog("clear drop target because dragging project is nil")
+                        activeProjectDropTarget = nil
+                    }
                 }
             }
         } header: {
@@ -591,7 +601,8 @@ private enum ActiveProjectRowMetrics {
     static let selectedShadowInset: CGFloat = 5
     static let selectedShadowBleed: CGFloat = 2
     static let selectedLift: CGFloat = 0
-    static let projectDropLineGapOffset: CGFloat = 4
+    static let projectRowSpacing: CGFloat = 8
+    static let projectDropLineGapOffset: CGFloat = 5
     static let projectTitleFont = Font.callout
     static let shadowAnimationDuration: Double = 0.15
     static let shadowAnimation = Animation.easeInOut(duration: shadowAnimationDuration)
@@ -823,75 +834,245 @@ struct ActiveProjectDropIndicator: View {
     }
 }
 
-struct ActiveProjectReorderDropDelegate: DropDelegate {
+private struct ActiveProjectRowFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, newValue in newValue })
+    }
+}
+
+private struct ActiveProjectDropOverlay: View {
+    let projects: [Project]
+    let frames: [UUID: CGRect]
+    let draggingProjectId: UUID?
+    let activeDropTarget: ActiveProjectDropTarget?
+    let showsDebugBorder: Bool
+    weak var service: ProjectService?
+    @Binding var draggingProjectIdBinding: UUID?
+    @Binding var dropTarget: ActiveProjectDropTarget?
+
+    var body: some View {
+        GeometryReader { proxy in
+            let zones = dropZones
+            ZStack(alignment: .topLeading) {
+                ForEach(zones) { zone in
+                    ActiveProjectDropHitRegion(showsDebugBorder: showsDebugBorder)
+                        .frame(width: proxy.size.width, height: max(zone.rect.height, 1))
+                        .position(x: proxy.size.width / 2, y: zone.rect.midY)
+                        .allowsHitTesting(false)
+
+                    if activeDropTarget == zone.target {
+                        ActiveProjectDropIndicator()
+                            .frame(width: proxy.size.width)
+                            .position(x: proxy.size.width / 2, y: zone.lineY)
+                            .allowsHitTesting(false)
+                    }
+                }
+
+                Color.primary.opacity(0.001)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .contentShape(Rectangle())
+                    .onDrop(
+                        of: [.plainText],
+                        delegate: ActiveProjectOverlayDropDelegate(
+                            zones: zones,
+                            activeProjects: projects,
+                            service: service,
+                            draggingProjectId: $draggingProjectIdBinding,
+                            dropTarget: $dropTarget
+                        )
+                    )
+            }
+            .allowsHitTesting(draggingProjectId != nil)
+        }
+    }
+
+    private var dropZones: [ActiveProjectDropZone] {
+        let rows = projects.compactMap { project -> ActiveProjectDropRow? in
+            guard let frame = frames[project.projectId] else { return nil }
+            return ActiveProjectDropRow(project: project, frame: frame)
+        }
+        guard !rows.isEmpty else { return [] }
+
+        var zones: [ActiveProjectDropZone] = []
+
+        if let first = rows.first {
+            zones.append(
+                ActiveProjectDropZone(
+                    id: "before-\(first.project.projectId.uuidString)",
+                    targetProject: first.project,
+                    placement: .before,
+                    target: ActiveProjectDropTarget(projectId: first.project.projectId, placement: .before),
+                    rect: CGRect(
+                        x: first.frame.minX,
+                        y: first.frame.minY,
+                        width: first.frame.width,
+                        height: first.frame.height / 2
+                    ),
+                    lineY: first.frame.minY
+                )
+            )
+        }
+
+        for index in rows.indices {
+            let row = rows[index]
+            let nextRow = index < rows.count - 1 ? rows[index + 1] : nil
+            let targetProject = nextRow?.project ?? row.project
+            let placement: ActiveProjectDropPlacement = nextRow == nil ? .after : .before
+            let lowerBound = row.frame.midY
+            let upperBound = nextRow?.frame.midY ?? row.frame.maxY
+            let lineY = nextRow.map { (row.frame.maxY + $0.frame.minY) / 2 } ?? row.frame.maxY
+
+            zones.append(
+                ActiveProjectDropZone(
+                    id: "\(row.project.projectId.uuidString)-boundary",
+                    targetProject: targetProject,
+                    placement: placement,
+                    target: ActiveProjectDropTarget(projectId: targetProject.projectId, placement: placement),
+                    rect: CGRect(
+                        x: row.frame.minX,
+                        y: lowerBound,
+                        width: row.frame.width,
+                        height: max(upperBound - lowerBound, 1)
+                    ),
+                    lineY: lineY
+                )
+            )
+        }
+
+        return zones
+    }
+}
+
+private struct ActiveProjectDropHitRegion: View {
+    let showsDebugBorder: Bool
+
+    var body: some View {
+        ZStack {
+            Color.primary.opacity(0.001)
+            if showsDebugBorder {
+                Rectangle()
+                    .stroke(Color.orange, lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+private struct ActiveProjectDropRow {
+    let project: Project
+    let frame: CGRect
+}
+
+private struct ActiveProjectDropZone: Identifiable {
+    let id: String
     let targetProject: Project
+    let placement: ActiveProjectDropPlacement
+    let target: ActiveProjectDropTarget
+    let rect: CGRect
+    let lineY: CGFloat
+}
+
+private struct ActiveProjectOverlayDropDelegate: DropDelegate {
+    let zones: [ActiveProjectDropZone]
     let activeProjects: [Project]
     weak var service: ProjectService?
     @Binding var draggingProjectId: UUID?
     @Binding var dropTarget: ActiveProjectDropTarget?
 
     func validateDrop(info: DropInfo) -> Bool {
-        guard info.hasItemsConforming(to: [.plainText]) else { return false }
-        guard let draggingProjectId else { return false }
-        return draggingProjectId != targetProject.projectId
+        guard info.hasItemsConforming(to: [.plainText]) else {
+            projectDropLog("validate=false reason=no plainText")
+            return false
+        }
+        guard let draggingProjectId else {
+            projectDropLog("validate=false reason=no draggingProjectId")
+            return false
+        }
+        let isValid = activeProjects.contains { $0.projectId == draggingProjectId }
+        if !isValid {
+            projectDropLog("validate=false reason=dragging id not in active projects id=\(draggingProjectId)")
+        }
+        return isValid
     }
 
     func dropEntered(info: DropInfo) {
+        projectDropLog("dropEntered y=\(info.location.y)")
         updateDropTarget(info: info)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
+        guard draggingProjectId != nil else {
+            dropTarget = nil
+            projectDropLog("dropUpdated proposal=nil reason=no draggingProjectId")
+            return nil
+        }
         updateDropTarget(info: info)
-        guard draggingProjectId != nil else { return nil }
         return DropProposal(operation: .move)
     }
 
     func dropExited(info: DropInfo) {
-        if dropTarget?.projectId == targetProject.projectId {
-            dropTarget = nil
-        }
+        projectDropLog("dropExited clear target y=\(info.location.y)")
+        dropTarget = nil
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        projectDropLog("performDrop begin y=\(info.location.y)")
+        defer {
+            projectDropLog("performDrop defer reset")
+            resetDragState()
+        }
+
+        updateDropTarget(info: info)
         guard let service,
               let draggingProjectId,
+              let zone = zone(for: info),
               let sourceIndex = activeProjects.firstIndex(where: { $0.projectId == draggingProjectId }),
-              let targetIndex = activeProjects.firstIndex(where: { $0.projectId == targetProject.projectId }),
+              let targetIndex = activeProjects.firstIndex(where: { $0.projectId == zone.targetProject.projectId }),
               sourceIndex != targetIndex
         else {
-            resetDragState()
+            projectDropLog("performDrop=false reason=missing service/zone/index or same source-target")
             return false
         }
 
-        let placement = dropTarget?.placement ?? placement(for: info)
-        let destination = targetIndex + (placement == .after ? 1 : 0)
+        let destination = targetIndex + (zone.placement == .after ? 1 : 0)
         guard sourceIndex != destination else {
-            resetDragState()
+            projectDropLog("performDrop=false reason=same destination source=\(sourceIndex) destination=\(destination)")
             return false
         }
 
+        projectDropLog("performDrop move source=\(sourceIndex) target=\(targetIndex) destination=\(destination) placement=\(String(describing: zone.placement))")
         service.reorderActiveProjects(fromOffsets: IndexSet(integer: sourceIndex), toOffset: destination)
-        resetDragState()
         return true
     }
 
     private func updateDropTarget(info: DropInfo) {
-        guard let draggingProjectId, draggingProjectId != targetProject.projectId else {
+        let currentDraggingProjectId = draggingProjectId
+        guard let draggingProjectId = currentDraggingProjectId,
+              let zone = zone(for: info),
+              draggingProjectId != zone.targetProject.projectId
+        else {
+            projectDropLog("update target=nil y=\(info.location.y) dragging=\(currentDraggingProjectId?.uuidString ?? "nil")")
             dropTarget = nil
             return
         }
 
-        dropTarget = ActiveProjectDropTarget(
-            projectId: targetProject.projectId,
-            placement: placement(for: info)
-        )
+        if dropTarget != zone.target {
+            projectDropLog("update target project=\(zone.targetProject.title) id=\(zone.targetProject.projectId) placement=\(String(describing: zone.placement)) y=\(info.location.y) rect=\(zone.rect)")
+        }
+        dropTarget = zone.target
     }
 
-    private func placement(for info: DropInfo) -> ActiveProjectDropPlacement {
-        info.location.y < 19 ? .before : .after
+    private func zone(for info: DropInfo) -> ActiveProjectDropZone? {
+        zones.first { zone in
+            zone.rect.minY <= info.location.y && info.location.y <= zone.rect.maxY
+        }
     }
 
     private func resetDragState() {
+        projectDropLog("reset state")
         draggingProjectId = nil
         dropTarget = nil
     }
@@ -1366,11 +1547,7 @@ struct ArchiveProjectReorderDropDelegate: DropDelegate {
         return DropProposal(operation: .move)
     }
 
-    func dropExited(info: DropInfo) {
-        if dropTarget?.projectId == targetProject.projectId {
-            dropTarget = nil
-        }
-    }
+    func dropExited(info: DropInfo) {}
 
     func performDrop(info: DropInfo) -> Bool {
         guard let service,

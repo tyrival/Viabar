@@ -59,7 +59,7 @@ struct SettingsView: View {
                     }
             }
         }
-        .frame(width: 660, height: 500)
+        .frame(width: 660, height: 560)
         .environment(\.locale, effectiveLanguage.locale)
     }
 }

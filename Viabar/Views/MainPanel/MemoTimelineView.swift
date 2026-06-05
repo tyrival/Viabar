@@ -80,18 +80,11 @@ struct MemoTimelineView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(visibleMemos.enumerated()), id: \.element.memoId) { index, memo in
                         if index == 0 {
-                            MemoReorderDropSeparator(
-                                isActive: memoDropTarget == .memo(memo.memoId, .before)
-                            )
-                            .onDrop(
-                                of: [.plainText],
-                                delegate: MemoBoundaryDropDelegate(
-                                    targetID: memo.memoId,
-                                    placement: .before,
-                                    draggingMemoID: $draggingMemoID,
-                                    memoDropTarget: $memoDropTarget,
-                                    onMoveMemo: moveMemo(id:targetID:placement:)
-                                )
+                            memoDropGap(
+                                targetID: memo.memoId,
+                                placement: .before,
+                                height: MemoTimelineStyle.cardSpacing,
+                                showsLine: true
                             )
                         }
 
@@ -109,19 +102,21 @@ struct MemoTimelineView: View {
                                     .padding(8)
                             }
 
-                        MemoReorderDropSeparator(
-                            isActive: memoDropTarget == .memo(memo.memoId, .after)
-                        )
-                        .onDrop(
-                            of: [.plainText],
-                            delegate: MemoBoundaryDropDelegate(
+                        if index < visibleMemos.count - 1 {
+                            memoDropGap(
+                                targetID: visibleMemos[index + 1].memoId,
+                                placement: .before,
+                                height: MemoTimelineStyle.cardSpacing,
+                                showsLine: true
+                            )
+                        } else {
+                            memoDropGap(
                                 targetID: memo.memoId,
                                 placement: .after,
-                                draggingMemoID: $draggingMemoID,
-                                memoDropTarget: $memoDropTarget,
-                                onMoveMemo: moveMemo(id:targetID:placement:)
+                                height: MemoTimelineStyle.cardSpacing,
+                                showsLine: true
                             )
-                        )
+                        }
                     }
 
                     Color.clear
@@ -253,6 +248,31 @@ struct MemoTimelineView: View {
     private func moveMemo(id: UUID, targetID: UUID, placement: ReorderPlacement) {
         guard id != targetID else { return }
         projectService?.reorderMemos(in: project, movingID: id, targetID: targetID, placement: placement)
+    }
+
+    @ViewBuilder
+    private func memoDropGap(
+        targetID: UUID,
+        placement: ReorderPlacement,
+        height: CGFloat,
+        showsLine: Bool
+    ) -> some View {
+        MemoDropGap(
+            isActive: memoDropTarget == .memo(targetID, placement),
+            height: height,
+            showsLine: showsLine
+        )
+        .allowsHitTesting(draggingMemoID != nil)
+        .onDrop(
+            of: [.plainText],
+            delegate: MemoBoundaryDropDelegate(
+                targetID: targetID,
+                placement: placement,
+                draggingMemoID: $draggingMemoID,
+                memoDropTarget: $memoDropTarget,
+                onMoveMemo: moveMemo(id:targetID:placement:)
+            )
+        )
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -400,18 +420,20 @@ private struct MemoDropLine: View {
     }
 }
 
-private struct MemoReorderDropSeparator: View {
+private struct MemoDropGap: View {
     let isActive: Bool
+    let height: CGFloat
+    let showsLine: Bool
 
     var body: some View {
         ZStack {
             Color.primary.opacity(0.001)
-            if isActive {
+            if isActive && showsLine {
                 MemoDropLine()
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 8)
+        .frame(height: height)
         .contentShape(Rectangle())
     }
 }
@@ -446,9 +468,7 @@ private struct MemoBoundaryDropDelegate: DropDelegate {
             memoDropTarget = nil
         }
 
-        guard let draggingMemoID,
-              case let .memo(targetID, placement) = memoDropTarget
-        else { return false }
+        guard let draggingMemoID else { return false }
 
         onMoveMemo(draggingMemoID, targetID, placement)
         return true
@@ -488,6 +508,7 @@ private struct MemoEndDropDelegate: DropDelegate {
 
 private enum MemoTimelineStyle {
     static let panelBackground = ViabarColor.mainPanelMemoBackground
+    static let cardSpacing: CGFloat = 8
 
     static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
