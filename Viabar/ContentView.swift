@@ -656,6 +656,7 @@ struct OverviewDashboardView: View {
                                 .overlay(alignment: projectDropLineAlignment(for: project.projectId)) {
                                     if isProjectDropTarget(project.projectId) {
                                         OverviewProjectDropLine()
+                                            .offset(x: projectDropLineOffset(for: project.projectId))
                                     }
                                 }
                             }
@@ -682,6 +683,7 @@ struct OverviewDashboardView: View {
                                 .overlay(alignment: projectDropLineAlignment(for: project.projectId)) {
                                     if isProjectDropTarget(project.projectId) {
                                         OverviewProjectDropLine()
+                                            .offset(x: projectDropLineOffset(for: project.projectId))
                                     }
                                 }
                             }
@@ -736,6 +738,14 @@ struct OverviewDashboardView: View {
         }
         return .trailing
     }
+
+    private func projectDropLineOffset(for id: UUID) -> CGFloat {
+        guard case let .project(targetID, placement) = projectDropTarget,
+              targetID == id
+        else { return 0 }
+        return placement == .before ? -(cardSpacing / 2) : cardSpacing / 2
+    }
+
 }
 
 private enum OverviewProjectDropTarget: Equatable {

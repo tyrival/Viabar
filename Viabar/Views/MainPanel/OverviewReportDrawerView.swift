@@ -269,32 +269,38 @@ private struct OverviewReportCardView: View {
     }
 
     private func taskRow(title: String, reminderDate: Date?, isPrimary: Bool) -> some View {
-        HStack(alignment: .top, spacing: 5) {
-            if let date = reminderDate {
-                let color = reminderColor(date)
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Image(systemName: "alarm.fill")
-                        .font(.system(size: 8))
-                    Text(formatReminderDate(date))
-                        .font(.system(size: 10, weight: .medium))
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Circle()
+                .fill(Color.gray.opacity(0.35))
+                .frame(width: 5, height: 5)
+                .alignmentGuide(.firstTextBaseline) { dimensions in
+                    dimensions[VerticalAlignment.center]
                 }
-                .foregroundStyle(color)
-                .fixedSize(horizontal: true, vertical: true)
-                .padding(.top, 2)
-            } else {
-                Circle()
-                    .fill(Color.gray.opacity(0.35))
-                    .frame(width: 5, height: 5)
-                    .padding(.top, 7)
-            }
 
-            Text(title)
-                .font(.callout)
-                .foregroundStyle(isPrimary ? .primary : .secondary)
+            taskText(title: title, reminderDate: reminderDate, isPrimary: isPrimary)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
         }
+    }
+
+    private func taskText(title: String, reminderDate: Date?, isPrimary: Bool) -> Text {
+        let titleText = Text(title)
+            .font(.callout)
+            .foregroundColor(isPrimary ? .primary : .secondary)
+        guard let date = reminderDate else {
+            return titleText
+        }
+
+        let reminderText = (
+            Text(Image(systemName: "alarm.fill"))
+                .font(.system(size: 8))
+            + Text(" \(formatReminderDate(date)) ")
+                .font(.system(size: 10, weight: .medium))
+        )
+        .foregroundColor(reminderColor(date))
+
+        return reminderText + titleText
     }
 
     private func reminderColor(_ date: Date) -> Color {
