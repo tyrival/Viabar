@@ -16,11 +16,13 @@ struct MemoTimelineView: View {
     @State private var newMemoContent: String = ""
     @State private var scrollToBottomTrigger = 0
     @State private var draggingMemoID: UUID?
-    @State private var memoDropTarget: MemoDropTarget?
+    @State private var displayOrderOverride: [UUID]?
+    @State private var isCommittingDrop = false
     @FocusState private var isInputFocused: Bool
 
     private let bottomAnchorID = "memo-bottom-anchor"
     private let inputOverlayHeight: CGFloat = 104
+    private let memoReorderPersistDelay: Double = 0.45
 
     private var projectService: ProjectService? {
         container.projectService
@@ -37,11 +39,22 @@ struct MemoTimelineView: View {
 
     private var visibleMemos: [Memo] {
         let query = activeSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return sortedMemos }
+        guard !query.isEmpty else { return displayOrderedMemos }
 
         return sortedMemos.filter {
             $0.content.localizedCaseInsensitiveContains(query)
         }
+    }
+
+    private var displayOrderedMemos: [Memo] {
+        guard let displayOrderOverride else {
+            return sortedMemos
+        }
+
+        var memosByID = Dictionary(uniqueKeysWithValues: sortedMemos.map { ($0.memoId, $0) })
+        var orderedMemos = displayOrderOverride.compactMap { memosByID.removeValue(forKey: $0) }
+        orderedMemos.append(contentsOf: sortedMemos.filter { memosByID[$0.memoId] != nil })
+        return orderedMemos
     }
 
     private var hasActiveSearch: Bool {
@@ -78,45 +91,27 @@ struct MemoTimelineView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(visibleMemos.enumerated()), id: \.element.memoId) { index, memo in
-                        if index == 0 {
-                            memoDropGap(
-                                targetID: memo.memoId,
-                                placement: .before,
-                                height: MemoTimelineStyle.cardSpacing,
-                                showsLine: true
-                            )
-                        }
-
+                    ForEach(visibleMemos, id: \.memoId) { memo in
                         MemoCardView(
                             memo: memo,
                             highlightRequestID: memo.memoId == targetedMemoID ? navigationRequest?.id : nil
                         )
                             .id(memo.memoId)
-                            .onDrag {
-                                draggingMemoID = memo.memoId
-                                return NSItemProvider(object: "memo:\(memo.memoId.uuidString)" as NSString)
-                            } preview: {
-                                Image(systemName: "note.text")
-                                    .font(.title3)
-                                    .padding(8)
-                            }
-
-                        if index < visibleMemos.count - 1 {
-                            memoDropGap(
-                                targetID: visibleMemos[index + 1].memoId,
-                                placement: .before,
-                                height: MemoTimelineStyle.cardSpacing,
-                                showsLine: true
-                            )
-                        } else {
-                            memoDropGap(
+                            .opacity(draggingMemoID == memo.memoId && !isCommittingDrop ? 0.72 : 1)
+                            .modifier(MemoDragModifier(
+                                memoID: memo.memoId,
+                                isEnabled: !hasActiveSearch,
+                                draggingMemoID: $draggingMemoID,
+                                displayOrderOverride: $displayOrderOverride
+                            ))
+                            .padding(.bottom, MemoTimelineStyle.cardSpacing)
+                            .modifier(MemoCardDropModifier(
                                 targetID: memo.memoId,
-                                placement: .after,
-                                height: MemoTimelineStyle.cardSpacing,
-                                showsLine: true
-                            )
-                        }
+                                isEnabled: !hasActiveSearch,
+                                draggingMemoID: $draggingMemoID,
+                                onMoveMemo: moveMemo(id:targetID:placement:),
+                                onCommitDisplayOrder: commitMemoDisplayOrder
+                            ))
                     }
 
                     Color.clear
@@ -126,10 +121,8 @@ struct MemoTimelineView: View {
                             of: [.plainText],
                             delegate: MemoEndDropDelegate(
                                 draggingMemoID: $draggingMemoID,
-                                memoDropTarget: $memoDropTarget,
-                                onMoveMemoToEnd: { id in
-                                    projectService?.reorderMemos(in: project, movingID: id, targetID: nil, placement: .end)
-                                }
+                                onUpdateDisplayOrder: updateMemoDisplayOrder(movingID:targetID:placement:),
+                                onCommitDisplayOrder: commitMemoDisplayOrder
                             )
                         )
                 }
@@ -247,32 +240,58 @@ struct MemoTimelineView: View {
 
     private func moveMemo(id: UUID, targetID: UUID, placement: ReorderPlacement) {
         guard id != targetID else { return }
-        projectService?.reorderMemos(in: project, movingID: id, targetID: targetID, placement: placement)
+        updateMemoDisplayOrder(movingID: id, targetID: targetID, placement: placement)
     }
 
-    @ViewBuilder
-    private func memoDropGap(
-        targetID: UUID,
-        placement: ReorderPlacement,
-        height: CGFloat,
-        showsLine: Bool
-    ) -> some View {
-        MemoDropGap(
-            isActive: memoDropTarget == .memo(targetID, placement),
-            height: height,
-            showsLine: showsLine
-        )
-        .allowsHitTesting(draggingMemoID != nil)
-        .onDrop(
-            of: [.plainText],
-            delegate: MemoBoundaryDropDelegate(
-                targetID: targetID,
-                placement: placement,
-                draggingMemoID: $draggingMemoID,
-                memoDropTarget: $memoDropTarget,
-                onMoveMemo: moveMemo(id:targetID:placement:)
-            )
-        )
+    private func updateMemoDisplayOrder(movingID: UUID, targetID: UUID?, placement: ReorderPlacement) {
+        guard !hasActiveSearch else { return }
+        var items = displayOrderedMemos
+        guard let movingIndex = items.firstIndex(where: { $0.memoId == movingID }) else {
+            return
+        }
+
+        let moving = items.remove(at: movingIndex)
+        let insertionIndex: Int
+        if let targetID,
+           let targetIndex = items.firstIndex(where: { $0.memoId == targetID }) {
+            insertionIndex = placement == .after ? targetIndex + 1 : targetIndex
+        } else {
+            insertionIndex = items.count
+        }
+
+        guard movingIndex != insertionIndex else {
+            return
+        }
+
+        items.insert(moving, at: insertionIndex)
+        let reorderedIDs = items.map(\.memoId)
+        guard displayOrderOverride != reorderedIDs else { return }
+
+        withAnimation(.easeInOut(duration: 0.12)) {
+            displayOrderOverride = reorderedIDs
+        }
+    }
+
+    private func commitMemoDisplayOrder() {
+        let finalMemos = displayOrderedMemos
+        isCommittingDrop = true
+        draggingMemoID = nil
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + memoReorderPersistDelay) {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                for (index, memo) in finalMemos.enumerated() where memo.orderIndex != index {
+                    memo.orderIndex = index
+                }
+            }
+            projectService?.save()
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                displayOrderOverride = nil
+                isCommittingDrop = false
+            }
+        }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -401,106 +420,126 @@ struct MemoCardView: View {
     }
 }
 
-private enum MemoDropTarget: Equatable {
-    case memo(UUID, ReorderPlacement)
-}
-
-private struct MemoDropLine: View {
-    var body: some View {
-        Rectangle()
-            .fill(Color.blue)
-            .frame(height: 2)
-            .overlay(alignment: .leading) {
-                Circle()
-                    .fill(Color.blue)
-                    .frame(width: 8, height: 8)
-                    .offset(x: -3)
-            }
-            .allowsHitTesting(false)
-    }
-}
-
-private struct MemoDropGap: View {
-    let isActive: Bool
-    let height: CGFloat
-    let showsLine: Bool
-
-    var body: some View {
-        ZStack {
-            Color.primary.opacity(0.001)
-            if isActive && showsLine {
-                MemoDropLine()
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
-        .contentShape(Rectangle())
-    }
-}
-
-private struct MemoBoundaryDropDelegate: DropDelegate {
-    let targetID: UUID
-    let placement: ReorderPlacement
+private struct MemoDragModifier: ViewModifier {
+    let memoID: UUID
+    let isEnabled: Bool
     @Binding var draggingMemoID: UUID?
-    @Binding var memoDropTarget: MemoDropTarget?
+    @Binding var displayOrderOverride: [UUID]?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .onDrag {
+                    draggingMemoID = memoID
+                    displayOrderOverride = nil
+                    return NSItemProvider(object: "memo:\(memoID.uuidString)" as NSString)
+                } preview: {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                }
+        } else {
+            content
+        }
+    }
+}
+
+private struct MemoCardDropModifier: ViewModifier {
+    let targetID: UUID
+    let isEnabled: Bool
+    @Binding var draggingMemoID: UUID?
     let onMoveMemo: (UUID, UUID, ReorderPlacement) -> Void
+    let onCommitDisplayOrder: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.overlay {
+                GeometryReader { proxy in
+                    Color.primary.opacity(0.001)
+                        .contentShape(Rectangle())
+                        .allowsHitTesting(draggingMemoID != nil)
+                        .onDrop(
+                            of: [.plainText],
+                            delegate: MemoCardDropDelegate(
+                                targetID: targetID,
+                                cardHeight: proxy.size.height,
+                                draggingMemoID: $draggingMemoID,
+                                onMoveMemo: onMoveMemo,
+                                onCommitDisplayOrder: onCommitDisplayOrder
+                            )
+                        )
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct MemoCardDropDelegate: DropDelegate {
+    let targetID: UUID
+    let cardHeight: CGFloat
+    @Binding var draggingMemoID: UUID?
+    let onMoveMemo: (UUID, UUID, ReorderPlacement) -> Void
+    let onCommitDisplayOrder: () -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
         draggingMemoID != nil
     }
 
     func dropEntered(info: DropInfo) {
-        updateDropTarget(info: info)
+        updateDisplayOrder(info: info)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        updateDropTarget(info: info)
+        updateDisplayOrder(info: info)
         return DropProposal(operation: .move)
     }
 
-    func dropExited(info: DropInfo) {
-        memoDropTarget = nil
-    }
-
     func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggingMemoID = nil
-            memoDropTarget = nil
-        }
+        guard draggingMemoID != nil else { return false }
 
-        guard let draggingMemoID else { return false }
-
-        onMoveMemo(draggingMemoID, targetID, placement)
+        updateDisplayOrder(info: info)
+        onCommitDisplayOrder()
         return true
     }
 
-    private func updateDropTarget(info: DropInfo) {
-        guard draggingMemoID != nil else { return }
-        memoDropTarget = .memo(targetID, placement)
+    private func updateDisplayOrder(info: DropInfo) {
+        guard let draggingMemoID, draggingMemoID != targetID else { return }
+        let placement: ReorderPlacement = info.location.y < cardHeight / 2 ? .before : .after
+        onMoveMemo(draggingMemoID, targetID, placement)
     }
 }
 
 private struct MemoEndDropDelegate: DropDelegate {
     @Binding var draggingMemoID: UUID?
-    @Binding var memoDropTarget: MemoDropTarget?
-    let onMoveMemoToEnd: (UUID) -> Void
+    let onUpdateDisplayOrder: (UUID, UUID?, ReorderPlacement) -> Void
+    let onCommitDisplayOrder: () -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
         draggingMemoID != nil
     }
 
+    func dropEntered(info: DropInfo) {
+        updateDisplayOrder()
+    }
+
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
+        updateDisplayOrder()
+        return DropProposal(operation: .move)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggingMemoID = nil
-            memoDropTarget = nil
-        }
         guard let draggingMemoID else { return false }
-        onMoveMemoToEnd(draggingMemoID)
+        onUpdateDisplayOrder(draggingMemoID, nil, .end)
+        onCommitDisplayOrder()
         return true
+    }
+
+    private func updateDisplayOrder() {
+        guard let draggingMemoID else { return }
+        onUpdateDisplayOrder(draggingMemoID, nil, .end)
     }
 }
 
