@@ -57,6 +57,8 @@ protocol ProjectServiceProtocol: AnyObject {
     func createArchiveFolder(name: String, parent: ArchiveFolder?) -> ArchiveFolder
     func deleteArchiveFolder(_ folder: ArchiveFolder)
     func moveProjectToFolder(_ project: Project, folder: ArchiveFolder)
+    func moveProjectToFolder(_ project: Project, folder: ArchiveFolder, toOffset: Int)
+    func moveProjectToArchiveRoot(_ project: Project, toOffset: Int)
     func moveFolder(_ folder: ArchiveFolder, to parent: ArchiveFolder?)
     func reorderFolders(in parent: ArchiveFolder?, fromOffsets: IndexSet, toOffset: Int)
     func fetchRootFolders() -> [ArchiveFolder]
@@ -343,6 +345,66 @@ final class ProjectService: ProjectServiceProtocol {
         notificationScheduleService?.removeEntries(projectId: project.projectId)
     }
 
+    func moveProjectToFolder(_ project: Project, folder: ArchiveFolder, toOffset: Int) {
+        let previousFolder = project.archiveFolder
+
+        if previousFolder?.folderId != folder.folderId,
+           let previousFolder {
+            let previousProjects = previousFolder.projects
+                .filter { $0.projectId != project.projectId }
+                .sorted { $0.orderIndex < $1.orderIndex }
+            for (index, item) in previousProjects.enumerated() {
+                item.orderIndex = index
+            }
+        }
+
+        project.archiveFolder = folder
+        project.isArchived = true
+        if project.archivedAt == nil {
+            project.archivedAt = Date()
+        }
+
+        var targetProjects = folder.projects
+            .filter { $0.projectId != project.projectId }
+            .sorted { $0.orderIndex < $1.orderIndex }
+        let insertionIndex = min(max(toOffset, 0), targetProjects.count)
+        targetProjects.insert(project, at: insertionIndex)
+        for (index, item) in targetProjects.enumerated() {
+            item.orderIndex = index
+        }
+
+        save()
+        notificationScheduleService?.removeEntries(projectId: project.projectId)
+    }
+
+    func moveProjectToArchiveRoot(_ project: Project, toOffset: Int) {
+        if let previousFolder = project.archiveFolder {
+            let previousProjects = previousFolder.projects
+                .filter { $0.projectId != project.projectId }
+                .sorted { $0.orderIndex < $1.orderIndex }
+            for (index, item) in previousProjects.enumerated() {
+                item.orderIndex = index
+            }
+        }
+
+        project.archiveFolder = nil
+        project.isArchived = true
+        if project.archivedAt == nil {
+            project.archivedAt = Date()
+        }
+
+        var rootProjects = allArchivedRootProjects()
+            .filter { $0.projectId != project.projectId }
+        let insertionIndex = min(max(toOffset, 0), rootProjects.count)
+        rootProjects.insert(project, at: insertionIndex)
+        for (index, item) in rootProjects.enumerated() {
+            item.orderIndex = index
+        }
+
+        save()
+        notificationScheduleService?.removeEntries(projectId: project.projectId)
+    }
+
     func moveFolder(_ folder: ArchiveFolder, to parent: ArchiveFolder?) {
         guard folder.parent?.folderId != parent?.folderId else { return }
 
@@ -597,6 +659,14 @@ final class ProjectService: ProjectServiceProtocol {
         )
         let folders = (try? modelContext.fetch(descriptor)) ?? []
         return folders.filter { $0.parent?.folderId == parent?.folderId }
+    }
+
+    private func allArchivedRootProjects() -> [Project] {
+        let descriptor = FetchDescriptor<Project>(
+            sortBy: [SortDescriptor(\.orderIndex)]
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? [])
+            .filter { $0.isArchived && $0.archiveFolder == nil }
     }
 
     private func allMilestones() -> [Milestone] {

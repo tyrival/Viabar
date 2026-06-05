@@ -112,6 +112,9 @@ struct SidebarView: View {
     @State private var archiveFolderDropTarget: ArchiveFolderDropTarget?
     @State private var archiveProjectDropTargetFolderId: UUID?
     @State private var archiveProjectDropTarget: ArchiveProjectDropTarget?
+    @State private var archiveRootDropHighlighted = false
+    @State private var archiveFolderDisplayOrderByParent: [ArchiveOrderScope: [UUID]] = [:]
+    @State private var archiveProjectDisplayOrderByFolder: [ArchiveOrderScope: [UUID]] = [:]
     @State private var folderNamePrompt: FolderNamePrompt?
     @State private var folderNameDraft: String = ""
     @State private var deleteConfirmation: DeleteConfirmation?
@@ -150,7 +153,41 @@ struct SidebarView: View {
     }
 
     private var rootFolders: [ArchiveFolder] {
-        allFolders.filter { $0.parent == nil }
+        allFolders.filter { $0.parent == nil }.sorted { $0.orderIndex < $1.orderIndex }
+    }
+
+    private var displayedRootFolders: [ArchiveFolder] {
+        displayedFolders(rootFolders, scope: .root)
+    }
+
+    private var rootArchivedProjects: [Project] {
+        allProjects
+            .filter { $0.isArchived && $0.archiveFolder == nil }
+            .sorted { $0.orderIndex < $1.orderIndex }
+    }
+
+    private var displayedRootArchivedProjects: [Project] {
+        displayedProjects(rootArchivedProjects, scope: .root)
+    }
+
+    private func displayedFolders(_ folders: [ArchiveFolder], scope: ArchiveOrderScope) -> [ArchiveFolder] {
+        guard let order = archiveFolderDisplayOrderByParent[scope] else {
+            return folders
+        }
+        var byID = Dictionary(uniqueKeysWithValues: folders.map { ($0.folderId, $0) })
+        var displayed = order.compactMap { byID.removeValue(forKey: $0) }
+        displayed.append(contentsOf: folders.filter { byID[$0.folderId] != nil })
+        return displayed
+    }
+
+    private func displayedProjects(_ projects: [Project], scope: ArchiveOrderScope) -> [Project] {
+        guard let order = archiveProjectDisplayOrderByFolder[scope] else {
+            return projects
+        }
+        var byID = Dictionary(uniqueKeysWithValues: projects.map { ($0.projectId, $0) })
+        var displayed = order.compactMap { byID.removeValue(forKey: $0) }
+        displayed.append(contentsOf: projects.filter { byID[$0.projectId] != nil })
+        return displayed
     }
 
     // MARK: - Body
@@ -360,6 +397,7 @@ struct SidebarView: View {
                     if newValue == nil {
                         projectDropLog("clear drop target because dragging project is nil")
                         activeProjectDropTarget = nil
+                        activeProjectDisplayOrder = nil
                     }
                 }
             }
@@ -432,12 +470,39 @@ struct SidebarView: View {
                 .help("新建文件夹")
                 .onHover { isCreateArchiveFolderButtonHovered = $0 }
             }
+            .contentShape(Rectangle())
+            .onDrop(
+                of: [.plainText],
+                delegate: ArchiveRootDropDelegate(
+                    allProjects: allProjects,
+                    allFolders: allFolders,
+                    rootArchivedProjects: rootArchivedProjects,
+                    service: projectService,
+                    isArchiveExpanded: $isArchiveExpanded,
+                    isHighlighted: $archiveRootDropHighlighted,
+                    folderDisplayOrderByParent: $archiveFolderDisplayOrderByParent,
+                    projectDisplayOrderByFolder: $archiveProjectDisplayOrderByFolder,
+                    draggingProjectId: $draggingActiveProjectId,
+                    draggingFolderId: $draggingArchiveFolderId,
+                    activeProjectDropTarget: $activeProjectDropTarget,
+                    archiveFolderDropTarget: $archiveFolderDropTarget,
+                    archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
+                    archiveProjectDropTarget: $archiveProjectDropTarget
+                )
+            )
+            .background {
+                if archiveRootDropHighlighted {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(.blue.opacity(0.16))
+                        .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
+                }
+            }
         }
     }
 
     @ViewBuilder
     private var archiveContent: some View {
-        if rootFolders.isEmpty {
+        if rootFolders.isEmpty && rootArchivedProjects.isEmpty {
             EmptyHintView(
                 icon: "archivebox",
                 message: "暂无归档文件夹",
@@ -445,31 +510,67 @@ struct SidebarView: View {
                 onAction: { showCreateRootFolderPrompt() }
             )
         } else {
-            ForEach(rootFolders) { folder in
-                RecursiveFolderRow(
-                    folder: folder,
-                    selection: $selection,
-                    level: 0,
-                    projectHighlightRequest: revealRequest,
-                    expandedFolderIds: $expandedFolderIds,
-                    draggingActiveProjectId: $draggingActiveProjectId,
-                    activeProjectDropTarget: $activeProjectDropTarget,
-                    draggingArchiveFolderId: $draggingArchiveFolderId,
-                    archiveFolderDropTarget: $archiveFolderDropTarget,
-                    archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
-                    archiveProjectDropTarget: $archiveProjectDropTarget,
-                    allProjects: allProjects,
-                    allFolders: allFolders,
-                    service: projectService,
-                    onCreateSubfolder: showCreateSubfolderPrompt,
-                    onRenameFolder: showRenameFolderPrompt,
-                    onDeleteFolder: requestDeleteFolder,
-                    onDeleteProject: showDeleteProjectConfirmation
-                )
+            VStack(spacing: 0) {
+                ForEach(displayedRootFolders) { folder in
+                    ArchiveFolderBranchView(
+                        folder: folder,
+                        level: 0,
+                        selection: $selection,
+                        projectHighlightRequest: revealRequest,
+                        expandedFolderIds: $expandedFolderIds,
+                        draggingActiveProjectId: $draggingActiveProjectId,
+                        draggingArchiveFolderId: $draggingArchiveFolderId,
+                        archiveFolderDropTarget: $archiveFolderDropTarget,
+                        archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
+                        folderDisplayOrderByParent: $archiveFolderDisplayOrderByParent,
+                        projectDisplayOrderByFolder: $archiveProjectDisplayOrderByFolder,
+                        allProjects: allProjects,
+                        allFolders: allFolders,
+                        service: projectService,
+                        onCreateSubfolder: showCreateSubfolderPrompt,
+                        onRenameFolder: showRenameFolderPrompt,
+                        onDeleteFolder: requestDeleteFolder,
+                        onDeleteProject: showDeleteProjectConfirmation,
+                        onSelectProject: { selection = .project($0) }
+                    )
+                }
+
+                ForEach(displayedRootArchivedProjects) { project in
+                    ArchivedProjectSelectableRow(
+                        project: project,
+                        level: 0,
+                        indentPerLevel: ArchiveTreeMetrics.indentPerLevel,
+                        isSelected: selection == .project(project),
+                        highlightRequestID: projectHighlightRequestID(for: project),
+                        showsTopDropLine: false,
+                        showsBottomDropLine: false,
+                        onDragStart: {
+                            draggingActiveProjectId = project.projectId
+                        },
+                        onDelete: { showDeleteProjectConfirmation(project) }
+                    ) {
+                        selection = .project(project)
+                    }
+                    .onDrop(
+                        of: [.plainText],
+                        delegate: ArchiveProjectNestedDropDelegate(
+                            targetProject: project,
+                            targetFolder: nil,
+                            allProjects: allProjects,
+                            service: projectService,
+                            draggingProjectId: $draggingActiveProjectId,
+                            activeProjectDropTarget: $activeProjectDropTarget,
+                            archiveFolderDropTarget: $archiveFolderDropTarget,
+                            archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
+                            archiveProjectDropTarget: $archiveProjectDropTarget,
+                            projectDisplayOrderByFolder: $archiveProjectDisplayOrderByFolder
+                        )
+                    )
+                }
             }
-            .onMove { offsets, target in
-                projectService?.reorderFolders(fromOffsets: offsets, toOffset: target)
-            }
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
         }
     }
 
@@ -566,6 +667,652 @@ struct SidebarView: View {
         return revealRequest?.id
     }
 
+}
+
+// MARK: - Archive Tree Rows
+
+private enum ArchiveOrderScope: Hashable {
+    case root
+    case folder(UUID)
+
+    static func parent(_ folder: ArchiveFolder?) -> ArchiveOrderScope {
+        if let folder {
+            return .folder(folder.folderId)
+        }
+        return .root
+    }
+}
+
+private enum ArchiveTreeMetrics {
+    static let indentPerLevel: CGFloat = 16
+    static let rowHeight: CGFloat = ActiveProjectRowMetrics.defaultRowHeight
+    static let folderEdgeDropBand: CGFloat = 8
+}
+
+private struct ArchiveFolderFlatRow: View {
+    let folder: ArchiveFolder
+    let isExpanded: Bool
+    let level: Int
+    let isDropTargetedInto: Bool
+    let onToggle: () -> Void
+    let onDragStart: () -> Void
+    let onCreateSubfolder: () -> Void
+    let onRename: () -> Void
+    let onDelete: () -> Void
+
+    private var hasContents: Bool {
+        !folder.children.isEmpty || !folder.projects.isEmpty
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if level > 0 {
+                Spacer().frame(width: ArchiveTreeMetrics.indentPerLevel * CGFloat(level))
+            }
+
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .opacity(hasContents ? 1 : 0)
+                .frame(width: 16, alignment: .center)
+
+            Image(systemName: isExpanded ? "folder.fill" : "folder")
+                .foregroundStyle(.secondary)
+                .font(.title3)
+                .frame(width: 22, alignment: .center)
+
+            Text(folder.name)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer()
+
+            if !folder.projects.isEmpty {
+                Text("\(folder.projects.count)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: ArchiveTreeMetrics.rowHeight, alignment: .leading)
+        .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
+        .background {
+            if isDropTargetedInto {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.blue.opacity(0.16))
+                    .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onToggle() }
+        .onDrag {
+            onDragStart()
+            return NSItemProvider(object: "folder:\(folder.folderId.uuidString)" as NSString)
+        }
+        .contextMenu {
+            Button {
+                onCreateSubfolder()
+            } label: {
+                Label("新建子文件夹", systemImage: "folder.badge.plus")
+            }
+            Button {
+                onRename()
+            } label: {
+                Label("重命名", systemImage: "pencil")
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("删除文件夹", systemImage: "trash")
+            }
+        }
+    }
+}
+
+private struct ArchiveFolderBranchView: View {
+    let folder: ArchiveFolder
+    let level: Int
+    @Binding var selection: SidebarSelection?
+    let projectHighlightRequest: GlobalSearchNavigationRequest?
+    @Binding var expandedFolderIds: Set<UUID>
+    @Binding var draggingActiveProjectId: UUID?
+    @Binding var draggingArchiveFolderId: UUID?
+    @Binding var archiveFolderDropTarget: ArchiveFolderDropTarget?
+    @Binding var archiveProjectDropTargetFolderId: UUID?
+    @Binding var folderDisplayOrderByParent: [ArchiveOrderScope: [UUID]]
+    @Binding var projectDisplayOrderByFolder: [ArchiveOrderScope: [UUID]]
+    let allProjects: [Project]
+    let allFolders: [ArchiveFolder]
+    weak var service: ProjectService?
+    let onCreateSubfolder: (ArchiveFolder) -> Void
+    let onRenameFolder: (ArchiveFolder) -> Void
+    let onDeleteFolder: (ArchiveFolder) -> Void
+    let onDeleteProject: (Project) -> Void
+    let onSelectProject: (Project) -> Void
+
+    private var isExpanded: Bool {
+        expandedFolderIds.contains(folder.folderId)
+    }
+
+    private var sortedChildren: [ArchiveFolder] {
+        displayedFolders(folder.children.sorted { $0.orderIndex < $1.orderIndex }, parent: folder)
+    }
+
+    private var sortedProjects: [Project] {
+        displayedProjects(folder.projects.sorted { $0.orderIndex < $1.orderIndex }, folder: folder)
+    }
+
+    private func displayedFolders(_ folders: [ArchiveFolder], parent: ArchiveFolder?) -> [ArchiveFolder] {
+        let scope = ArchiveOrderScope.parent(parent)
+        guard let order = folderDisplayOrderByParent[scope] else {
+            return folders
+        }
+        var byID = Dictionary(uniqueKeysWithValues: folders.map { ($0.folderId, $0) })
+        var displayed = order.compactMap { byID.removeValue(forKey: $0) }
+        displayed.append(contentsOf: folders.filter { byID[$0.folderId] != nil })
+        return displayed
+    }
+
+    private func displayedProjects(_ projects: [Project], folder: ArchiveFolder?) -> [Project] {
+        let scope = ArchiveOrderScope.parent(folder)
+        guard let order = projectDisplayOrderByFolder[scope] else {
+            return projects
+        }
+        var byID = Dictionary(uniqueKeysWithValues: projects.map { ($0.projectId, $0) })
+        var displayed = order.compactMap { byID.removeValue(forKey: $0) }
+        displayed.append(contentsOf: projects.filter { byID[$0.projectId] != nil })
+        return displayed
+    }
+
+    private func projectHighlightRequestID(for project: Project) -> UUID? {
+        guard projectHighlightRequest?.projectID == project.projectId,
+              case .some(.project) = projectHighlightRequest?.destination
+        else { return nil }
+        return projectHighlightRequest?.id
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ArchiveFolderFlatRow(
+                folder: folder,
+                isExpanded: isExpanded,
+                level: level,
+                isDropTargetedInto: archiveFolderDropTarget == ArchiveFolderDropTarget(folderId: folder.folderId, placement: .into)
+                    || archiveProjectDropTargetFolderId == folder.folderId,
+                onToggle: {
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        if isExpanded {
+                            expandedFolderIds.remove(folder.folderId)
+                        } else {
+                            expandedFolderIds.insert(folder.folderId)
+                        }
+                    }
+                },
+                onDragStart: {
+                    draggingArchiveFolderId = folder.folderId
+                },
+                onCreateSubfolder: { onCreateSubfolder(folder) },
+                onRename: { onRenameFolder(folder) },
+                onDelete: { onDeleteFolder(folder) }
+            )
+            .onDrop(
+                of: [.plainText],
+                delegate: ArchiveFolderNestedDropDelegate(
+                    targetFolder: folder,
+                    allProjects: allProjects,
+                    allFolders: allFolders,
+                    service: service,
+                    expandedFolderIds: $expandedFolderIds,
+                    draggingProjectId: $draggingActiveProjectId,
+                    draggingFolderId: $draggingArchiveFolderId,
+                    archiveFolderDropTarget: $archiveFolderDropTarget,
+                    archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
+                    folderDisplayOrderByParent: $folderDisplayOrderByParent
+                )
+            )
+
+            if isExpanded {
+                ForEach(sortedChildren) { child in
+                    ArchiveFolderBranchView(
+                        folder: child,
+                        level: level + 1,
+                        selection: $selection,
+                        projectHighlightRequest: projectHighlightRequest,
+                        expandedFolderIds: $expandedFolderIds,
+                        draggingActiveProjectId: $draggingActiveProjectId,
+                        draggingArchiveFolderId: $draggingArchiveFolderId,
+                        archiveFolderDropTarget: $archiveFolderDropTarget,
+                        archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
+                        folderDisplayOrderByParent: $folderDisplayOrderByParent,
+                        projectDisplayOrderByFolder: $projectDisplayOrderByFolder,
+                        allProjects: allProjects,
+                        allFolders: allFolders,
+                        service: service,
+                        onCreateSubfolder: onCreateSubfolder,
+                        onRenameFolder: onRenameFolder,
+                        onDeleteFolder: onDeleteFolder,
+                        onDeleteProject: onDeleteProject,
+                        onSelectProject: onSelectProject
+                    )
+                }
+
+                ForEach(sortedProjects) { project in
+                    ArchivedProjectSelectableRow(
+                        project: project,
+                        level: level + 1,
+                        indentPerLevel: ArchiveTreeMetrics.indentPerLevel,
+                        isSelected: selection == .project(project),
+                        highlightRequestID: projectHighlightRequestID(for: project),
+                        showsTopDropLine: false,
+                        showsBottomDropLine: false,
+                        onDragStart: {
+                            draggingActiveProjectId = project.projectId
+                        },
+                        onDelete: { onDeleteProject(project) }
+                    ) {
+                        onSelectProject(project)
+                    }
+                    .onDrop(
+                        of: [.plainText],
+                        delegate: ArchiveProjectNestedDropDelegate(
+                            targetProject: project,
+                            targetFolder: folder,
+                            allProjects: allProjects,
+                            service: service,
+                            draggingProjectId: $draggingActiveProjectId,
+                            activeProjectDropTarget: .constant(nil),
+                            archiveFolderDropTarget: $archiveFolderDropTarget,
+                            archiveProjectDropTargetFolderId: $archiveProjectDropTargetFolderId,
+                            archiveProjectDropTarget: .constant(nil),
+                            projectDisplayOrderByFolder: $projectDisplayOrderByFolder
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct ArchiveFolderNestedDropDelegate: DropDelegate {
+    let targetFolder: ArchiveFolder
+    let allProjects: [Project]
+    let allFolders: [ArchiveFolder]
+    weak var service: ProjectService?
+    @Binding var expandedFolderIds: Set<UUID>
+    @Binding var draggingProjectId: UUID?
+    @Binding var draggingFolderId: UUID?
+    @Binding var archiveFolderDropTarget: ArchiveFolderDropTarget?
+    @Binding var archiveProjectDropTargetFolderId: UUID?
+    @Binding var folderDisplayOrderByParent: [ArchiveOrderScope: [UUID]]
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard info.hasItemsConforming(to: [.plainText]) else { return false }
+        return draggingProjectId != nil || draggingFolderId != nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        if draggingFolderId != nil {
+            updateFolderTarget(info: info)
+        } else if draggingProjectId != nil {
+            archiveFolderDropTarget = nil
+            archiveProjectDropTargetFolderId = targetFolder.folderId
+        }
+        guard draggingProjectId != nil || draggingFolderId != nil else { return nil }
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        clearTargets()
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let service else {
+            resetState()
+            return false
+        }
+
+        if let draggingFolderId,
+           let sourceFolder = allFolders.first(where: { $0.folderId == draggingFolderId }) {
+            performFolderDrop(sourceFolder, service: service, info: info)
+            resetState()
+            return true
+        }
+
+        if let draggingProjectId,
+           let project = allProjects.first(where: { $0.projectId == draggingProjectId }) {
+            let endOffset = targetFolder.projects.filter { $0.projectId != project.projectId }.count
+            service.moveProjectToFolder(project, folder: targetFolder, toOffset: endOffset)
+            expandedFolderIds.insert(targetFolder.folderId)
+            resetState()
+            return true
+        }
+
+        resetState()
+        return false
+    }
+
+    private func updateFolderTarget(info: DropInfo) {
+        guard let draggingFolderId,
+              let sourceFolder = allFolders.first(where: { $0.folderId == draggingFolderId }),
+              sourceFolder.folderId != targetFolder.folderId,
+              !targetFolder.isDescendant(of: sourceFolder)
+        else {
+            archiveFolderDropTarget = nil
+            return
+        }
+
+        let placement = folderPlacement(for: info)
+        guard placement == .into || sourceFolder.parent?.folderId == targetFolder.parent?.folderId else {
+            archiveFolderDropTarget = nil
+            return
+        }
+        archiveFolderDropTarget = ArchiveFolderDropTarget(folderId: targetFolder.folderId, placement: placement)
+        if placement == .before || placement == .after {
+            updateFolderDisplayOrder(sourceFolder: sourceFolder, placement: placement)
+        }
+    }
+
+    private func performFolderDrop(_ sourceFolder: ArchiveFolder, service: ProjectService, info: DropInfo) {
+        if persistFolderDisplayOrder(in: sourceFolder.parent, service: service) {
+            return
+        }
+
+        guard sourceFolder.folderId != targetFolder.folderId,
+              !targetFolder.isDescendant(of: sourceFolder)
+        else { return }
+
+        let placement = archiveFolderDropTarget?.placement ?? folderPlacement(for: info)
+        switch placement {
+        case .into:
+            service.moveFolder(sourceFolder, to: targetFolder)
+            expandedFolderIds.insert(targetFolder.folderId)
+        case .before, .after:
+            guard sourceFolder.parent?.folderId == targetFolder.parent?.folderId else { return }
+            let targetParent = targetFolder.parent
+            let siblings = allFolders
+                .filter { $0.parent?.folderId == targetParent?.folderId }
+                .sorted { $0.orderIndex < $1.orderIndex }
+            guard let sourceIndex = siblings.firstIndex(where: { $0.folderId == sourceFolder.folderId }),
+                  let targetIndex = siblings.firstIndex(where: { $0.folderId == targetFolder.folderId })
+            else { return }
+            let destination = placement == .after ? targetIndex + 1 : targetIndex
+            service.reorderFolders(in: targetParent, fromOffsets: IndexSet(integer: sourceIndex), toOffset: destination)
+        }
+    }
+
+    private func updateFolderDisplayOrder(sourceFolder: ArchiveFolder, placement: ArchiveFolderDropPlacement) {
+        let targetParent = targetFolder.parent
+        let scope = ArchiveOrderScope.parent(targetParent)
+        let naturalIDs = allFolders
+            .filter { $0.parent?.folderId == targetParent?.folderId }
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .map(\.folderId)
+        var ids = folderDisplayOrderByParent[scope] ?? naturalIDs
+        guard let sourceIndex = ids.firstIndex(of: sourceFolder.folderId),
+              let targetIndex = ids.firstIndex(of: targetFolder.folderId)
+        else { return }
+        let destination = placement == .after ? targetIndex + 1 : targetIndex
+        ids.move(fromOffsets: IndexSet(integer: sourceIndex), toOffset: destination)
+        withAnimation(.easeInOut(duration: 0.12)) {
+            folderDisplayOrderByParent[scope] = ids
+        }
+    }
+
+    private func persistFolderDisplayOrder(in parent: ArchiveFolder?, service: ProjectService) -> Bool {
+        let scope = ArchiveOrderScope.parent(parent)
+        guard let orderedIDs = folderDisplayOrderByParent[scope] else { return false }
+        var foldersByID = Dictionary(uniqueKeysWithValues: allFolders.map { ($0.folderId, $0) })
+        let orderedFolders = orderedIDs.compactMap { foldersByID.removeValue(forKey: $0) }
+        guard !orderedFolders.isEmpty else { return false }
+        for (index, folder) in orderedFolders.enumerated() {
+            folder.orderIndex = index
+        }
+        service.save()
+        return true
+    }
+
+    private func folderPlacement(for info: DropInfo) -> ArchiveFolderDropPlacement {
+        if info.location.y <= ArchiveTreeMetrics.folderEdgeDropBand {
+            return .before
+        } else if info.location.y >= ArchiveTreeMetrics.rowHeight - ArchiveTreeMetrics.folderEdgeDropBand {
+            return .after
+        } else {
+            return .into
+        }
+    }
+
+    private func clearTargets() {
+        archiveFolderDropTarget = nil
+        archiveProjectDropTargetFolderId = nil
+    }
+
+    private func resetState() {
+        draggingFolderId = nil
+        draggingProjectId = nil
+        clearTargets()
+        folderDisplayOrderByParent.removeAll()
+    }
+}
+
+private struct ArchiveProjectNestedDropDelegate: DropDelegate {
+    let targetProject: Project
+    let targetFolder: ArchiveFolder?
+    let allProjects: [Project]
+    weak var service: ProjectService?
+    @Binding var draggingProjectId: UUID?
+    @Binding var activeProjectDropTarget: ActiveProjectDropTarget?
+    @Binding var archiveFolderDropTarget: ArchiveFolderDropTarget?
+    @Binding var archiveProjectDropTargetFolderId: UUID?
+    @Binding var archiveProjectDropTarget: ArchiveProjectDropTarget?
+    @Binding var projectDisplayOrderByFolder: [ArchiveOrderScope: [UUID]]
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard info.hasItemsConforming(to: [.plainText]),
+              let draggingProjectId,
+              draggingProjectId != targetProject.projectId,
+              let draggingProject = allProjects.first(where: { $0.projectId == draggingProjectId })
+        else { return false }
+        return draggingProject.archiveFolder?.folderId == targetFolder?.folderId
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        guard validateDrop(info: info) else {
+            clearTargets()
+            return nil
+        }
+        archiveFolderDropTarget = nil
+        archiveProjectDropTargetFolderId = nil
+        archiveProjectDropTarget = ArchiveProjectDropTarget(
+            projectId: targetProject.projectId,
+            placement: projectPlacement(for: info)
+        )
+        updateProjectDisplayOrder(placement: projectPlacement(for: info))
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        clearTargets()
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let service,
+              let draggingProjectId,
+              let project = allProjects.first(where: { $0.projectId == draggingProjectId })
+        else {
+            resetState()
+            return false
+        }
+
+        if persistProjectDisplayOrder(in: project.archiveFolder, service: service) {
+            resetState()
+            return true
+        }
+
+        guard project.projectId != targetProject.projectId,
+              project.archiveFolder?.folderId == targetFolder?.folderId
+        else {
+            resetState()
+            return false
+        }
+
+        let placement = projectPlacement(for: info)
+        let siblings = allProjects
+            .filter { candidate in
+                candidate.isArchived
+                    && candidate.projectId != project.projectId
+                    && candidate.archiveFolder?.folderId == targetFolder?.folderId
+            }
+            .sorted { $0.orderIndex < $1.orderIndex }
+        guard let targetIndex = siblings.firstIndex(where: { $0.projectId == targetProject.projectId }) else {
+            resetState()
+            return false
+        }
+
+        let offset = placement == .after ? targetIndex + 1 : targetIndex
+        if let targetFolder {
+            service.moveProjectToFolder(project, folder: targetFolder, toOffset: offset)
+        } else {
+            service.moveProjectToArchiveRoot(project, toOffset: offset)
+        }
+        resetState()
+        return true
+    }
+
+    private func updateProjectDisplayOrder(placement: ActiveProjectDropPlacement) {
+        guard let draggingProjectId else { return }
+        let scope = ArchiveOrderScope.parent(targetFolder)
+        let naturalIDs = allProjects
+            .filter { candidate in
+                candidate.isArchived
+                    && candidate.archiveFolder?.folderId == targetFolder?.folderId
+            }
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .map(\.projectId)
+        var ids = projectDisplayOrderByFolder[scope] ?? naturalIDs
+        guard let sourceIndex = ids.firstIndex(of: draggingProjectId),
+              let targetIndex = ids.firstIndex(of: targetProject.projectId)
+        else { return }
+        let destination = placement == .after ? targetIndex + 1 : targetIndex
+        ids.move(fromOffsets: IndexSet(integer: sourceIndex), toOffset: destination)
+        withAnimation(.easeInOut(duration: 0.12)) {
+            projectDisplayOrderByFolder[scope] = ids
+        }
+    }
+
+    private func persistProjectDisplayOrder(in folder: ArchiveFolder?, service: ProjectService) -> Bool {
+        let scope = ArchiveOrderScope.parent(folder)
+        guard let orderedIDs = projectDisplayOrderByFolder[scope] else { return false }
+        var projectsByID = Dictionary(uniqueKeysWithValues: allProjects.map { ($0.projectId, $0) })
+        let orderedProjects = orderedIDs.compactMap { projectsByID.removeValue(forKey: $0) }
+        guard !orderedProjects.isEmpty else { return false }
+        for (index, project) in orderedProjects.enumerated() {
+            project.orderIndex = index
+        }
+        service.save()
+        return true
+    }
+
+    private func projectPlacement(for info: DropInfo) -> ActiveProjectDropPlacement {
+        info.location.y < ArchiveTreeMetrics.rowHeight / 2 ? .before : .after
+    }
+
+    private func clearTargets() {
+        activeProjectDropTarget = nil
+        archiveFolderDropTarget = nil
+        archiveProjectDropTargetFolderId = nil
+        archiveProjectDropTarget = nil
+    }
+
+    private func resetState() {
+        draggingProjectId = nil
+        clearTargets()
+        projectDisplayOrderByFolder.removeAll()
+    }
+}
+
+private struct ArchiveRootDropDelegate: DropDelegate {
+    let allProjects: [Project]
+    let allFolders: [ArchiveFolder]
+    let rootArchivedProjects: [Project]
+    weak var service: ProjectService?
+    @Binding var isArchiveExpanded: Bool
+    @Binding var isHighlighted: Bool
+    @Binding var folderDisplayOrderByParent: [ArchiveOrderScope: [UUID]]
+    @Binding var projectDisplayOrderByFolder: [ArchiveOrderScope: [UUID]]
+    @Binding var draggingProjectId: UUID?
+    @Binding var draggingFolderId: UUID?
+    @Binding var activeProjectDropTarget: ActiveProjectDropTarget?
+    @Binding var archiveFolderDropTarget: ArchiveFolderDropTarget?
+    @Binding var archiveProjectDropTargetFolderId: UUID?
+    @Binding var archiveProjectDropTarget: ArchiveProjectDropTarget?
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard info.hasItemsConforming(to: [.plainText]) else { return false }
+        return draggingProjectId != nil || draggingFolderId != nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        clearDropTargets()
+        guard draggingProjectId != nil || draggingFolderId != nil else {
+            isHighlighted = false
+            return nil
+        }
+        isHighlighted = true
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        isHighlighted = false
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let service else {
+            resetDragState()
+            return false
+        }
+
+        if let draggingFolderId,
+           let folder = allFolders.first(where: { $0.folderId == draggingFolderId }) {
+            service.moveFolder(folder, to: nil)
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isArchiveExpanded = true
+            }
+            resetDragState()
+            return true
+        }
+
+        if let draggingProjectId,
+           let project = allProjects.first(where: { $0.projectId == draggingProjectId }) {
+            service.moveProjectToArchiveRoot(project, toOffset: rootArchivedProjects.count)
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isArchiveExpanded = true
+            }
+            resetDragState()
+            return true
+        }
+
+        resetDragState()
+        return false
+    }
+
+    private func clearDropTargets() {
+        activeProjectDropTarget = nil
+        archiveFolderDropTarget = nil
+        archiveProjectDropTargetFolderId = nil
+        archiveProjectDropTarget = nil
+        isHighlighted = false
+        folderDisplayOrderByParent.removeAll()
+        projectDisplayOrderByFolder.removeAll()
+    }
+
+    private func resetDragState() {
+        draggingProjectId = nil
+        draggingFolderId = nil
+        clearDropTargets()
+    }
 }
 
 // MARK: - ActiveProjectRow
@@ -1484,10 +2231,10 @@ struct ArchivedProjectSelectableRow: View {
 
     private func rowContent(color: Color, usesProjectIconColor: Bool = false) -> some View {
         HStack(spacing: 6) {
-            Spacer().frame(width: indentPerLevel * CGFloat(level + 1))
+            Spacer().frame(width: indentPerLevel * CGFloat(max(level, 0)))
 
             Spacer()
-                .frame(width: 16)
+                .frame(width: 8)
 
             Image(systemName: project.sfSymbolName)
                 .foregroundStyle(usesProjectIconColor ? accentColor : color)
