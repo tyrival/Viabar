@@ -108,6 +108,7 @@ struct SidebarView: View {
     @State private var draggingActiveProjectId: UUID?
     @State private var activeProjectDropTarget: ActiveProjectDropTarget?
     @State private var activeProjectDisplayOrder: [UUID]?
+    @State private var isCommittingActiveProjectDrop = false
     @State private var draggingArchiveFolderId: UUID?
     @State private var archiveFolderDropTarget: ArchiveFolderDropTarget?
     @State private var archiveProjectDropTargetFolderId: UUID?
@@ -386,7 +387,8 @@ struct SidebarView: View {
                         service: projectService,
                         draggingProjectIdBinding: $draggingActiveProjectId,
                         dropTarget: $activeProjectDropTarget,
-                        displayOrderOverride: $activeProjectDisplayOrder
+                        displayOrderOverride: $activeProjectDisplayOrder,
+                        isCommittingDrop: $isCommittingActiveProjectDrop
                     )
                 }
                 .listRowInsets(EdgeInsets())
@@ -397,7 +399,9 @@ struct SidebarView: View {
                     if newValue == nil {
                         projectDropLog("clear drop target because dragging project is nil")
                         activeProjectDropTarget = nil
-                        activeProjectDisplayOrder = nil
+                        if !isCommittingActiveProjectDrop {
+                            activeProjectDisplayOrder = nil
+                        }
                     }
                 }
             }
@@ -511,7 +515,7 @@ struct SidebarView: View {
             )
         } else {
             VStack(spacing: 0) {
-                ForEach(displayedRootFolders) { folder in
+                ForEach(displayedRootFolders, id: \.folderId) { folder in
                     ArchiveFolderBranchView(
                         folder: folder,
                         level: 0,
@@ -533,9 +537,10 @@ struct SidebarView: View {
                         onDeleteProject: showDeleteProjectConfirmation,
                         onSelectProject: { selection = .project($0) }
                     )
+                    .id(folder.folderId)
                 }
 
-                ForEach(displayedRootArchivedProjects) { project in
+                ForEach(displayedRootArchivedProjects, id: \.projectId) { project in
                     ArchivedProjectSelectableRow(
                         project: project,
                         level: 0,
@@ -551,6 +556,7 @@ struct SidebarView: View {
                     ) {
                         selection = .project(project)
                     }
+                    .id(project.projectId)
                     .onDrop(
                         of: [.plainText],
                         delegate: ArchiveProjectNestedDropDelegate(
@@ -700,11 +706,24 @@ private struct ArchiveFolderFlatRow: View {
     let onRename: () -> Void
     let onDelete: () -> Void
 
+    @State private var isHovered = false
+
     private var hasContents: Bool {
         !folder.children.isEmpty || !folder.projects.isEmpty
     }
 
-    var body: some View {
+    private var backgroundFill: Color {
+        if isDropTargetedInto {
+            return .blue.opacity(0.16)
+        }
+        return isHovered ? ActiveProjectRowMetrics.sidebarHoverColor : .clear
+    }
+
+    private var rowForeground: Color {
+        isHovered ? .primary : .secondary
+    }
+
+    private var rowContent: some View {
         HStack(spacing: 6) {
             if level > 0 {
                 Spacer().frame(width: ArchiveTreeMetrics.indentPerLevel * CGFloat(level))
@@ -717,13 +736,13 @@ private struct ArchiveFolderFlatRow: View {
                 .frame(width: 16, alignment: .center)
 
             Image(systemName: isExpanded ? "folder.fill" : "folder")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(rowForeground)
                 .font(.title3)
                 .frame(width: 22, alignment: .center)
 
             Text(folder.name)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(rowForeground)
                 .lineLimit(1)
 
             Spacer()
@@ -734,20 +753,47 @@ private struct ArchiveFolderFlatRow: View {
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    private var dragPreview: some View {
+        HStack(spacing: 6) {
+            Image(systemName: isExpanded ? "folder.fill" : "folder")
+                .foregroundStyle(.secondary)
+                .font(.title3)
+                .frame(width: 22, alignment: .center)
+
+            Text(folder.name)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: ArchiveTreeMetrics.rowHeight)
+        .background {
+            Capsule(style: .continuous)
+                .fill(ActiveProjectRowMetrics.sidebarHoverColor)
+        }
+    }
+
+    var body: some View {
+        rowContent
         .frame(maxWidth: .infinity, minHeight: ArchiveTreeMetrics.rowHeight, alignment: .leading)
         .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
         .background {
-            if isDropTargetedInto {
+            if isDropTargetedInto || isHovered {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(.blue.opacity(0.16))
+                    .fill(backgroundFill)
                     .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
             }
         }
         .contentShape(Rectangle())
         .onTapGesture { onToggle() }
+        .onHover { isHovered = $0 }
         .onDrag {
             onDragStart()
             return NSItemProvider(object: "folder:\(folder.folderId.uuidString)" as NSString)
+        } preview: {
+            dragPreview
         }
         .contextMenu {
             Button {
@@ -858,6 +904,7 @@ private struct ArchiveFolderBranchView: View {
                 onRename: { onRenameFolder(folder) },
                 onDelete: { onDeleteFolder(folder) }
             )
+            .id(folder.folderId)
             .onDrop(
                 of: [.plainText],
                 delegate: ArchiveFolderNestedDropDelegate(
@@ -875,7 +922,7 @@ private struct ArchiveFolderBranchView: View {
             )
 
             if isExpanded {
-                ForEach(sortedChildren) { child in
+                ForEach(sortedChildren, id: \.folderId) { child in
                     ArchiveFolderBranchView(
                         folder: child,
                         level: level + 1,
@@ -897,9 +944,10 @@ private struct ArchiveFolderBranchView: View {
                         onDeleteProject: onDeleteProject,
                         onSelectProject: onSelectProject
                     )
+                    .id(child.folderId)
                 }
 
-                ForEach(sortedProjects) { project in
+                ForEach(sortedProjects, id: \.projectId) { project in
                     ArchivedProjectSelectableRow(
                         project: project,
                         level: level + 1,
@@ -915,6 +963,7 @@ private struct ArchiveFolderBranchView: View {
                     ) {
                         onSelectProject(project)
                     }
+                    .id(project.projectId)
                     .onDrop(
                         of: [.plainText],
                         delegate: ArchiveProjectNestedDropDelegate(
@@ -1603,6 +1652,12 @@ private struct ActiveProjectDropOverlay: View {
     @Binding var draggingProjectIdBinding: UUID?
     @Binding var dropTarget: ActiveProjectDropTarget?
     @Binding var displayOrderOverride: [UUID]?
+    @Binding var isCommittingDrop: Bool
+
+    private var isDraggingActiveProject: Bool {
+        guard let draggingProjectId else { return false }
+        return projects.contains { $0.projectId == draggingProjectId }
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -1626,11 +1681,12 @@ private struct ActiveProjectDropOverlay: View {
                             service: service,
                             draggingProjectId: $draggingProjectIdBinding,
                             dropTarget: $dropTarget,
-                            displayOrderOverride: $displayOrderOverride
+                            displayOrderOverride: $displayOrderOverride,
+                            isCommittingDrop: $isCommittingDrop
                         )
                     )
             }
-            .allowsHitTesting(draggingProjectId != nil)
+            .allowsHitTesting(isDraggingActiveProject)
         }
     }
 
@@ -1739,6 +1795,7 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
     @Binding var draggingProjectId: UUID?
     @Binding var dropTarget: ActiveProjectDropTarget?
     @Binding var displayOrderOverride: [UUID]?
+    @Binding var isCommittingDrop: Bool
 
     func validateDrop(info: DropInfo) -> Bool {
         guard info.hasItemsConforming(to: [.plainText]) else {
@@ -1787,6 +1844,7 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
         }
 
         let finalProjects = finalDisplayProjects()
+        isCommittingDrop = true
         resetDragState(restoresDisplayOrder: false)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + ActiveProjectRowMetrics.projectReorderPersistDelay) {
@@ -1804,6 +1862,7 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 projectDropLog("performDrop clear display order override")
                 displayOrderOverride = nil
+                isCommittingDrop = false
             }
         }
         return true
@@ -1882,6 +1941,7 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
         dropTarget = nil
         if restoresDisplayOrder {
             displayOrderOverride = nil
+            isCommittingDrop = false
         }
         projectDropLog("reset state end")
     }
@@ -1889,6 +1949,7 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
     private func restoreDisplayOrder() {
         dropTarget = nil
         displayOrderOverride = nil
+        isCommittingDrop = false
     }
 }
 
