@@ -682,9 +682,9 @@ private enum IOSProjectSection: Hashable {
 }
 
 private enum IOSProjectReorderMetrics {
-    static let cardHeight: CGFloat = 150
-    static let cardSpacing: CGFloat = 10
-    static let verticalInset: CGFloat = 10
+    static let cardHeight: CGFloat = 116
+    static let cardSpacing: CGFloat = 8
+    static let verticalInset: CGFloat = 4
     static let animation: Animation = .easeInOut(duration: 0.12)
 }
 
@@ -926,7 +926,7 @@ struct IOSPersistentOverviewProjectCard: View {
                     }
                 }
 
-                Spacer().frame(height: 18)
+                Spacer().frame(height: 8)
 
                 if let milestone = topMilestone {
                     HStack(spacing: 6) {
@@ -955,7 +955,7 @@ struct IOSPersistentOverviewProjectCard: View {
                                 .lineLimit(1)
                         }
                         .padding(.leading, 22)
-                        .padding(.top, 10)
+                        .padding(.top, 4)
                     }
                 }
 
@@ -985,10 +985,11 @@ struct IOSPersistentOverviewProjectCard: View {
                 }
             }
             .padding(.leading, 12)
-            .padding(.trailing, 14)
-            .padding(.vertical, 12)
+            .padding(.top, 8)
+            .padding(.trailing, 16)
+            .padding(.bottom, 16)
         }
-        .frame(height: 150)
+        .frame(height: IOSProjectReorderMetrics.cardHeight)
         .iosPrototypeCardSurface(cornerRadius: 12)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .contextMenu {

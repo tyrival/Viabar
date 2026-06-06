@@ -3,6 +3,13 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+private let iosMemoReorderLogStart = Date()
+
+private func iosMemoReorderLog(_ message: String) {
+    let elapsed = Date().timeIntervalSince(iosMemoReorderLogStart)
+    print(String(format: "[IOSMemoReorder +%.3fs] %@", elapsed, message))
+}
+
 private enum IOSPersistentDetailSession: Equatable {
     case idle
     case addMilestone
@@ -46,7 +53,10 @@ struct IOSPersistentProjectDetailView: View {
     @State private var draggingTaskItem: IOSPersistentTaskDragItem?
     @State private var taskDropTarget: IOSPersistentDropIndicator?
     @State private var draggingMemoID: UUID?
-    @State private var memoDropTarget: IOSPersistentDropIndicator?
+    @State private var memoDisplayOrderOverride: [UUID]?
+    @State private var memoDragSessionID: UUID?
+    @State private var memoDragSessionSawDropEvent = false
+    @State private var memoDragEventCounter = 0
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -85,6 +95,9 @@ struct IOSPersistentProjectDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .tint(Color.accentColor)
+        .onChange(of: draggingMemoID) { _, newValue in
+            iosMemoReorderLog("draggingMemoID changed to \(newValue?.uuidString ?? "nil")")
+        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 7) {
@@ -184,15 +197,22 @@ struct IOSPersistentProjectDetailView: View {
     }
 
     private var memoList: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(sortedMemos.enumerated()), id: \.element.memoId) { index, memo in
-                memoDropSeparator(targetID: memo.memoId, placement: .before)
+        let displayedMemos = displayOrderedMemos
+
+        return VStack(spacing: IOSPersistentMemoReorderMetrics.cardSpacing) {
+            ForEach(displayedMemos, id: \.memoId) { memo in
                 memoCard(memo)
-                if index == sortedMemos.count - 1 {
-                    memoDropSeparator(targetID: memo.memoId, placement: .after)
-                }
+                    .modifier(IOSPersistentMemoCardDropModifier(
+                        targetID: memo.memoId,
+                        draggingMemoID: $draggingMemoID,
+                        onDropEvent: markMemoDragDropEvent,
+                        onDropExit: scheduleMemoDragExitFallback,
+                        onUpdateDisplayOrder: updateMemoDisplayOrder(movingID:targetID:placement:),
+                        onCommitDisplayOrder: commitMemoDisplayOrder
+                    ))
             }
         }
+        .animation(IOSPersistentMemoReorderMetrics.animation, value: displayedMemos.map(\.memoId))
     }
 
     private func milestoneRow(_ milestone: Milestone, highlightCorners: UIRectCorner) -> some View {
@@ -304,6 +324,7 @@ struct IOSPersistentProjectDetailView: View {
         memoCardContent(memo)
         .contentShape(Rectangle())
         .onTapGesture {
+            iosMemoReorderLog("tap memo=\(memo.memoId) dragging=\(draggingMemoID?.uuidString ?? "nil")")
             if !project.isArchived {
                 beginEditing(memo)
             }
@@ -314,6 +335,12 @@ struct IOSPersistentProjectDetailView: View {
         )
         .onDrag {
             draggingMemoID = memo.memoId
+            memoDisplayOrderOverride = nil
+            let sessionID = UUID()
+            memoDragSessionID = sessionID
+            memoDragSessionSawDropEvent = false
+            iosMemoReorderLog("drag start memo=\(memo.memoId) session=\(sessionID)")
+            scheduleMemoDragFallbackReset(memoID: memo.memoId, sessionID: sessionID)
             return NSItemProvider(object: "memo:\(memo.memoId.uuidString)" as NSString)
         } preview: {
             memoCardContent(memo)
@@ -499,20 +526,6 @@ struct IOSPersistentProjectDetailView: View {
     private func isLastVisibleRowInMilestoneGroup(_ row: IOSPersistentTaskRow, nextRow: IOSPersistentTaskRow?) -> Bool {
         guard let nextRow else { return true }
         return row.milestoneID != nextRow.milestoneID
-    }
-
-    private func memoDropSeparator(targetID: UUID, placement: ReorderPlacement) -> some View {
-        IOSPersistentReorderDropSeparator(isActive: memoDropTarget == IOSPersistentDropIndicator(id: targetID, placement: placement))
-            .onDrop(
-                of: [.text],
-                delegate: IOSPersistentMemoDropDelegate(
-                    targetID: targetID,
-                    placement: placement,
-                    draggingMemoID: $draggingMemoID,
-                    dropTarget: $memoDropTarget,
-                    onMove: moveMemo(id:targetID:placement:)
-                )
-            )
     }
 
     private func titleContent(_ title: String, reminder: Reminder?, isCompleted: Bool, isHighlighted: Bool) -> some View {
@@ -714,6 +727,22 @@ struct IOSPersistentProjectDetailView: View {
         }
     }
 
+    private var displayOrderedMemos: [Memo] {
+        guard let memoDisplayOrderOverride else {
+            return sortedMemos
+        }
+
+        let memoIDs = Set(sortedMemos.map(\.memoId))
+        guard memoDisplayOrderOverride.count == sortedMemos.count,
+              Set(memoDisplayOrderOverride) == memoIDs
+        else {
+            return sortedMemos
+        }
+
+        var memosByID = Dictionary(uniqueKeysWithValues: sortedMemos.map { ($0.memoId, $0) })
+        return memoDisplayOrderOverride.compactMap { memosByID.removeValue(forKey: $0) }
+    }
+
     private var savedDateFormat: String? {
         settingsRecords.first?.dateFormat
     }
@@ -753,9 +782,127 @@ struct IOSPersistentProjectDetailView: View {
         }
     }
 
-    private func moveMemo(id: UUID, targetID: UUID, placement: ReorderPlacement) {
-        guard !project.isArchived, id != targetID else { return }
-        services.projectService?.reorderMemos(in: project, movingID: id, targetID: targetID, placement: placement)
+    private func updateMemoDisplayOrder(movingID: UUID, targetID: UUID, placement: ReorderPlacement) {
+        guard !project.isArchived, movingID != targetID else { return }
+
+        var memos = displayOrderedMemos
+        guard let sourceIndex = memos.firstIndex(where: { $0.memoId == movingID }),
+              let targetIndex = memos.firstIndex(where: { $0.memoId == targetID })
+        else {
+            iosMemoReorderLog("update skipped reason=missing index moving=\(movingID) target=\(targetID) ids=\(memos.map(\.memoId.uuidString))")
+            return
+        }
+
+        let destination = memoInsertionIndex(
+            sourceIndex: sourceIndex,
+            targetIndex: targetIndex,
+            placement: placement,
+            count: memos.count
+        )
+        guard sourceIndex != destination else {
+            iosMemoReorderLog("update skipped reason=same destination source=\(sourceIndex) target=\(targetIndex) destination=\(destination) placement=\(placement)")
+            return
+        }
+
+        let movingMemo = memos.remove(at: sourceIndex)
+        memos.insert(movingMemo, at: destination)
+        let reorderedIDs = memos.map(\.memoId)
+        guard memoDisplayOrderOverride != reorderedIDs else {
+            iosMemoReorderLog("update skipped reason=order unchanged")
+            return
+        }
+
+        iosMemoReorderLog("update order source=\(sourceIndex) target=\(targetIndex) destination=\(destination) placement=\(placement) ids=\(reorderedIDs.map(\.uuidString))")
+        withAnimation(IOSPersistentMemoReorderMetrics.animation) {
+            memoDisplayOrderOverride = reorderedIDs
+        }
+    }
+
+    private func commitMemoDisplayOrder() {
+        guard !project.isArchived else {
+            iosMemoReorderLog("commit skipped reason=archived")
+            resetMemoDragState()
+            return
+        }
+
+        let finalMemos = displayOrderedMemos
+        iosMemoReorderLog("commit begin final=\(finalMemos.map(\.memoId.uuidString))")
+        resetMemoDragState(restoresDisplayOrder: false)
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            for (index, memo) in finalMemos.enumerated() where memo.orderIndex != index {
+                memo.orderIndex = index
+            }
+        }
+        services.projectService?.save()
+        memoDisplayOrderOverride = nil
+        iosMemoReorderLog("commit end")
+    }
+
+    private func memoInsertionIndex(
+        sourceIndex: Int,
+        targetIndex: Int,
+        placement: ReorderPlacement,
+        count: Int
+    ) -> Int {
+        var insertionIndex = targetIndex
+        if sourceIndex < targetIndex {
+            insertionIndex -= 1
+        }
+        if placement == .after {
+            insertionIndex += 1
+        }
+        return min(max(insertionIndex, 0), count - 1)
+    }
+
+    private func markMemoDragDropEvent() {
+        memoDragSessionSawDropEvent = true
+        memoDragEventCounter += 1
+        iosMemoReorderLog("drop event counter=\(memoDragEventCounter) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+    }
+
+    private func scheduleMemoDragFallbackReset(memoID: UUID, sessionID: UUID) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            guard memoDragSessionID == sessionID,
+                  draggingMemoID == memoID,
+                  !memoDragSessionSawDropEvent
+            else { return }
+
+            iosMemoReorderLog("fallback reset orphan drag memo=\(memoID) session=\(sessionID)")
+            resetMemoDragState()
+        }
+    }
+
+    private func scheduleMemoDragExitFallback() {
+        let counter = memoDragEventCounter
+        let memoID = draggingMemoID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard draggingMemoID == memoID,
+                  draggingMemoID != nil,
+                  memoDragEventCounter == counter
+            else { return }
+
+            if memoDisplayOrderOverride != nil {
+                iosMemoReorderLog("exit fallback commit memo=\(memoID?.uuidString ?? "nil") counter=\(counter)")
+                commitMemoDisplayOrder()
+            } else {
+                iosMemoReorderLog("exit fallback reset memo=\(memoID?.uuidString ?? "nil") counter=\(counter)")
+                resetMemoDragState()
+            }
+        }
+    }
+
+    private func resetMemoDragState(restoresDisplayOrder: Bool = true) {
+        iosMemoReorderLog("reset draggingBefore=\(draggingMemoID?.uuidString ?? "nil") restoresDisplayOrder=\(restoresDisplayOrder)")
+        draggingMemoID = nil
+        memoDragSessionID = nil
+        memoDragSessionSawDropEvent = false
+        memoDragEventCounter += 1
+        if restoresDisplayOrder {
+            memoDisplayOrderOverride = nil
+        }
     }
 
     private func toggleArchive() {
@@ -1000,43 +1147,107 @@ private struct IOSPersistentTaskDropDelegate: DropDelegate {
     }
 }
 
-private struct IOSPersistentMemoDropDelegate: DropDelegate {
+private enum IOSPersistentMemoReorderMetrics {
+    static let cardSpacing: CGFloat = 8
+    static let animation: Animation = .easeInOut(duration: 0.12)
+}
+
+private struct IOSPersistentMemoCardDropModifier: ViewModifier {
+    let targetID: UUID
+    @Binding var draggingMemoID: UUID?
+    let onDropEvent: () -> Void
+    let onDropExit: () -> Void
+    let onUpdateDisplayOrder: (UUID, UUID, ReorderPlacement) -> Void
+    let onCommitDisplayOrder: () -> Void
+
+    private var allowsMemoDropHitTesting: Bool {
+        draggingMemoID != nil && draggingMemoID != targetID
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                GeometryReader { proxy in
+                    VStack(spacing: 0) {
+                        memoDropZone(height: proxy.size.height / 2, placement: .before)
+                        memoDropZone(height: proxy.size.height / 2, placement: .after)
+                    }
+                }
+                .allowsHitTesting(allowsMemoDropHitTesting)
+            }
+            .onChange(of: allowsMemoDropHitTesting) { _, newValue in
+                iosMemoReorderLog("drop overlay target=\(targetID) hitTesting=\(newValue) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+            }
+    }
+
+    private func memoDropZone(height: CGFloat, placement: ReorderPlacement) -> some View {
+        Color.primary.opacity(0.001)
+            .frame(maxWidth: .infinity)
+            .frame(height: max(height, 1))
+            .contentShape(Rectangle())
+            .onDrop(
+                of: [.text],
+                delegate: IOSPersistentMemoCardDropDelegate(
+                    targetID: targetID,
+                    placement: placement,
+                    draggingMemoID: $draggingMemoID,
+                    onDropEvent: onDropEvent,
+                    onDropExit: onDropExit,
+                    onUpdateDisplayOrder: onUpdateDisplayOrder,
+                    onCommitDisplayOrder: onCommitDisplayOrder
+                )
+            )
+    }
+}
+
+private struct IOSPersistentMemoCardDropDelegate: DropDelegate {
     let targetID: UUID
     let placement: ReorderPlacement
     @Binding var draggingMemoID: UUID?
-    @Binding var dropTarget: IOSPersistentDropIndicator?
-    let onMove: (UUID, UUID, ReorderPlacement) -> Void
+    let onDropEvent: () -> Void
+    let onDropExit: () -> Void
+    let onUpdateDisplayOrder: (UUID, UUID, ReorderPlacement) -> Void
+    let onCommitDisplayOrder: () -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
-        draggingMemoID != nil
+        onDropEvent()
+        let isValid = draggingMemoID != nil && draggingMemoID != targetID
+        iosMemoReorderLog("validate=\(isValid) target=\(targetID) placement=\(placement) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+        return isValid
     }
 
     func dropEntered(info: DropInfo) {
-        updateDropTarget(info: info)
+        iosMemoReorderLog("dropEntered target=\(targetID) placement=\(placement) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+        updateDisplayOrder()
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        updateDropTarget(info: info)
+        iosMemoReorderLog("dropUpdated target=\(targetID) placement=\(placement) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+        updateDisplayOrder()
         return DropProposal(operation: .move)
     }
 
     func dropExited(info: DropInfo) {
-        dropTarget = nil
+        onDropEvent()
+        iosMemoReorderLog("dropExited target=\(targetID) placement=\(placement) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+        onDropExit()
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggingMemoID = nil
-            dropTarget = nil
-        }
-        guard let draggingMemoID else { return false }
-        onMove(draggingMemoID, targetID, placement)
+        onDropEvent()
+        iosMemoReorderLog("performDrop target=\(targetID) placement=\(placement) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+        guard draggingMemoID != nil else { return false }
+        onCommitDisplayOrder()
         return true
     }
 
-    private func updateDropTarget(info: DropInfo) {
-        guard draggingMemoID != nil else { return }
-        dropTarget = IOSPersistentDropIndicator(id: targetID, placement: placement)
+    private func updateDisplayOrder() {
+        onDropEvent()
+        guard let draggingMemoID, draggingMemoID != targetID else {
+            iosMemoReorderLog("delegate update skipped target=\(targetID) placement=\(placement) dragging=\(draggingMemoID?.uuidString ?? "nil")")
+            return
+        }
+        onUpdateDisplayOrder(draggingMemoID, targetID, placement)
     }
 }
 
