@@ -2,6 +2,13 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+private let iosProjectReorderLogStart = Date()
+
+private func iosProjectReorderLog(_ message: String) {
+    let elapsed = Date().timeIntervalSince(iosProjectReorderLogStart)
+    print(String(format: "[IOSProjectReorder +%.3fs] %@", elapsed, message))
+}
+
 struct IOSPersistentOverviewView: View {
     @Environment(ServiceContainer.self) private var services
     @Environment(\.colorScheme) private var colorScheme
@@ -24,7 +31,9 @@ struct IOSPersistentOverviewView: View {
     @State private var monthDoneOffset: Int = -1
     @State private var copiedReportKind: OverviewReportSectionKind?
     @State private var draggingProjectID: UUID?
-    @State private var projectDropTarget: IOSProjectDropTarget?
+    @State private var projectDisplayOrderBySection: [IOSProjectSection: [UUID]] = [:]
+    @State private var projectDragSessionID: UUID?
+    @State private var projectDragSessionSawDropEvent = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -164,7 +173,7 @@ struct IOSPersistentOverviewView: View {
                 if !favoriteProjects.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         IOSPrototypeSectionLabel(title: "星标项目")
-                        projectList(favoriteProjects)
+                        projectList(favoriteProjects, section: .favorites)
                     }
                 }
 
@@ -172,7 +181,7 @@ struct IOSPersistentOverviewView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         IOSPrototypeSectionLabel(title: "其他项目")
                             .padding(.top, 4)
-                        projectList(regularProjects)
+                        projectList(regularProjects, section: .regular)
                     }
                 }
             }
@@ -180,17 +189,31 @@ struct IOSPersistentOverviewView: View {
             .padding(.bottom, 112)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onChange(of: draggingProjectID) { _, newValue in
+            iosProjectReorderLog("draggingProjectID changed to \(newValue?.uuidString ?? "nil")")
+        }
     }
 
-    private func projectList(_ projects: [Project]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(projects.enumerated()), id: \.element.projectId) { index, project in
-                projectDropSeparator(targetID: project.projectId, placement: .before)
+    private func projectList(_ projects: [Project], section: IOSProjectSection) -> some View {
+        let displayedProjects = displayedProjects(projects, section: section)
+
+        return VStack(spacing: IOSProjectReorderMetrics.cardSpacing) {
+            ForEach(displayedProjects, id: \.projectId) { project in
                 projectCardLink(project)
-                if index == projects.count - 1 {
-                    projectDropSeparator(targetID: project.projectId, placement: .after)
-                }
             }
+        }
+        .padding(.vertical, IOSProjectReorderMetrics.verticalInset)
+        .animation(IOSProjectReorderMetrics.animation, value: displayedProjects.map(\.projectId))
+        .overlay {
+            IOSProjectReorderDropOverlay(
+                projects: displayedProjects,
+                section: section,
+                draggingProjectID: draggingProjectID,
+                draggingProjectIDBinding: $draggingProjectID,
+                displayOrderBySection: $projectDisplayOrderBySection,
+                onDropEvent: markProjectDragDropEvent,
+                onCommit: persistProjectOrder(_:)
+            )
         }
     }
 
@@ -236,10 +259,16 @@ struct IOSPersistentOverviewView: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture {
+            iosProjectReorderLog("tap project=\(project.title) id=\(project.projectId) dragging=\(draggingProjectID?.uuidString ?? "nil")")
             coordinator.selectProject(project)
         }
         .onDrag {
             draggingProjectID = project.projectId
+            let sessionID = UUID()
+            projectDragSessionID = sessionID
+            projectDragSessionSawDropEvent = false
+            iosProjectReorderLog("drag start project=\(project.title) id=\(project.projectId)")
+            scheduleProjectDragFallbackReset(projectID: project.projectId, sessionID: sessionID)
             return NSItemProvider(object: IOSProjectDragPayload.project(project.projectId).rawValue as NSString)
         } preview: {
             IOSPersistentOverviewProjectCard(
@@ -253,25 +282,22 @@ struct IOSPersistentOverviewView: View {
         }
     }
 
-    private func projectDropSeparator(targetID: UUID, placement: ReorderPlacement) -> some View {
-        IOSReorderDropSeparator(isActive: projectDropTarget == IOSProjectDropTarget(id: targetID, placement: placement))
-            .onDrop(
-                of: [.text],
-                delegate: IOSProjectReorderDropDelegate(
-                    targetID: targetID,
-                    placement: placement,
-                    draggingProjectID: $draggingProjectID,
-                    dropTarget: $projectDropTarget,
-                    onMove: moveProject(id:targetID:placement:)
-                )
-            )
-    }
-
     private var activeProjects: [Project] {
         OverviewScope.visibleProjects(
             from: projects,
             storedValue: settingsRecords.first?.overviewScope
         )
+    }
+
+    private var orderableActiveProjects: [Project] {
+        projects
+            .filter { !$0.isArchived }
+            .sorted { lhs, rhs in
+                if lhs.orderIndex == rhs.orderIndex {
+                    return lhs.projectId.uuidString < rhs.projectId.uuidString
+                }
+                return lhs.orderIndex < rhs.orderIndex
+            }
     }
 
     private var effectiveLanguage: EffectiveAppLanguage {
@@ -296,6 +322,20 @@ struct IOSPersistentOverviewView: View {
 
     private var regularProjects: [Project] {
         activeProjects.filter { !$0.isFavorite }
+    }
+
+    private func displayedProjects(_ projects: [Project], section: IOSProjectSection) -> [Project] {
+        guard let displayOrder = projectDisplayOrderBySection[section] else {
+            return projects
+        }
+
+        let projectIDs = Set(projects.map(\.projectId))
+        guard displayOrder.count == projects.count, Set(displayOrder) == projectIDs else {
+            return projects
+        }
+
+        var projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.projectId, $0) })
+        return displayOrder.compactMap { projectsByID.removeValue(forKey: $0) }
     }
 
     private var pendingDeletionProject: Project? {
@@ -342,9 +382,46 @@ struct IOSPersistentOverviewView: View {
         ))
     }
 
-    private func moveProject(id: UUID, targetID: UUID, placement: ReorderPlacement) {
-        guard id != targetID else { return }
-        services.projectService?.reorderActiveProject(movingID: id, targetID: targetID, placement: placement)
+    private func persistProjectOrder(_ orderedSectionProjects: [Project]) {
+        guard !orderedSectionProjects.isEmpty else { return }
+
+        let sectionIDs = Set(orderedSectionProjects.map(\.projectId))
+        let sectionSlots = orderableActiveProjects.indices.filter { index in
+            sectionIDs.contains(orderableActiveProjects[index].projectId)
+        }
+        guard sectionSlots.count == orderedSectionProjects.count else { return }
+
+        var orderedActiveProjects = orderableActiveProjects
+        for (slot, project) in zip(sectionSlots, orderedSectionProjects) {
+            orderedActiveProjects[slot] = project
+        }
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            for (index, project) in orderedActiveProjects.enumerated() where project.orderIndex != index {
+                project.orderIndex = index
+            }
+        }
+        services.projectService?.save()
+    }
+
+    private func markProjectDragDropEvent() {
+        projectDragSessionSawDropEvent = true
+    }
+
+    private func scheduleProjectDragFallbackReset(projectID: UUID, sessionID: UUID) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            guard projectDragSessionID == sessionID,
+                  draggingProjectID == projectID,
+                  !projectDragSessionSawDropEvent
+            else { return }
+
+            iosProjectReorderLog("fallback reset orphan drag project=\(projectID) session=\(sessionID)")
+            draggingProjectID = nil
+            projectDisplayOrderBySection.removeAll()
+            projectDragSessionID = nil
+        }
     }
 }
 
@@ -590,9 +667,25 @@ private struct IOSPersistentReportCardView: View {
     }
 }
 
-private struct IOSProjectDropTarget: Equatable {
-    let id: UUID
-    let placement: ReorderPlacement
+private enum IOSProjectSection: Hashable {
+    case favorites
+    case regular
+
+    var logName: String {
+        switch self {
+        case .favorites:
+            return "favorites"
+        case .regular:
+            return "regular"
+        }
+    }
+}
+
+private enum IOSProjectReorderMetrics {
+    static let cardHeight: CGFloat = 150
+    static let cardSpacing: CGFloat = 10
+    static let verticalInset: CGFloat = 10
+    static let animation: Animation = .easeInOut(duration: 0.12)
 }
 
 private enum IOSProjectDragPayload {
@@ -614,67 +707,191 @@ private enum IOSProjectDragPayload {
     }
 }
 
-private struct IOSProjectReorderDropDelegate: DropDelegate {
-    let targetID: UUID
+private struct IOSProjectReorderDropOverlay: View {
+    let projects: [Project]
+    let section: IOSProjectSection
+    let draggingProjectID: UUID?
+    @Binding var draggingProjectIDBinding: UUID?
+    @Binding var displayOrderBySection: [IOSProjectSection: [UUID]]
+    let onDropEvent: () -> Void
+    let onCommit: ([Project]) -> Void
+
+    private var isDraggingProjectInSection: Bool {
+        guard let draggingProjectID else { return false }
+        return projects.contains { $0.projectId == draggingProjectID }
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            Color.primary.opacity(0.001)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .contentShape(Rectangle())
+                .onDrop(
+                    of: [.text],
+                    delegate: IOSProjectReorderDropDelegate(
+                        projects: projects,
+                        section: section,
+                        draggingProjectID: $draggingProjectIDBinding,
+                        displayOrderBySection: $displayOrderBySection,
+                        onDropEvent: onDropEvent,
+                        onCommit: onCommit
+                    )
+                )
+        }
+        .allowsHitTesting(isDraggingProjectInSection)
+        .onChange(of: isDraggingProjectInSection) { _, newValue in
+            iosProjectReorderLog(
+                "overlay hitTesting section=\(section.logName) enabled=\(newValue) dragging=\(draggingProjectID?.uuidString ?? "nil") projects=\(projects.map(\.projectId.uuidString))"
+            )
+        }
+    }
+}
+
+private struct IOSProjectDropTarget {
+    let project: Project
     let placement: ReorderPlacement
+}
+
+private struct IOSProjectReorderDropDelegate: DropDelegate {
+    let projects: [Project]
+    let section: IOSProjectSection
     @Binding var draggingProjectID: UUID?
-    @Binding var dropTarget: IOSProjectDropTarget?
-    let onMove: (UUID, UUID, ReorderPlacement) -> Void
+    @Binding var displayOrderBySection: [IOSProjectSection: [UUID]]
+    let onDropEvent: () -> Void
+    let onCommit: ([Project]) -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
-        draggingProjectID != nil
+        onDropEvent()
+        guard let draggingProjectID else {
+            iosProjectReorderLog("validate=false section=\(section.logName) reason=no draggingProjectID")
+            return false
+        }
+        let isValid = projects.contains { $0.projectId == draggingProjectID }
+        iosProjectReorderLog("validate=\(isValid) section=\(section.logName) dragging=\(draggingProjectID)")
+        return isValid
     }
 
     func dropEntered(info: DropInfo) {
-        updateDropTarget(info: info)
+        onDropEvent()
+        iosProjectReorderLog("dropEntered section=\(section.logName) y=\(info.location.y) dragging=\(draggingProjectID?.uuidString ?? "nil")")
+        updateDisplayOrder(info: info)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        updateDropTarget(info: info)
+        onDropEvent()
+        iosProjectReorderLog("dropUpdated section=\(section.logName) y=\(info.location.y) dragging=\(draggingProjectID?.uuidString ?? "nil")")
+        updateDisplayOrder(info: info)
         return DropProposal(operation: .move)
     }
 
     func dropExited(info: DropInfo) {
-        dropTarget = nil
+        onDropEvent()
+        iosProjectReorderLog("dropExited section=\(section.logName) y=\(info.location.y)")
+        resetDragState()
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggingProjectID = nil
-            dropTarget = nil
+        onDropEvent()
+        iosProjectReorderLog("performDrop begin section=\(section.logName) y=\(info.location.y) dragging=\(draggingProjectID?.uuidString ?? "nil")")
+        updateDisplayOrder(info: info)
+        guard let finalProjects = finalDisplayProjects() else {
+            iosProjectReorderLog("performDrop=false section=\(section.logName) reason=no finalProjects")
+            resetDragState()
+            return false
         }
-        guard let draggingProjectID else { return false }
-        onMove(draggingProjectID, targetID, placement)
+
+        defer {
+            resetDragState()
+        }
+        onCommit(finalProjects)
+        iosProjectReorderLog("performDrop=true section=\(section.logName) final=\(finalProjects.map(\.projectId.uuidString))")
         return true
     }
 
-    private func updateDropTarget(info: DropInfo) {
-        guard draggingProjectID != nil else { return }
-        dropTarget = IOSProjectDropTarget(id: targetID, placement: placement)
+    private func updateDisplayOrder(info: DropInfo) {
+        guard let draggingProjectID,
+              let target = dropTarget(for: info.location.y),
+              draggingProjectID != target.project.projectId,
+              let sourceIndex = projects.firstIndex(where: { $0.projectId == draggingProjectID }),
+              let targetIndex = projects.firstIndex(where: { $0.projectId == target.project.projectId })
+        else {
+            iosProjectReorderLog("update skipped section=\(section.logName) y=\(info.location.y) dragging=\(draggingProjectID?.uuidString ?? "nil")")
+            return
+        }
+
+        let destination = insertionIndex(
+            sourceIndex: sourceIndex,
+            targetIndex: targetIndex,
+            placement: target.placement
+        )
+        guard sourceIndex != destination else {
+            iosProjectReorderLog("update skipped section=\(section.logName) reason=same destination source=\(sourceIndex) destination=\(destination)")
+            return
+        }
+
+        var reorderedProjects = projects
+        let movingProject = reorderedProjects.remove(at: sourceIndex)
+        reorderedProjects.insert(movingProject, at: destination)
+        let reorderedIDs = reorderedProjects.map(\.projectId)
+        guard displayOrderBySection[section] != reorderedIDs else {
+            iosProjectReorderLog("update skipped section=\(section.logName) reason=order unchanged")
+            return
+        }
+
+        iosProjectReorderLog(
+            "update order section=\(section.logName) source=\(sourceIndex) target=\(targetIndex) destination=\(destination) placement=\(target.placement) ids=\(reorderedIDs.map(\.uuidString))"
+        )
+        withAnimation(IOSProjectReorderMetrics.animation) {
+            displayOrderBySection[section] = reorderedIDs
+        }
     }
-}
 
-private struct IOSReorderDropSeparator: View {
-    let isActive: Bool
+    private func dropTarget(for y: CGFloat) -> IOSProjectDropTarget? {
+        guard !projects.isEmpty else { return nil }
 
-    var body: some View {
-        ZStack(alignment: .center) {
-            Color.primary.opacity(0.001)
-            if isActive {
-                Rectangle()
-                    .fill(Color.blue)
-                    .frame(height: 2)
-                    .overlay(alignment: .leading) {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 8, height: 8)
-                            .offset(x: -3)
-                    }
+        for (index, project) in projects.enumerated() {
+            let midpoint = IOSProjectReorderMetrics.verticalInset
+                + CGFloat(index) * (IOSProjectReorderMetrics.cardHeight + IOSProjectReorderMetrics.cardSpacing)
+                + IOSProjectReorderMetrics.cardHeight / 2
+            if y < midpoint {
+                return IOSProjectDropTarget(project: project, placement: .before)
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 10)
-        .contentShape(Rectangle())
+
+        guard let lastProject = projects.last else { return nil }
+        return IOSProjectDropTarget(project: lastProject, placement: .after)
+    }
+
+    private func finalDisplayProjects() -> [Project]? {
+        guard let displayOrder = displayOrderBySection[section] else {
+            return projects
+        }
+
+        var projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.projectId, $0) })
+        let finalProjects = displayOrder.compactMap { projectsByID.removeValue(forKey: $0) }
+        guard finalProjects.count == projects.count else { return nil }
+        return finalProjects
+    }
+
+    private func insertionIndex(
+        sourceIndex: Int,
+        targetIndex: Int,
+        placement: ReorderPlacement
+    ) -> Int {
+        var insertionIndex = targetIndex
+        if sourceIndex < targetIndex {
+            insertionIndex -= 1
+        }
+        if placement == .after {
+            insertionIndex += 1
+        }
+        return min(max(insertionIndex, 0), projects.count - 1)
+    }
+
+    private func resetDragState() {
+        iosProjectReorderLog("reset section=\(section.logName) draggingBefore=\(draggingProjectID?.uuidString ?? "nil")")
+        draggingProjectID = nil
+        displayOrderBySection[section] = nil
     }
 }
 
