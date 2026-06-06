@@ -649,8 +649,17 @@ struct OverviewDashboardView: View {
                                 )
                                 .overviewProjectDragDrop(
                                     projectID: project.projectId,
+                                    horizontalDropSlop: cardSpacing / 2,
                                     draggingProjectID: $draggingProjectID,
                                     projectDropTarget: $projectDropTarget,
+                                    normalizeDropTarget: { projectID, placement in
+                                        normalizedDropTarget(
+                                            projectID: projectID,
+                                            placement: placement,
+                                            projects: starredProjects,
+                                            columnCount: columns.count
+                                        )
+                                    },
                                     onMoveProject: moveProject(id:targetID:placement:)
                                 )
                                 .overlay(alignment: projectDropLineAlignment(for: project.projectId)) {
@@ -676,8 +685,17 @@ struct OverviewDashboardView: View {
                                 )
                                 .overviewProjectDragDrop(
                                     projectID: project.projectId,
+                                    horizontalDropSlop: cardSpacing / 2,
                                     draggingProjectID: $draggingProjectID,
                                     projectDropTarget: $projectDropTarget,
+                                    normalizeDropTarget: { projectID, placement in
+                                        normalizedDropTarget(
+                                            projectID: projectID,
+                                            placement: placement,
+                                            projects: otherProjects,
+                                            columnCount: columns.count
+                                        )
+                                    },
                                     onMoveProject: moveProject(id:targetID:placement:)
                                 )
                                 .overlay(alignment: projectDropLineAlignment(for: project.projectId)) {
@@ -746,6 +764,24 @@ struct OverviewDashboardView: View {
         return placement == .before ? -(cardSpacing / 2) : cardSpacing / 2
     }
 
+    private func normalizedDropTarget(
+        projectID: UUID,
+        placement: ReorderPlacement,
+        projects: [Project],
+        columnCount: Int
+    ) -> OverviewProjectDropTarget {
+        guard placement == .before,
+              columnCount > 1,
+              let index = projects.firstIndex(where: { $0.projectId == projectID }),
+              index > 0,
+              index % columnCount != 0
+        else {
+            return .project(projectID, placement)
+        }
+
+        return .project(projects[index - 1].projectId, .after)
+    }
+
 }
 
 private enum OverviewProjectDropTarget: Equatable {
@@ -755,8 +791,10 @@ private enum OverviewProjectDropTarget: Equatable {
 private extension View {
     func overviewProjectDragDrop(
         projectID: UUID,
+        horizontalDropSlop: CGFloat,
         draggingProjectID: Binding<UUID?>,
         projectDropTarget: Binding<OverviewProjectDropTarget?>,
+        normalizeDropTarget: @escaping (UUID, ReorderPlacement) -> OverviewProjectDropTarget,
         onMoveProject: @escaping (UUID, UUID, ReorderPlacement) -> Void
     ) -> some View {
         self
@@ -768,16 +806,22 @@ private extension View {
                     .font(.title3)
                     .padding(8)
             }
-            .background {
+            .overlay {
                 GeometryReader { proxy in
-                    Color.clear
+                    Color.primary.opacity(0.001)
+                        .frame(width: proxy.size.width + horizontalDropSlop * 2, height: proxy.size.height)
+                        .offset(x: -horizontalDropSlop)
+                        .contentShape(Rectangle())
+                        .allowsHitTesting(draggingProjectID.wrappedValue != nil)
                         .onDrop(
                             of: [.plainText],
                             delegate: OverviewProjectDropDelegate(
                                 targetID: projectID,
                                 cardWidth: proxy.size.width,
+                                horizontalDropSlop: horizontalDropSlop,
                                 draggingProjectID: draggingProjectID,
                                 projectDropTarget: projectDropTarget,
+                                normalizeDropTarget: normalizeDropTarget,
                                 onMoveProject: onMoveProject
                             )
                         )
@@ -804,8 +848,10 @@ private struct OverviewProjectDropLine: View {
 private struct OverviewProjectDropDelegate: DropDelegate {
     let targetID: UUID
     let cardWidth: CGFloat
+    let horizontalDropSlop: CGFloat
     @Binding var draggingProjectID: UUID?
     @Binding var projectDropTarget: OverviewProjectDropTarget?
+    let normalizeDropTarget: (UUID, ReorderPlacement) -> OverviewProjectDropTarget
     let onMoveProject: (UUID, UUID, ReorderPlacement) -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
@@ -841,8 +887,9 @@ private struct OverviewProjectDropDelegate: DropDelegate {
 
     private func updateDropTarget(info: DropInfo) {
         guard draggingProjectID != nil else { return }
-        let placement: ReorderPlacement = info.location.x < max(cardWidth / 2, 1) ? .before : .after
-        projectDropTarget = .project(targetID, placement)
+        let cardMidpoint = horizontalDropSlop + max(cardWidth / 2, 1)
+        let placement: ReorderPlacement = info.location.x < cardMidpoint ? .before : .after
+        projectDropTarget = normalizeDropTarget(targetID, placement)
     }
 }
 
