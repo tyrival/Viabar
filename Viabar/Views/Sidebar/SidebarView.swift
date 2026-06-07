@@ -1646,12 +1646,6 @@ private enum ActiveProjectRowMetrics {
             ? NSColor(calibratedWhite: 0.32, alpha: 0.55)
             : NSColor(calibratedWhite: 0.82, alpha: 0.82)
     })
-    static let progressPercentColor = Color(nsColor: NSColor(name: nil) { appearance in
-        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        return isDark
-            ? NSColor(calibratedWhite: 0.68, alpha: 1)
-            : NSColor(calibratedWhite: 0.42, alpha: 1)
-    })
     /// 项目未选中时的进度条填充色（浅色/深色模式在此处调整）
     static let progressUnselectedFillColor = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -1659,6 +1653,9 @@ private enum ActiveProjectRowMetrics {
             ? NSColor(calibratedRed: 0.22, green: 0.24, blue: 0.30, alpha: 0.88)
             : NSColor(calibratedWhite: 0.78, alpha: 0.6)
     })
+    static let projectIconContainerSize: CGFloat = 24
+    static let projectIconRingLineWidth: CGFloat = 2
+    static let projectIconFont = Font.caption
     static let defaultShadowOpacity: Double = 0.035
     static let defaultShadowRadius: CGFloat = 2
     static let defaultShadowYOffset: CGFloat = 1
@@ -1693,7 +1690,7 @@ struct ActiveProjectRow: View {
 
     @State private var isHovered = false
 
-    /// 填充色：100% → success，否则 → 项目自定义主题色
+    /// 项目行强调色：100% 完成时使用成功色，否则使用项目自定义主题色
     private var accentColor: Color {
         project.progress >= 1.0
             ? ViabarColor.success
@@ -1716,6 +1713,16 @@ struct ActiveProjectRow: View {
         project.reminder != nil && !project.isArchived && project.topUnfinishedTitle != nil
     }
 
+    private var capsuleBackgroundColor: Color {
+        if isSelected {
+            return accentColor
+        }
+        if isHovered {
+            return ActiveProjectRowMetrics.sidebarHoverColor
+        }
+        return ActiveProjectRowMetrics.progressTrackColor
+    }
+
     private func shadowCapsule(color: Color = .black, opacity: Double, radius: CGFloat, yOffset: CGFloat, inset: CGFloat = 0) -> some View {
         Capsule(style: .continuous)
             .fill(color.opacity(opacity))
@@ -1726,48 +1733,75 @@ struct ActiveProjectRow: View {
             .allowsHitTesting(false)
     }
 
-    /// 公共内容行，供双层渲染复用
-    private func rowContent(
-        color: Color,
-        usesProjectIconColor: Bool = false,
-        usesMutedPercentColor: Bool = false,
-        usesProjectReminderColor: Bool = false,
-        usesFixedFavoriteColor: Bool = false
+    private func projectIcon(
+        symbolColor: Color,
+        backgroundColor: Color,
+        ringColor: Color
     ) -> some View {
-        let percentColor = usesMutedPercentColor ? ActiveProjectRowMetrics.progressPercentColor : color
-        let reminderColor = usesProjectReminderColor ? Color.orange : color
-        let favoriteColor = usesFixedFavoriteColor ? ViabarColor.warning : Color.clear
+        ZStack {
+            Circle()
+                .fill(backgroundColor)
 
-        return HStack(spacing: 0) {
             Image(systemName: project.sfSymbolName)
-                .font(.title3)
-                .foregroundStyle(usesProjectIconColor ? accentColor : color)
-                .padding(.trailing, 6)
+                .font(ActiveProjectRowMetrics.projectIconFont)
+                .foregroundStyle(symbolColor)
+
+            Circle()
+                .trim(from: 0, to: CGFloat(max(0, min(1, project.progress))))
+                .stroke(
+                    ringColor,
+                    style: StrokeStyle(
+                        lineWidth: ActiveProjectRowMetrics.projectIconRingLineWidth,
+                        lineCap: .round
+                    )
+                )
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(
+            width: ActiveProjectRowMetrics.projectIconContainerSize,
+            height: ActiveProjectRowMetrics.projectIconContainerSize
+        )
+    }
+
+    /// 公共内容行
+    private func rowContent(
+        contentColor: Color,
+        iconSymbolColor: Color,
+        iconBackgroundColor: Color,
+        iconRingColor: Color,
+        reminderColor: Color,
+        favoriteColor: Color
+    ) -> some View {
+        HStack(spacing: 8) {
+            projectIcon(
+                symbolColor: iconSymbolColor,
+                backgroundColor: iconBackgroundColor,
+                ringColor: iconRingColor
+            )
+
             Text(project.title)
                 .font(ActiveProjectRowMetrics.projectTitleFont)
-                .foregroundStyle(color)
+                .foregroundStyle(contentColor)
                 .lineLimit(1)
-            Spacer(minLength: 2)
-            HStack(spacing: 2) {
+
+            Spacer(minLength: 4)
+
+            HStack(spacing: 4) {
                 if hasScheduledProjectReminder {
                     Image(systemName: "alarm.fill")
                         .font(.caption)
                         .foregroundStyle(reminderColor)
-                        .frame(width: 14)
+                        .frame(width: 16)
                 }
                 if project.isFavorite {
                     Image(systemName: "star.fill")
                         .font(.caption)
                         .foregroundStyle(favoriteColor)
-                        .frame(width: 14)
+                        .frame(width: 16)
                 }
-                Text("\(Int(project.progress * 100))%")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(percentColor)
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .padding(.vertical, 7)
     }
 
@@ -1794,48 +1828,29 @@ struct ActiveProjectRow: View {
             }
             .animation(ActiveProjectRowMetrics.shadowAnimation, value: isSelected)
 
-            // 轨道底色
+            // 胶囊底色
             Capsule(style: .continuous)
-                .fill(
-                    !isSelected && isHovered
-                        ? ActiveProjectRowMetrics.sidebarHoverColor
-                        : ActiveProjectRowMetrics.progressTrackColor
-                )
+                .fill(capsuleBackgroundColor)
                 .frame(height: progressBarHeight)
 
-            // 进度填充
-            GeometryReader { geo in
-                Capsule(style: .continuous)
-                    .fill(isSelected ? accentColor.opacity(0.88) : ActiveProjectRowMetrics.progressUnselectedFillColor)
-                    .frame(
-                        width: max(0, min(geo.size.width, geo.size.width * CGFloat(project.progress))),
-                        height: progressBarHeight
-                    )
-                    .frame(maxHeight: .infinity, alignment: .center)
-            }
-
-            // 深色文字层
-            rowContent(
-                color: .primary,
-                usesProjectIconColor: true,
-                usesMutedPercentColor: true,
-                usesProjectReminderColor: true,
-                usesFixedFavoriteColor: true
-            )
-
-            // 白色文字层（仅选中时显示，产生反色效果）
             if isSelected {
-                GeometryReader { geo in
-                    let fillW = geo.size.width * CGFloat(project.progress)
-                    rowContent(color: .white)
-                        .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
-                        .mask(
-                            HStack(spacing: 0) {
-                                Color.white.frame(width: fillW)
-                                Color.clear
-                            }
-                        )
-                }
+                rowContent(
+                    contentColor: .white,
+                    iconSymbolColor: .white,
+                    iconBackgroundColor: accentColor,
+                    iconRingColor: .white,
+                    reminderColor: .white,
+                    favoriteColor: .white
+                )
+            } else {
+                rowContent(
+                    contentColor: .primary,
+                    iconSymbolColor: accentColor,
+                    iconBackgroundColor: ActiveProjectRowMetrics.progressUnselectedFillColor,
+                    iconRingColor: accentColor,
+                    reminderColor: .orange,
+                    favoriteColor: ViabarColor.warning
+                )
             }
         }
         .frame(height: rowHeight)
