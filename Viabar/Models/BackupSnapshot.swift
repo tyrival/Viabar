@@ -158,8 +158,41 @@ struct BackupMilestoneSnapshot: Codable, Equatable {
     let isCompleted: Bool
     let completedAt: Date?
     let orderIndex: Int
+    let markerColor: String?
     let reminder: BackupReminderSnapshot?
     let subtasks: [BackupSubTaskSnapshot]
+
+    init(
+        milestoneId: UUID,
+        title: String,
+        isCompleted: Bool,
+        completedAt: Date?,
+        orderIndex: Int,
+        markerColor: String? = nil,
+        reminder: BackupReminderSnapshot?,
+        subtasks: [BackupSubTaskSnapshot]
+    ) {
+        self.milestoneId = milestoneId
+        self.title = title
+        self.isCompleted = isCompleted
+        self.completedAt = completedAt
+        self.orderIndex = orderIndex
+        self.markerColor = markerColor
+        self.reminder = reminder
+        self.subtasks = subtasks
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        milestoneId = try container.decode(UUID.self, forKey: .milestoneId)
+        title = try container.decode(String.self, forKey: .title)
+        isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        orderIndex = try container.decode(Int.self, forKey: .orderIndex)
+        markerColor = try container.decodeIfPresent(String.self, forKey: .markerColor)
+        reminder = try container.decodeIfPresent(BackupReminderSnapshot.self, forKey: .reminder)
+        subtasks = try container.decode([BackupSubTaskSnapshot].self, forKey: .subtasks)
+    }
 }
 
 struct BackupSubTaskSnapshot: Codable, Equatable {
@@ -168,7 +201,37 @@ struct BackupSubTaskSnapshot: Codable, Equatable {
     let isCompleted: Bool
     let completedAt: Date?
     let orderIndex: Int
+    let markerColor: String?
     let reminder: BackupReminderSnapshot?
+
+    init(
+        taskId: UUID,
+        title: String,
+        isCompleted: Bool,
+        completedAt: Date?,
+        orderIndex: Int,
+        markerColor: String? = nil,
+        reminder: BackupReminderSnapshot?
+    ) {
+        self.taskId = taskId
+        self.title = title
+        self.isCompleted = isCompleted
+        self.completedAt = completedAt
+        self.orderIndex = orderIndex
+        self.markerColor = markerColor
+        self.reminder = reminder
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        taskId = try container.decode(UUID.self, forKey: .taskId)
+        title = try container.decode(String.self, forKey: .title)
+        isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        orderIndex = try container.decode(Int.self, forKey: .orderIndex)
+        markerColor = try container.decodeIfPresent(String.self, forKey: .markerColor)
+        reminder = try container.decodeIfPresent(BackupReminderSnapshot.self, forKey: .reminder)
+    }
 }
 
 struct BackupMemoSnapshot: Codable, Equatable {

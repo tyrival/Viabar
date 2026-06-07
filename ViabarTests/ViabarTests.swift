@@ -130,7 +130,9 @@ struct TrashServiceTests {
         let (projectService, trashService, _, trashContext) = try makeServices()
         let project = projectService.createProject(title: "发布")
         let milestone = projectService.addMilestone(to: project, title: "准备")
-        _ = projectService.addSubTask(to: milestone, title: "打包")
+        milestone.markerColor = TaskMarkerColor.red.rawValue
+        let packaged = projectService.addSubTask(to: milestone, title: "打包")
+        packaged.markerColor = TaskMarkerColor.green.rawValue
         _ = projectService.addSubTask(to: milestone, title: "上传")
 
         projectService.deleteMilestone(milestone)
@@ -142,7 +144,9 @@ struct TrashServiceTests {
         try trashService.restore(item)
 
         #expect(project.milestones.map(\.title) == ["准备"])
+        #expect(project.milestones[0].markerColor == TaskMarkerColor.red.rawValue)
         #expect(project.milestones[0].subtasks.map(\.title).sorted() == ["上传", "打包"])
+        #expect(project.milestones[0].subtasks.first { $0.title == "打包" }?.markerColor == TaskMarkerColor.green.rawValue)
         #expect(try trashContext.fetch(FetchDescriptor<TrashItem>()).isEmpty)
     }
 
@@ -405,7 +409,9 @@ struct WidgetContentTests {
     @Test func flattensUnfinishedParentsAndChildrenWithoutParentSubtitle() {
         let project = Project(title: "Release")
         let milestone = Milestone(title: "Prepare", orderIndex: 0)
+        milestone.markerColor = TaskMarkerColor.red.rawValue
         let child = SubTask(title: "Package", orderIndex: 0)
+        child.markerColor = TaskMarkerColor.green.rawValue
         let done = SubTask(title: "Already done", orderIndex: 1, isCompleted: true)
         milestone.project = project
         child.milestone = milestone
@@ -419,6 +425,8 @@ struct WidgetContentTests {
         #expect(items.map(\.kind) == [.milestone, .subTask])
         #expect(items.map(\.milestoneID) == [milestone.milestoneId, milestone.milestoneId])
         #expect(items.map(\.isIndented) == [false, true])
+        #expect(items[0].markerColor == .red)
+        #expect(items[1].markerColor == .green)
     }
 
     @Test func classifiesOverdueTodayPendingAndFutureReminders() {
@@ -859,6 +867,7 @@ struct MenuBarContentTests {
         let milestone = Milestone(title: "Prepare", orderIndex: 0)
         let finished = SubTask(title: "Done", orderIndex: 0, isCompleted: true)
         let target = SubTask(title: "Review", orderIndex: 1)
+        target.markerColor = TaskMarkerColor.yellow.rawValue
         finished.milestone = milestone
         target.milestone = milestone
         milestone.project = project
@@ -875,6 +884,7 @@ struct MenuBarContentTests {
         #expect(cards.count == 1)
         #expect(cards[0].entries.map(\.title) == ["Review"])
         #expect(cards[0].entries[0].parentTitle == "Prepare")
+        #expect(cards[0].entries[0].markerColor == .yellow)
         #expect(
             cards[0].entries[0].destination
                 == .subTask(milestoneID: milestone.milestoneId, subTaskID: target.taskId)
@@ -1046,8 +1056,10 @@ struct OverviewReportTests {
     @Test func nextWeekExpandsProjectReminderAndDeduplicatesSubtaskReminder() {
         let project = Project(title: "App", orderIndex: 0)
         let parent = Milestone(title: "Store Review", orderIndex: 0)
+        parent.markerColor = TaskMarkerColor.red.rawValue
         parent.project = project
         let screenshots = SubTask(title: "Screenshots", orderIndex: 0)
+        screenshots.markerColor = TaskMarkerColor.green.rawValue
         let copy = SubTask(title: "Localized Copy", orderIndex: 1)
         screenshots.milestone = parent
         copy.milestone = parent
@@ -1085,6 +1097,9 @@ struct OverviewReportTests {
 
         #expect(report.nextWeek.cards[0].groups[0].title == "Store Review")
         #expect(report.nextWeek.cards[0].groups[0].subtasks.map(\.title) == ["Screenshots", "Localized Copy"])
+        #expect(report.nextWeek.cards[0].groups[0].markerColor == .red)
+        #expect(report.nextWeek.cards[0].groups[0].subtasks[0].markerColor == .green)
+        #expect(report.nextWeek.cards[0].groups[0].subtasks[1].markerColor == nil)
         #expect(report.nextWeek.copyText == """
         1. App
         - Store Review
@@ -1270,6 +1285,37 @@ struct BackupMetadataTests {
         )
 
         #expect(snapshot.weekStartDay == nil)
+    }
+
+    @Test func decodesLegacyBackupTasksWithoutMarkerColorAsNone() throws {
+        let json = """
+        {
+          "milestoneId": "00000000-0000-0000-0000-000000000001",
+          "title": "Legacy Task",
+          "isCompleted": false,
+          "completedAt": null,
+          "orderIndex": 0,
+          "reminder": null,
+          "subtasks": [
+            {
+              "taskId": "00000000-0000-0000-0000-000000000002",
+              "title": "Legacy Subtask",
+              "isCompleted": false,
+              "completedAt": null,
+              "orderIndex": 0,
+              "reminder": null
+            }
+          ]
+        }
+        """
+
+        let snapshot = try JSONDecoder.backupDecoder.decode(
+            BackupMilestoneSnapshot.self,
+            from: Data(json.utf8)
+        )
+
+        #expect(snapshot.markerColor == nil)
+        #expect(snapshot.subtasks[0].markerColor == nil)
     }
 
     private func metadata(_ name: String, hoursBefore: Double, now: Date) -> BackupFileMetadata {

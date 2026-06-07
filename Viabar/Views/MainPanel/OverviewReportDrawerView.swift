@@ -241,7 +241,12 @@ private struct OverviewReportCardView: View {
             ForEach(card.groups) { group in
                 VStack(alignment: .leading, spacing: 3) {
                     // 里程碑行 — 点击跳转里程碑
-                    taskRow(title: group.title, reminderDate: group.reminderDate, isPrimary: true)
+                    taskRow(
+                        title: group.title,
+                        markerColor: isTodo ? group.markerColor : nil,
+                        reminderDate: group.reminderDate,
+                        isPrimary: true
+                    )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             onNavigate(card.project, .milestone(group.milestoneID))
@@ -249,7 +254,12 @@ private struct OverviewReportCardView: View {
 
                     ForEach(group.subtasks) { subtask in
                         // 子任务行 — 点击跳转子任务
-                        taskRow(title: subtask.title, reminderDate: subtask.reminderDate, isPrimary: false)
+                        taskRow(
+                            title: subtask.title,
+                            markerColor: isTodo ? subtask.markerColor : nil,
+                            reminderDate: subtask.reminderDate,
+                            isPrimary: false
+                        )
                             .padding(.leading, 12)
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -268,10 +278,15 @@ private struct OverviewReportCardView: View {
         }
     }
 
-    private func taskRow(title: String, reminderDate: Date?, isPrimary: Bool) -> some View {
+    private func taskRow(
+        title: String,
+        markerColor: TaskMarkerColor?,
+        reminderDate: Date?,
+        isPrimary: Bool
+    ) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Circle()
-                .fill(Color.gray.opacity(0.35))
+                .fill(markerColor.map(ViabarColor.taskMarker) ?? Color.gray.opacity(0.35))
                 .frame(width: 5, height: 5)
                 .alignmentGuide(.firstTextBaseline) { dimensions in
                     dimensions[VerticalAlignment.center]

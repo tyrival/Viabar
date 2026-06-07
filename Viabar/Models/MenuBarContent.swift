@@ -11,6 +11,7 @@ struct MenuBarTaskEntry: Identifiable {
     let title: String
     let parentTitle: String?
     let destination: GlobalSearchDestination
+    let markerColor: TaskMarkerColor?
     let source: MenuBarReminderSource?
     let reminder: Reminder?
     let fireDate: Date?
@@ -109,6 +110,7 @@ enum MenuBarContentBuilder {
                     title: mapped.title,
                     parentTitle: mapped.parentTitle,
                     destination: mapped.destination,
+                    markerColor: mapped.markerColor,
                     source: .projectReminder,
                     reminder: reminder,
                     fireDate: date
@@ -132,6 +134,7 @@ enum MenuBarContentBuilder {
             title: milestone.title,
             parentTitle: nil,
             destination: .milestone(milestone.milestoneId),
+            markerColor: TaskMarkerColor.resolve(milestone.markerColor),
             source: source,
             reminder: reminder,
             fireDate: reminder?.displayFireDate
@@ -149,6 +152,7 @@ enum MenuBarContentBuilder {
             title: subTask.title,
             parentTitle: milestone.title,
             destination: .subTask(milestoneID: milestone.milestoneId, subTaskID: subTask.taskId),
+            markerColor: TaskMarkerColor.resolve(subTask.markerColor),
             source: source,
             reminder: reminder,
             fireDate: reminder?.displayFireDate

@@ -36,11 +36,13 @@ protocol ProjectServiceProtocol: AnyObject {
     func addMilestone(to project: Project, title: String, orderIndex: Int?) -> Milestone
     func deleteMilestone(_ milestone: Milestone)
     func updateReminder(_ reminder: Reminder?, for milestone: Milestone)
+    func updateMarkerColor(_ markerColor: TaskMarkerColor?, for milestone: Milestone)
 
     // SubTask
     func addSubTask(to milestone: Milestone, title: String, orderIndex: Int?) -> SubTask
     func deleteSubTask(_ subTask: SubTask)
     func updateReminder(_ reminder: Reminder?, for subTask: SubTask)
+    func updateMarkerColor(_ markerColor: TaskMarkerColor?, for subTask: SubTask)
 
     // Memo
     func addMemo(to project: Project, content: String) -> Memo
@@ -222,6 +224,11 @@ final class ProjectService: ProjectServiceProtocol {
         notificationScheduleService?.syncMilestone(milestone, project: project)
     }
 
+    func updateMarkerColor(_ markerColor: TaskMarkerColor?, for milestone: Milestone) {
+        milestone.markerColor = markerColor?.rawValue
+        save()
+    }
+
     func toggleMilestoneComplete(_ milestone: Milestone) {
         TaskCompletionMutation.toggle(milestone)
         save()
@@ -270,6 +277,11 @@ final class ProjectService: ProjectServiceProtocol {
         save()
         guard let project = subTask.milestone?.project else { return }
         notificationScheduleService?.syncSubTask(subTask, project: project)
+    }
+
+    func updateMarkerColor(_ markerColor: TaskMarkerColor?, for subTask: SubTask) {
+        subTask.markerColor = markerColor?.rawValue
+        save()
     }
 
     func toggleSubTaskComplete(_ subTask: SubTask) {

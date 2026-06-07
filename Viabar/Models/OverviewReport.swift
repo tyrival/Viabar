@@ -39,6 +39,7 @@ struct OverviewReportProjectCard: Identifiable {
 struct OverviewReportTaskGroup: Identifiable {
     let milestoneID: UUID
     let title: String
+    let markerColor: TaskMarkerColor?
     let subtasks: [OverviewReportSubTaskRow]
     let reminderDate: Date?
 
@@ -48,6 +49,7 @@ struct OverviewReportTaskGroup: Identifiable {
 struct OverviewReportSubTaskRow: Identifiable {
     let taskID: UUID
     let title: String
+    let markerColor: TaskMarkerColor?
     let reminderDate: Date?
 
     var id: UUID { taskID }
@@ -133,6 +135,7 @@ enum OverviewReportBuilder {
                     return OverviewReportTaskGroup(
                         milestoneID: milestone.milestoneId,
                         title: milestone.title,
+                        markerColor: TaskMarkerColor.resolve(milestone.markerColor),
                         subtasks: [],
                         reminderDate: milestone.reminder?.displayFireDate
                     )
@@ -140,12 +143,20 @@ enum OverviewReportBuilder {
 
                 let subtasks = sortedSubtasks(in: milestone)
                     .filter { $0.isCompleted && contains($0.completedAt, in: interval) }
-                    .map { OverviewReportSubTaskRow(taskID: $0.taskId, title: $0.title, reminderDate: $0.reminder?.displayFireDate) }
+                    .map {
+                        OverviewReportSubTaskRow(
+                            taskID: $0.taskId,
+                            title: $0.title,
+                            markerColor: TaskMarkerColor.resolve($0.markerColor),
+                            reminderDate: $0.reminder?.displayFireDate
+                        )
+                    }
                 guard !subtasks.isEmpty else { return nil }
 
                 return OverviewReportTaskGroup(
                     milestoneID: milestone.milestoneId,
                     title: milestone.title,
+                    markerColor: TaskMarkerColor.resolve(milestone.markerColor),
                     subtasks: subtasks,
                     reminderDate: nil
                 )
@@ -219,6 +230,7 @@ enum OverviewReportBuilder {
                 .filter { subtaskIDs.contains($0.taskId) }
                 .map { OverviewReportSubTaskRow(
                     taskID: $0.taskId, title: $0.title,
+                    markerColor: TaskMarkerColor.resolve($0.markerColor),
                     reminderDate: $0.reminder?.displayFireDate
                 ) }
 
@@ -229,6 +241,7 @@ enum OverviewReportBuilder {
             return OverviewReportTaskGroup(
                 milestoneID: milestone.milestoneId,
                 title: milestone.title,
+                markerColor: TaskMarkerColor.resolve(milestone.markerColor),
                 subtasks: subtasks,
                 reminderDate: milestone.reminder?.displayFireDate
             )

@@ -81,12 +81,14 @@ struct MilestoneListView: View {
                 id: milestone.milestoneId,
                 title: milestone.title,
                 isCompleted: milestone.isCompleted,
+                markerColor: TaskMarkerColor.resolve(milestone.markerColor),
                 hasReminder: milestone.reminder != nil,
                 subtasks: visibleSubtasks.map {
                     SubTaskSnapshot(
                         id: $0.taskId,
                         title: $0.title,
                         isCompleted: $0.isCompleted,
+                        markerColor: TaskMarkerColor.resolve($0.markerColor),
                         hasReminder: $0.reminder != nil
                     )
                 }
@@ -162,12 +164,14 @@ struct MilestoneListView: View {
                 snapshots: milestoneSnapshots,
                 onToggleMilestone: toggleMilestone(id:),
                 onUpdateMilestoneTitle: updateMilestoneTitle(id:title:),
+                onUpdateMilestoneMarkerColor: updateMilestoneMarkerColor(id:markerColor:),
                 onDeleteMilestone: requestDeleteMilestone(id:),
                 onMilestoneReminderChange: syncMilestoneReminder(id:reminder:),
                 reminderBinding: milestoneReminderBinding(id:),
                 onAddSubTask: addSubTask(milestoneID:title:),
                 onToggleSubTask: toggleSubTask(id:),
                 onUpdateSubTaskTitle: updateSubTaskTitle(id:title:),
+                onUpdateSubTaskMarkerColor: updateSubTaskMarkerColor(id:markerColor:),
                 onDeleteSubTask: requestDeleteSubTask(id:),
                 onSubTaskReminderChange: syncSubTaskReminder(id:reminder:),
                 scrollToBottomTrigger: scrollToBottomTrigger,
@@ -333,6 +337,20 @@ struct MilestoneListView: View {
         }
     }
 
+    private func updateMilestoneMarkerColor(id: UUID, markerColor: TaskMarkerColor?) {
+        guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
+        projectService?.updateMarkerColor(markerColor, for: milestone)
+    }
+
+    private func updateSubTaskMarkerColor(id: UUID, markerColor: TaskMarkerColor?) {
+        for milestone in project.milestones {
+            if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
+                projectService?.updateMarkerColor(markerColor, for: subtask)
+                return
+            }
+        }
+    }
+
     private func deleteMilestone(id: UUID) {
         guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
         notificationScheduleService?.removeEntry(ownerId: milestone.milestoneId)
@@ -480,6 +498,7 @@ private struct MilestoneSnapshot: Identifiable, Equatable {
     let id: UUID
     let title: String
     let isCompleted: Bool
+    let markerColor: TaskMarkerColor?
     let hasReminder: Bool
     let subtasks: [SubTaskSnapshot]
 }
@@ -488,6 +507,7 @@ private struct SubTaskSnapshot: Identifiable, Equatable {
     let id: UUID
     let title: String
     let isCompleted: Bool
+    let markerColor: TaskMarkerColor?
     let hasReminder: Bool
 }
 
@@ -528,12 +548,14 @@ private struct SafeMilestoneListView: View {
     let snapshots: [MilestoneSnapshot]
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
+    let onUpdateMilestoneMarkerColor: (UUID, TaskMarkerColor?) -> Void
     let onDeleteMilestone: (UUID) -> Void
     let onMilestoneReminderChange: (UUID, Reminder?) -> Void
     let reminderBinding: (UUID) -> Binding<Reminder?>
     let onAddSubTask: (UUID, String) -> Bool
     let onToggleSubTask: (UUID) -> Void
     let onUpdateSubTaskTitle: (UUID, String) -> Void
+    let onUpdateSubTaskMarkerColor: (UUID, TaskMarkerColor?) -> Void
     let onDeleteSubTask: (UUID) -> Void
     let onSubTaskReminderChange: (UUID, Reminder?) -> Void
     let scrollToBottomTrigger: Int
@@ -676,6 +698,7 @@ private struct SafeMilestoneListView: View {
                 highlightCornerStyle: highlightCornerStyle(for: snapshot.id),
                 onToggleMilestone: onToggleMilestone,
                 onUpdateMilestoneTitle: onUpdateMilestoneTitle,
+                onUpdateMarkerColor: onUpdateMilestoneMarkerColor,
                 onDeleteMilestone: onDeleteMilestone,
                 reminder: reminderBinding(snapshot.id),
                 onReminderChange: { reminder in
@@ -696,6 +719,7 @@ private struct SafeMilestoneListView: View {
                 reminder: subTaskReminderBinding(subtask.id),
                 onToggle: onToggleSubTask,
                 onUpdateTitle: onUpdateSubTaskTitle,
+                onUpdateMarkerColor: onUpdateSubTaskMarkerColor,
                 onDelete: onDeleteSubTask,
                 onReminderChange: { reminder in
                     onSubTaskReminderChange(subtask.id, reminder)
@@ -1005,12 +1029,57 @@ private extension View {
     }
 }
 
+private struct TaskMarkerDot: View {
+    let markerColor: TaskMarkerColor?
+    var size: CGFloat = 7
+
+    var body: some View {
+        if let markerColor {
+            Circle()
+                .fill(ViabarColor.taskMarker(markerColor))
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+private struct TaskMarkerColorMenu: View {
+    let selected: TaskMarkerColor?
+    let onSelect: (TaskMarkerColor?) -> Void
+
+    var body: some View {
+        Menu {
+            markerButton(nil, title: "无颜色")
+            Divider()
+            markerButton(.red, title: "红")
+            markerButton(.yellow, title: "黄")
+            markerButton(.green, title: "绿")
+        } label: {
+            Label("标记颜色", systemImage: "circle.fill")
+        }
+    }
+
+    @ViewBuilder
+    private func markerButton(_ markerColor: TaskMarkerColor?, title: LocalizedStringKey) -> some View {
+        Button {
+            onSelect(markerColor)
+        } label: {
+            if selected == markerColor {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+}
+
 private struct SafeMilestoneRowView: View {
     let snapshot: MilestoneSnapshot
     let highlightRequestID: UUID?
     let highlightCornerStyle: TaskHighlightCornerStyle
     let onToggleMilestone: (UUID) -> Void
     let onUpdateMilestoneTitle: (UUID, String) -> Void
+    let onUpdateMarkerColor: (UUID, TaskMarkerColor?) -> Void
     let onDeleteMilestone: (UUID) -> Void
     @Binding var reminder: Reminder?
     let onReminderChange: (Reminder?) -> Void
@@ -1066,6 +1135,9 @@ private struct SafeMilestoneRowView: View {
                 .buttonStyle(.plain)
                 .padding(.top, 1)
 
+                TaskMarkerDot(markerColor: snapshot.markerColor)
+                    .padding(.top, 8)
+
                 milestoneTitle
             }
             .contentShape(Rectangle())
@@ -1113,6 +1185,9 @@ private struct SafeMilestoneRowView: View {
                 beginTitleEdit()
             } label: {
                 Label("编辑", systemImage: "pencil")
+            }
+            TaskMarkerColorMenu(selected: snapshot.markerColor) { markerColor in
+                onUpdateMarkerColor(snapshot.id, markerColor)
             }
             Button {
                 onDeleteMilestone(snapshot.id)
@@ -1232,6 +1307,7 @@ private struct SafeSubTaskRowView: View {
     @Binding var reminder: Reminder?
     let onToggle: (UUID) -> Void
     let onUpdateTitle: (UUID, String) -> Void
+    let onUpdateMarkerColor: (UUID, TaskMarkerColor?) -> Void
     let onDelete: (UUID) -> Void
     let onReminderChange: (Reminder?) -> Void
     @Binding var draggingItem: TaskDragItem?
@@ -1261,6 +1337,9 @@ private struct SafeSubTaskRowView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 2)
+
+                TaskMarkerDot(markerColor: subtask.markerColor, size: 6)
+                    .padding(.top, 7)
 
                 subTaskTitle
             }
@@ -1304,6 +1383,9 @@ private struct SafeSubTaskRowView: View {
                 beginTitleEdit()
             } label: {
                 Label("编辑", systemImage: "pencil")
+            }
+            TaskMarkerColorMenu(selected: subtask.markerColor) { markerColor in
+                onUpdateMarkerColor(subtask.id, markerColor)
             }
             Button {
                 onDelete(subtask.id)

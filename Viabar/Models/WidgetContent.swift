@@ -27,6 +27,7 @@ struct WidgetTaskItem: Identifiable, Equatable {
     let milestoneID: UUID
     let title: String
     let isIndented: Bool
+    let markerColor: TaskMarkerColor?
     let reminderDate: Date?
     let reminderTone: WidgetReminderTone?
 
@@ -73,6 +74,7 @@ enum WidgetContentBuilder {
                     milestoneID: milestone.milestoneId,
                     title: milestone.title,
                     isIndented: false,
+                    markerColor: TaskMarkerColor.resolve(milestone.markerColor),
                     reminder: milestone.reminder,
                     now: now,
                     calendar: calendar
@@ -87,6 +89,7 @@ enum WidgetContentBuilder {
                             milestoneID: milestone.milestoneId,
                             title: $0.title,
                             isIndented: true,
+                            markerColor: TaskMarkerColor.resolve($0.markerColor),
                             reminder: $0.reminder,
                             now: now,
                             calendar: calendar
@@ -129,6 +132,7 @@ enum WidgetContentBuilder {
         milestoneID: UUID,
         title: String,
         isIndented: Bool,
+        markerColor: TaskMarkerColor?,
         reminder: Reminder?,
         now: Date,
         calendar: Calendar
@@ -140,6 +144,7 @@ enum WidgetContentBuilder {
             milestoneID: milestoneID,
             title: title,
             isIndented: isIndented,
+            markerColor: markerColor,
             reminderDate: reminderDate,
             reminderTone: WidgetReminderTone.resolve(
                 fireDate: reminderDate,

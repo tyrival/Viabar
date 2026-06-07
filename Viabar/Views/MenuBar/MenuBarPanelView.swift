@@ -439,6 +439,9 @@ private struct MenuBarProjectCardView: View {
                     }
                     .buttonStyle(.plain)
 
+                    MenuBarTaskMarkerDot(markerColor: entry.markerColor)
+                        .padding(.top, 5)
+
                     Button {
                         onOpenEntry(entry)
                     } label: {
@@ -483,6 +486,19 @@ private struct MenuBarProjectCardView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(MenuBarPanelStyle.cardBorder, lineWidth: 1)
+        }
+    }
+}
+
+private struct MenuBarTaskMarkerDot: View {
+    let markerColor: TaskMarkerColor?
+
+    var body: some View {
+        if let markerColor {
+            Circle()
+                .fill(ViabarColor.taskMarker(markerColor))
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
         }
     }
 }

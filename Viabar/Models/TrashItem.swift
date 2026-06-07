@@ -27,15 +27,69 @@ struct TrashSubTaskSnapshot: Codable, Equatable {
     let isCompleted: Bool
     let completedAt: Date?
     let orderIndex: Int
+    let markerColor: String?
     let reminder: TrashReminderSnapshot?
+
+    init(
+        title: String,
+        isCompleted: Bool,
+        completedAt: Date?,
+        orderIndex: Int,
+        markerColor: String? = nil,
+        reminder: TrashReminderSnapshot?
+    ) {
+        self.title = title
+        self.isCompleted = isCompleted
+        self.completedAt = completedAt
+        self.orderIndex = orderIndex
+        self.markerColor = markerColor
+        self.reminder = reminder
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decode(String.self, forKey: .title)
+        isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        orderIndex = try container.decode(Int.self, forKey: .orderIndex)
+        markerColor = try container.decodeIfPresent(String.self, forKey: .markerColor)
+        reminder = try container.decodeIfPresent(TrashReminderSnapshot.self, forKey: .reminder)
+    }
 }
 
 struct TrashTaskSnapshot: Codable, Equatable {
     let title: String
     let isCompleted: Bool
     let completedAt: Date?
+    let markerColor: String?
     let reminder: TrashReminderSnapshot?
     let subtasks: [TrashSubTaskSnapshot]
+
+    init(
+        title: String,
+        isCompleted: Bool,
+        completedAt: Date?,
+        markerColor: String? = nil,
+        reminder: TrashReminderSnapshot?,
+        subtasks: [TrashSubTaskSnapshot]
+    ) {
+        self.title = title
+        self.isCompleted = isCompleted
+        self.completedAt = completedAt
+        self.markerColor = markerColor
+        self.reminder = reminder
+        self.subtasks = subtasks
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decode(String.self, forKey: .title)
+        isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        markerColor = try container.decodeIfPresent(String.self, forKey: .markerColor)
+        reminder = try container.decodeIfPresent(TrashReminderSnapshot.self, forKey: .reminder)
+        subtasks = try container.decode([TrashSubTaskSnapshot].self, forKey: .subtasks)
+    }
 }
 
 struct TrashMemoSnapshot: Codable, Equatable {

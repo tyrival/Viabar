@@ -13,6 +13,21 @@ struct ProjectStyle: Codable, Equatable {
     )
 }
 
+// MARK: - Task Marker Color
+
+enum TaskMarkerColor: String, CaseIterable, Codable, Identifiable {
+    case red
+    case yellow
+    case green
+
+    var id: String { rawValue }
+
+    static func resolve(_ storedValue: String?) -> TaskMarkerColor? {
+        guard let storedValue else { return nil }
+        return TaskMarkerColor(rawValue: storedValue)
+    }
+}
+
 // MARK: - Reminder
 
 @Model
@@ -226,6 +241,7 @@ final class Milestone {
     var isCompleted: Bool
     var completedAt: Date?
     var orderIndex: Int
+    var markerColor: String?
 
     @Relationship(deleteRule: .cascade, inverse: \SubTask.milestone)
     var subtasks: [SubTask] = []
@@ -279,6 +295,7 @@ final class SubTask {
     var isCompleted: Bool
     var completedAt: Date?
     var orderIndex: Int
+    var markerColor: String?
 
     @Relationship(deleteRule: .cascade)
     var reminder: Reminder?

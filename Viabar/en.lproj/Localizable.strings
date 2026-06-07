@@ -254,6 +254,8 @@
 "橙" = "Orange";
 "粉" = "Pink";
 "紫" = "Purple";
+"标记颜色" = "Marker Color";
+"无颜色" = "No Color";
 
 /* ---- 汇总面板 - 缺失补充 ---- */
 "本周待办" = "TODO This Week";

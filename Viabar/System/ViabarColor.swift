@@ -134,3 +134,18 @@ extension ViabarColor {
     static let warningHex = "#FFBF00"
     static let infoHex = "#2BB7FD"
 }
+
+// MARK: - Task Marker Color
+
+extension ViabarColor {
+    static func taskMarker(_ marker: TaskMarkerColor) -> Color {
+        switch marker {
+        case .red:
+            return danger
+        case .yellow:
+            return warning
+        case .green:
+            return success
+        }
+    }
+}

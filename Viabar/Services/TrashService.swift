@@ -48,6 +48,7 @@ final class TrashService {
                 title: milestone.title,
                 isCompleted: milestone.isCompleted,
                 completedAt: milestone.completedAt,
+                markerColor: milestone.markerColor,
                 reminder: reminderSnapshot(milestone.reminder),
                 subtasks: milestone.subtasks.map(subTaskSnapshot)
             )
@@ -123,6 +124,7 @@ final class TrashService {
                 isCompleted: snapshot.isCompleted
             )
             milestone.completedAt = snapshot.completedAt
+            milestone.markerColor = snapshot.markerColor
             milestone.reminder = restoreReminder(snapshot.reminder)
             milestone.project = project
             projectModelContext.insert(milestone)
@@ -266,6 +268,7 @@ final class TrashService {
             isCompleted: subTask.isCompleted,
             completedAt: subTask.completedAt,
             orderIndex: subTask.orderIndex,
+            markerColor: subTask.markerColor,
             reminder: reminderSnapshot(subTask.reminder)
         )
     }
@@ -277,6 +280,7 @@ final class TrashService {
             isCompleted: snapshot.isCompleted
         )
         subTask.completedAt = snapshot.completedAt
+        subTask.markerColor = snapshot.markerColor
         subTask.reminder = restoreReminder(snapshot.reminder)
         return subTask
     }

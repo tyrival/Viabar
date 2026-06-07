@@ -1027,6 +1027,10 @@ struct OverviewProjectCard: View {
         return reminderTextColor
     }
 
+    private func markerDisplayColor(_ markerColor: String?, fallback: Color) -> Color {
+        TaskMarkerColor.resolve(markerColor).map(ViabarColor.taskMarker) ?? fallback
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             Rectangle()
@@ -1056,7 +1060,7 @@ struct OverviewProjectCard: View {
                     HStack(spacing: 6) {
                         Image(systemName: "mappin.and.ellipse")
                             .font(.system(size: 12))
-                            .foregroundStyle(Color.gray.opacity(0.55))
+                            .foregroundStyle(markerDisplayColor(milestone.markerColor, fallback: Color.gray.opacity(0.55)))
                             .frame(width: 16, alignment: .center)
                         Text(milestone.title)
                             .font(.system(size: 13, weight: .medium))
@@ -1069,7 +1073,7 @@ struct OverviewProjectCard: View {
                         HStack(spacing: 6) {
                             Image(systemName: "list.bullet.indent")
                                 .font(.system(size: 11))
-                                .foregroundStyle(subtaskTextColor)
+                                .foregroundStyle(markerDisplayColor(subtask.markerColor, fallback: subtaskTextColor))
                                 .frame(width: 16, alignment: .center)
                             Text(subtask.title)
                                 .font(.system(size: 12))

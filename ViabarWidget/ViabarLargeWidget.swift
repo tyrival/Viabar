@@ -235,6 +235,9 @@ struct ViabarWidgetView: View {
             }
             .buttonStyle(.plain)
 
+            WidgetTaskMarkerDot(markerColor: item.markerColor)
+                .padding(.top, 5)
+
             Link(destination: taskURL(for: item, projectID: projectID)) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
@@ -296,6 +299,19 @@ struct ViabarWidgetView: View {
             .orange
         case .future, nil:
             .secondary
+        }
+    }
+}
+
+private struct WidgetTaskMarkerDot: View {
+    let markerColor: TaskMarkerColor?
+
+    var body: some View {
+        if let markerColor {
+            Circle()
+                .fill(ViabarColor.taskMarker(markerColor))
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
         }
     }
 }

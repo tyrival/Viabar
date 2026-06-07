@@ -237,6 +237,7 @@ final class BackupService {
                     isCompleted: $0.isCompleted,
                     completedAt: $0.completedAt,
                     orderIndex: $0.orderIndex,
+                    markerColor: $0.markerColor,
                     reminder: $0.reminder.map(BackupReminderSnapshot.init),
                     subtasks: $0.subtasks.map {
                         BackupSubTaskSnapshot(
@@ -245,6 +246,7 @@ final class BackupService {
                             isCompleted: $0.isCompleted,
                             completedAt: $0.completedAt,
                             orderIndex: $0.orderIndex,
+                            markerColor: $0.markerColor,
                             reminder: $0.reminder.map(BackupReminderSnapshot.init)
                         )
                     }
@@ -390,6 +392,7 @@ final class BackupService {
                 )
                 milestone.milestoneId = milestoneSnapshot.milestoneId
                 milestone.completedAt = milestoneSnapshot.completedAt
+                milestone.markerColor = milestoneSnapshot.markerColor
                 milestone.reminder = milestoneSnapshot.reminder.map(restoreReminder)
                 milestone.project = project
                 modelContext.insert(milestone)
@@ -402,6 +405,7 @@ final class BackupService {
                     )
                     subtask.taskId = subtaskSnapshot.taskId
                     subtask.completedAt = subtaskSnapshot.completedAt
+                    subtask.markerColor = subtaskSnapshot.markerColor
                     subtask.reminder = subtaskSnapshot.reminder.map(restoreReminder)
                     subtask.milestone = milestone
                     modelContext.insert(subtask)
