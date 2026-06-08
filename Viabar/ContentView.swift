@@ -606,6 +606,7 @@ struct OverviewDashboardView: View {
     let onArchiveProject: (Project) -> Void
     let onDeleteProject: (Project) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(ServiceContainer.self) private var container
     @State private var draggingProjectID: UUID?
     @State private var projectDropTarget: OverviewProjectDropTarget?
@@ -931,6 +932,20 @@ private struct MainWindowReader: NSViewRepresentable {
     }
 }
 
+/// 比 .ultraThinMaterial 更轻的毛玻璃效果，适配 Liquid Glass 风格
+struct LightGlassView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.alphaValue = 0.3
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
 struct OverviewProjectCard: View {
     let project: Project
     let onSelect: () -> Void
@@ -985,12 +1000,6 @@ struct OverviewProjectCard: View {
         settingsRecords.first?.dateFormat
     }
 
-    private var cardBackground: Color {
-        colorScheme == .dark
-            ? Color(nsColor: NSColor(calibratedRed: 0.16, green: 0.19, blue: 0.25, alpha: 0.54))
-            : Color(nsColor: NSColor(calibratedWhite: 1, alpha: 1))
-    }
-
     private var cardShadowColor: Color {
         let opacity = isHovering ? 0.14 : 0.08
         return colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity)
@@ -1032,91 +1041,107 @@ struct OverviewProjectCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            Rectangle()
-                .fill(accentColor)
-                .frame(width: 4)
-
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Image(systemName: project.sfSymbolName)
-                        .font(.title3)
-                        .foregroundStyle(accentColor)
-                    Text(project.title)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if project.isFavorite {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(ViabarColor.warning)
-                    }
-                }
-
-                Spacer().frame(height: headerToTaskSpacing)
-
-                if let milestone = topMilestone {
-                    HStack(spacing: 6) {
-                        Image(systemName: "mappin.and.ellipse")
-                            .font(.system(size: 12))
-                            .foregroundStyle(markerDisplayColor(milestone.markerColor, fallback: Color.gray.opacity(0.55)))
-                            .frame(width: 16, alignment: .center)
-                        Text(milestone.title)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(milestoneTextColor)
-                            .lineLimit(1)
-                    }
-                    .padding(.leading, taskRowIndent)
-
-                    if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "list.bullet.indent")
-                                .font(.system(size: 11))
-                                .foregroundStyle(markerDisplayColor(subtask.markerColor, fallback: subtaskTextColor))
-                                .frame(width: 16, alignment: .center)
-                            Text(subtask.title)
-                                .font(.system(size: 12))
-                                .foregroundStyle(subtaskTextColor)
-                                .lineLimit(1)
-                        }
-                        .padding(.leading, taskRowIndent + subtaskExtraIndent)
-                        .padding(.top, 10)
-                    }
-                }
-
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: project.sfSymbolName)
+                    .font(.title3)
+                    .foregroundStyle(accentColor)
+                Text(project.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                    .lineLimit(1)
                 Spacer(minLength: 0)
-
-                HStack(alignment: .bottom) {
-                    if let reminderDate, displayedMilestoneReminder != nil {
-                        HStack(spacing: 4) {
-                            Image(systemName: "alarm.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(reminderForegroundColor)
-                            Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
-                                .font(.system(size: 11))
-                                .foregroundStyle(reminderForegroundColor)
-                        }.padding(.leading, 8)
-                            .offset(y: -5)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    progressRing
+                if project.isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(ViabarColor.warning)
                 }
             }
-            .padding(.leading, 12)
-            .padding(.trailing, 14)
-            .padding(.top, 12)
-            .padding(.bottom, cardBottomPadding)
+
+            Spacer().frame(height: headerToTaskSpacing)
+
+            if let milestone = topMilestone {
+                HStack(spacing: 6) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 12))
+                        .foregroundStyle(markerDisplayColor(milestone.markerColor, fallback: Color.gray.opacity(0.55)))
+                        .frame(width: 16, alignment: .center)
+                    Text(milestone.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(milestoneTextColor)
+                        .lineLimit(1)
+                }
+                .padding(.leading, taskRowIndent)
+
+                if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "list.bullet.indent")
+                            .font(.system(size: 11))
+                            .foregroundStyle(markerDisplayColor(subtask.markerColor, fallback: subtaskTextColor))
+                            .frame(width: 16, alignment: .center)
+                        Text(subtask.title)
+                            .font(.system(size: 12))
+                            .foregroundStyle(subtaskTextColor)
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, taskRowIndent + subtaskExtraIndent)
+                    .padding(.top, 10)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(alignment: .bottom) {
+                if let reminderDate, displayedMilestoneReminder != nil {
+                    HStack(spacing: 4) {
+                        Image(systemName: "alarm.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(reminderForegroundColor)
+                        Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
+                            .font(.system(size: 11))
+                            .foregroundStyle(reminderForegroundColor)
+                    }.padding(.leading, 8)
+                        .offset(y: -5)
+                }
+
+                Spacer(minLength: 8)
+
+                progressRing
+            }
         }
+        .padding(.leading, 12)
+        .padding(.trailing, 14)
+        .padding(.top, 12)
+        .padding(.bottom, cardBottomPadding)
         .frame(height: 150)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(cardBackground)
+            LightGlassView()
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: colorScheme == .dark
+                            ? [
+                                Color.white.opacity(0.22),
+                                Color.white.opacity(0.08),
+                                Color.white.opacity(0.02),
+                                Color.white.opacity(0.04),
+                            ]
+                            : [
+                                Color.white.opacity(0.55),
+                                Color.white.opacity(0.18),
+                                Color.black.opacity(0.06),
+                                Color.black.opacity(0.10),
+                            ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: colorScheme == .dark ? 0.8 : 0.6
+                )
+        )
         .shadow(
             color: cardShadowColor,
             radius: isHovering ? hoverShadowRadius : restingShadowRadius,

@@ -1688,6 +1688,7 @@ struct ActiveProjectRow: View {
     let onDelete: () -> Void
     let onSelect: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     /// 项目行强调色：100% 完成时使用成功色，否则使用项目自定义主题色
@@ -1829,9 +1830,38 @@ struct ActiveProjectRow: View {
             .animation(ActiveProjectRowMetrics.shadowAnimation, value: isSelected)
 
             // 胶囊底色
-            Capsule(style: .continuous)
-                .fill(capsuleBackgroundColor)
-                .frame(height: progressBarHeight)
+            if isSelected || isHovered {
+                Capsule(style: .continuous)
+                    .fill(capsuleBackgroundColor)
+                    .frame(height: progressBarHeight)
+            } else {
+                LightGlassView()
+                    .clipShape(Capsule(style: .continuous))
+                    .frame(height: progressBarHeight)
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: colorScheme == .dark
+                                        ? [
+                                            Color.white.opacity(0.22),
+                                            Color.white.opacity(0.08),
+                                            Color.white.opacity(0.02),
+                                            Color.white.opacity(0.04),
+                                        ]
+                                        : [
+                                            Color.white.opacity(0.55),
+                                            Color.white.opacity(0.18),
+                                            Color.black.opacity(0.06),
+                                            Color.black.opacity(0.10),
+                                        ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: colorScheme == .dark ? 0.8 : 0.6
+                            )
+                    )
+            }
 
             if isSelected {
                 rowContent(
@@ -2532,6 +2562,7 @@ struct ArchivedProjectSelectableRow: View {
     let onDelete: () -> Void
     let onSelect: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
 
     private var accentColor: Color {
@@ -2578,6 +2609,34 @@ struct ArchivedProjectSelectableRow: View {
             onSelect()
         } label: {
             ZStack(alignment: .center) {
+                if !isSelected && !isHovered {
+                    LightGlassView()
+                        .clipShape(Capsule(style: .continuous))
+                        .frame(height: progressBarHeight)
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: colorScheme == .dark
+                                            ? [
+                                                Color.white.opacity(0.22),
+                                                Color.white.opacity(0.08),
+                                                Color.white.opacity(0.02),
+                                                Color.white.opacity(0.04),
+                                            ]
+                                            : [
+                                                Color.white.opacity(0.55),
+                                                Color.white.opacity(0.18),
+                                                Color.black.opacity(0.06),
+                                                Color.black.opacity(0.10),
+                                            ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: colorScheme == .dark ? 0.8 : 0.6
+                                )
+                        )
+                }
                 if !isSelected && isHovered {
                     Capsule(style: .continuous)
                         .fill(ActiveProjectRowMetrics.sidebarHoverColor)
