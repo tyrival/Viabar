@@ -1779,7 +1779,7 @@ struct ActiveProjectRow: View {
                 backgroundColor: iconBackgroundColor,
                 ringColor: iconRingColor
             )
-            .padding(.leading, -4)
+            .padding(.leading, isSelected ? -2 : -4)
 
             Text(project.title)
                 .font(ActiveProjectRowMetrics.projectTitleFont)
@@ -1886,11 +1886,6 @@ struct ActiveProjectRow: View {
         }
         .frame(height: rowHeight)
         .padding(.horizontal, horizontalInset)
-        .searchTargetHighlight(
-            triggerID: highlightRequestID,
-            isActive: highlightRequestID != nil,
-            cornerRadius: rowHeight / 2
-        )
         .padding(.vertical, isSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
         .offset(y: isSelected ? ActiveProjectRowMetrics.selectedLift : 0)
         .animation(ActiveProjectRowMetrics.selectionAnimation, value: isSelected)
@@ -2686,11 +2681,6 @@ struct ArchivedProjectSelectableRow: View {
                 onContextTarget()
             }
         }
-        .searchTargetHighlight(
-            triggerID: highlightRequestID,
-            isActive: highlightRequestID != nil,
-            cornerRadius: rowHeight / 2
-        )
         .padding(.vertical, 0)
         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         .overlay(alignment: .top) {
