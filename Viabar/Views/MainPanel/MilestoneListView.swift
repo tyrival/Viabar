@@ -1167,9 +1167,19 @@ private struct SafeMilestoneRowView: View {
             draggingItem = .milestone(snapshot.id)
             return NSItemProvider(object: TaskDragItem.milestone(snapshot.id).providerValue as NSString)
         } preview: {
-            Image(systemName: "line.3.horizontal")
-                .font(.title3)
-                .padding(8)
+            Text(String(snapshot.title.prefix(15)) + (snapshot.title.count > 15 ? "…" : ""))
+                .font(.callout)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(.regularMaterial)
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+                )
         }
         .contextMenu {
             Button {
@@ -1369,9 +1379,19 @@ private struct SafeSubTaskRowView: View {
             draggingItem = .subTask(subtask.id)
             return NSItemProvider(object: TaskDragItem.subTask(subtask.id).providerValue as NSString)
         } preview: {
-            Image(systemName: "circle.grid.cross")
-                .font(.title3)
-                .padding(8)
+            Text(String(subtask.title.prefix(15)) + (subtask.title.count > 15 ? "…" : ""))
+                .font(.caption)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(.regularMaterial)
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+                )
         }
         .contextMenu {
             Button {

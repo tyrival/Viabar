@@ -1779,6 +1779,7 @@ struct ActiveProjectRow: View {
                 backgroundColor: iconBackgroundColor,
                 ringColor: iconRingColor
             )
+            .padding(.leading, -4)
 
             Text(project.title)
                 .font(ActiveProjectRowMetrics.projectTitleFont)
