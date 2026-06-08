@@ -405,6 +405,8 @@ private struct MenuBarProjectCardView: View {
     let onOpenEntry: (MenuBarTaskEntry) -> Void
     let onToggleEntry: (MenuBarTaskEntry) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var effectiveLanguage: EffectiveAppLanguage {
         AppLanguage.effectiveLanguage(storedValue: settings?.language)
     }
@@ -417,7 +419,7 @@ private struct MenuBarProjectCardView: View {
                         .foregroundStyle(Color(hex: card.project.accentColor))
                     Text(card.project.title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color(hex: card.project.accentColor))
+                        .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                     Spacer()
                     if card.project.isFavorite {
                         Image(systemName: "star.fill")

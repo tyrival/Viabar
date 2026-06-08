@@ -1900,9 +1900,9 @@ struct ActiveProjectRow: View {
         .background {
             SidebarRightClickMenu(source: "activeProject:\(project.title)") {
                 [
+                    .item(isFavoriteForContext() ? "取消收藏" : "收藏", systemImage: isFavoriteForContext() ? "star.slash" : "star", action: onToggleFavorite),
                     .item("编辑", systemImage: "pencil", action: onEdit),
                     .item("归档", systemImage: "archivebox", action: onArchive),
-                    .item(isFavoriteForContext() ? "取消收藏" : "收藏", systemImage: isFavoriteForContext() ? "star.slash" : "star", action: onToggleFavorite),
                     .separator,
                     .item("删除", systemImage: "trash", action: onDelete)
                 ]
