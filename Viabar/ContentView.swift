@@ -1116,10 +1116,10 @@ struct OverviewProjectCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LightGlassView()
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: colorScheme == .dark
@@ -1148,7 +1148,7 @@ struct OverviewProjectCard: View {
         )
         .offset(y: isHovering ? -2 : 0)
         .animation(.easeOut(duration: hoverAnimationDuration), value: isHovering)
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .onHover { isHovering = $0 }
         .onTapGesture(perform: onSelect)
         .contextMenu {
