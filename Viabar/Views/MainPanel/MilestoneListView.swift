@@ -595,10 +595,11 @@ private struct SafeMilestoneListView: View {
                         .id(row.id)
                         .safeListRow()
 
-                    if case let .milestone(snapshot) = row,
-                       addingSubTaskFor == snapshot.id {
+                    if let milestoneID = row.milestoneID,
+                       addingSubTaskFor == milestoneID,
+                       row.isLastVisibleRowInMilestoneGroup(nextRow: index < taskRows.count - 1 ? taskRows[index + 1] : nil) {
                         SafeSubTaskComposerView(
-                            milestoneID: snapshot.id,
+                            milestoneID: milestoneID,
                             leadingIndent: subTaskLeadingIndent,
                             onAddSubTask: onAddSubTask,
                             onClose: {
