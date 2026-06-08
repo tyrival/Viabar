@@ -1135,9 +1135,6 @@ private struct SafeMilestoneRowView: View {
                 .buttonStyle(.plain)
                 .padding(.top, 1)
 
-                TaskMarkerDot(markerColor: snapshot.markerColor)
-                    .padding(.top, 8)
-
                 milestoneTitle
             }
             .contentShape(Rectangle())
@@ -1218,7 +1215,8 @@ private struct SafeMilestoneRowView: View {
                 .foregroundStyle(
                     isSearchHighlighted
                         ? AnyShapeStyle(.white)
-                        : snapshot.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+                        : snapshot.isCompleted ? AnyShapeStyle(.secondary)
+                        : snapshot.markerColor.map { AnyShapeStyle(ViabarColor.taskMarker($0)) } ?? AnyShapeStyle(.primary)
                 )
                 .lineLimit(nil)
                 .multilineTextAlignment(.leading)
@@ -1338,9 +1336,6 @@ private struct SafeSubTaskRowView: View {
                 .buttonStyle(.plain)
                 .padding(.top, 2)
 
-                TaskMarkerDot(markerColor: subtask.markerColor, size: 6)
-                    .padding(.top, 7)
-
                 subTaskTitle
             }
             .contentShape(Rectangle())
@@ -1433,7 +1428,8 @@ private struct SafeSubTaskRowView: View {
                 .foregroundStyle(
                     isSearchHighlighted
                         ? AnyShapeStyle(.white)
-                        : subtask.isCompleted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+                        : subtask.isCompleted ? AnyShapeStyle(.secondary)
+                        : subtask.markerColor.map { AnyShapeStyle(ViabarColor.taskMarker($0)) } ?? AnyShapeStyle(.primary)
                 )
                 .lineLimit(nil)
                 .multilineTextAlignment(.leading)

@@ -1005,15 +1005,18 @@ struct OverviewProjectCard: View {
         return colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity)
     }
 
-    private var milestoneTextColor: Color {
-        colorScheme == .dark ? Color(hex: "#C6CBD2") : Color(hex: "#4B5563")
+    private func milestoneTitleColor(_ markerColor: String?) -> Color {
+        if let marker = TaskMarkerColor.resolve(markerColor) {
+            return ViabarColor.taskMarker(marker)
+        }
+        return colorScheme == .dark ? Color(hex: "#C6CBD2") : Color(hex: "#4B5563")
     }
 
-    /// 子任务文本颜色（深色/浅色模式在此处调整）
-    private var subtaskTextColor: Color {
-        colorScheme == .dark
-            ? Color.gray.opacity(1)
-            : Color.gray.opacity(1)
+    private func subtaskTitleColor(_ markerColor: String?) -> Color {
+        if let marker = TaskMarkerColor.resolve(markerColor) {
+            return ViabarColor.taskMarker(marker)
+        }
+        return .gray
     }
 
     private var reminderTextColor: Color {
@@ -1034,10 +1037,6 @@ struct OverviewProjectCard: View {
         }
 
         return reminderTextColor
-    }
-
-    private func markerDisplayColor(_ markerColor: String?, fallback: Color) -> Color {
-        TaskMarkerColor.resolve(markerColor).map(ViabarColor.taskMarker) ?? fallback
     }
 
     var body: some View {
@@ -1064,11 +1063,11 @@ struct OverviewProjectCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "mappin.and.ellipse")
                         .font(.system(size: 12))
-                        .foregroundStyle(markerDisplayColor(milestone.markerColor, fallback: Color.gray.opacity(0.55)))
+                        .foregroundStyle(Color.gray.opacity(0.55))
                         .frame(width: 16, alignment: .center)
                     Text(milestone.title)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(milestoneTextColor)
+                        .foregroundStyle(milestoneTitleColor(milestone.markerColor))
                         .lineLimit(1)
                 }
                 .padding(.leading, taskRowIndent)
@@ -1077,11 +1076,11 @@ struct OverviewProjectCard: View {
                     HStack(spacing: 6) {
                         Image(systemName: "list.bullet.indent")
                             .font(.system(size: 11))
-                            .foregroundStyle(markerDisplayColor(subtask.markerColor, fallback: subtaskTextColor))
+                            .foregroundStyle(Color.gray.opacity(0.55))
                             .frame(width: 16, alignment: .center)
                         Text(subtask.title)
                             .font(.system(size: 12))
-                            .foregroundStyle(subtaskTextColor)
+                            .foregroundStyle(subtaskTitleColor(subtask.markerColor))
                             .lineLimit(1)
                     }
                     .padding(.leading, taskRowIndent + subtaskExtraIndent)

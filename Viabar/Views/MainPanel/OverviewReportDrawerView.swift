@@ -284,25 +284,23 @@ private struct OverviewReportCardView: View {
         reminderDate: Date?,
         isPrimary: Bool
     ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
+        HStack(alignment: .center, spacing: 5) {
             Circle()
-                .fill(markerColor.map(ViabarColor.taskMarker) ?? Color.gray.opacity(0.35))
+                .fill(Color.gray.opacity(0.35))
                 .frame(width: 5, height: 5)
-                .alignmentGuide(.firstTextBaseline) { dimensions in
-                    dimensions[VerticalAlignment.center]
-                }
 
-            taskText(title: title, reminderDate: reminderDate, isPrimary: isPrimary)
+            taskText(title: title, markerColor: markerColor, reminderDate: reminderDate, isPrimary: isPrimary)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
         }
     }
 
-    private func taskText(title: String, reminderDate: Date?, isPrimary: Bool) -> Text {
+    private func taskText(title: String, markerColor: TaskMarkerColor?, reminderDate: Date?, isPrimary: Bool) -> Text {
+        let titleColor: Color = markerColor.map(ViabarColor.taskMarker) ?? (isPrimary ? .primary : .secondary)
         let titleText = Text(title)
             .font(.callout)
-            .foregroundColor(isPrimary ? .primary : .secondary)
+            .foregroundColor(titleColor)
         guard let date = reminderDate else {
             return titleText
         }
