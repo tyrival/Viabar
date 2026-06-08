@@ -661,16 +661,7 @@ private struct SafeMilestoneListView: View {
     }
 
     private func highlightCornerStyle(for id: UUID) -> TaskHighlightCornerStyle {
-        switch (id == firstVisibleTaskID, id == lastVisibleTaskID) {
-        case (true, true):
-            return .all
-        case (true, false):
-            return .top
-        case (false, true):
-            return .bottom
-        case (false, false):
-            return .middle
-        }
+        return .all
     }
 
     private func performDrop(_ item: TaskDragItem, target: TaskDropTarget) {
