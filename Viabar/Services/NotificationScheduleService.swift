@@ -5,10 +5,10 @@ import UserNotifications
 @MainActor
 final class NotificationScheduleService: NSObject, UNUserNotificationCenterDelegate {
     private let modelContext: ModelContext
-    private let notificationPoster: (String, String) -> Void
+    private let notificationPoster: (String, String, String, UUID, String, UUID, EffectiveAppLanguage) -> Void
     private var timer: Timer?
 
-    init(modelContext: ModelContext, notificationPoster: ((String, String) -> Void)? = nil) {
+    init(modelContext: ModelContext, notificationPoster: ((String, String, String, UUID, String, UUID, EffectiveAppLanguage) -> Void)? = nil) {
         self.modelContext = modelContext
         self.notificationPoster = notificationPoster ?? Self.deliverNotification
         super.init()
@@ -112,6 +112,20 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         completionHandler([.banner, .sound, .list])
     }
 
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.actionIdentifier == "COMPLETE_TASK" {
+            let userInfo = response.notification.request.content.userInfo
+            Task { @MainActor in
+                self.handleCompleteAction(userInfo: userInfo)
+            }
+        }
+        completionHandler()
+    }
+
     private func syncEntry(
         ownerId: UUID,
         ownerKind: String,
@@ -144,11 +158,42 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         processDueEntries()
     }
 
-    private static func deliverNotification(title: String, body: String) {
+    private static func deliverNotification(
+        title: String, body: String, timeString: String,
+        ownerId: UUID, ownerKind: String, projectId: UUID,
+        language: EffectiveAppLanguage
+    ) {
+        let ignoreTitle = AppLocalization.string("忽略", language: language)
+        let completeTitle = AppLocalization.string("完成", language: language)
+
+        let ignoreAction = UNNotificationAction(
+            identifier: "IGNORE",
+            title: ignoreTitle,
+            options: [.destructive]
+        )
+        let completeAction = UNNotificationAction(
+            identifier: "COMPLETE_TASK",
+            title: completeTitle,
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: "TASK_REMINDER",
+            actions: [ignoreAction, completeAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([category])
+
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = body
+        content.body = "\(body)\n\(timeString)"
         content.sound = .default
+        content.categoryIdentifier = "TASK_REMINDER"
+        content.userInfo = [
+            "ownerId": ownerId.uuidString,
+            "ownerKind": ownerKind,
+            "projectId": projectId.uuidString
+        ]
 
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
@@ -157,6 +202,39 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         )
 
         UNUserNotificationCenter.current().add(request)
+    }
+
+    private func formatFireDateString(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let language = effectiveLanguage
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let timePart = timeFormatter.string(from: date)
+
+        if calendar.isDateInToday(date) {
+            let today = AppLocalization.string("今天", language: language)
+            return "\(today) \(timePart)"
+        }
+        if calendar.isDateInYesterday(date) {
+            let yesterday = AppLocalization.string("昨天", language: language)
+            return "\(yesterday) \(timePart)"
+        }
+
+        let pattern = currentSettings?.dateFormat
+        return AppDateFormatter.string(from: date, pattern: pattern)
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: currentSettings?.language)
+    }
+
+    private var currentSettings: AppSettings? {
+        var descriptor = FetchDescriptor<AppSettings>(
+            sortBy: [SortDescriptor(\AppSettings.createdAt)]
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first
     }
 
     private func handleDueProjectEntry(_ entry: NotificationScheduleEntry, now: Date) {
@@ -169,7 +247,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
               let nextTaskTitle = project.topUnfinishedTitle
         else { return }
 
-        notificationPoster(project.title, nextStepBody(for: nextTaskTitle))
+        notificationPoster(project.title, nextStepBody(for: nextTaskTitle), formatFireDateString(entry.fireDate), project.projectId, "project", project.projectId, effectiveLanguage)
 
         guard let reminder = project.reminder else { return }
         reminder.lastTriggeredTimestamp = entry.fireDate
@@ -197,7 +275,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
               let reminder = owner.reminder
         else { return }
 
-        notificationPoster(project.title, owner.title)
+        notificationPoster(project.title, owner.title, formatFireDateString(entry.fireDate), entry.ownerId, entry.ownerKind, project.projectId, effectiveLanguage)
         reminder.lastTriggeredTimestamp = entry.fireDate
 
         guard reminder.isRepeating,
@@ -299,6 +377,36 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         }
 
         return nil
+    }
+
+    private func handleCompleteAction(userInfo: [AnyHashable: Any]) {
+        guard let ownerIdString = userInfo["ownerId"] as? String,
+              let ownerId = UUID(uuidString: ownerIdString),
+              let ownerKind = userInfo["ownerKind"] as? String
+        else { return }
+
+        switch ownerKind {
+        case "milestone":
+            let descriptor = FetchDescriptor<Milestone>(
+                predicate: #Predicate { $0.milestoneId == ownerId }
+            )
+            if let milestone = (try? modelContext.fetch(descriptor))?.first {
+                milestone.isCompleted = true
+                milestone.completedAt = Date()
+                save()
+            }
+        case "subtask":
+            let descriptor = FetchDescriptor<SubTask>(
+                predicate: #Predicate { $0.taskId == ownerId }
+            )
+            if let subtask = (try? modelContext.fetch(descriptor))?.first {
+                subtask.isCompleted = true
+                subtask.completedAt = Date()
+                save()
+            }
+        default:
+            break
+        }
     }
 
     private func save() {
