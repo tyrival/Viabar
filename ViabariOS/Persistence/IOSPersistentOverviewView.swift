@@ -931,6 +931,7 @@ struct IOSPersistentOverviewProjectCard: View {
                         .foregroundStyle(ViabarColor.warning)
                 }
             }
+            .padding(.leading, 4)
 
             Spacer().frame(height: 10)
 
@@ -976,7 +977,7 @@ struct IOSPersistentOverviewProjectCard: View {
                         font: .system(size: 11)
                     )
                         .padding(.leading, 8)
-                        .offset(y: -5)
+                        .offset(y: 0)
                 }
                 Spacer(minLength: 8)
                 progressRing
