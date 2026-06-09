@@ -984,8 +984,8 @@ struct IOSPersistentOverviewProjectCard: View {
         }
         .padding(.leading, 12)
         .padding(.trailing, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
         .frame(height: IOSProjectReorderMetrics.cardHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
