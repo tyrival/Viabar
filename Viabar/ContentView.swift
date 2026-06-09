@@ -1114,38 +1114,56 @@ struct OverviewProjectCard: View {
         .padding(.bottom, cardBottomPadding)
         .frame(height: 150)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LightGlassView()
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        )
+        // 1. 拟态边框高光：深色模式下浅色切面，浅色模式下深色切面，且保持右上/左下透明渐变
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: colorScheme == .dark
+                        stops: colorScheme == .dark
                             ? [
-                                Color.white.opacity(0.22),
-                                Color.white.opacity(0.08),
-                                Color.white.opacity(0.02),
-                                Color.white.opacity(0.04),
-                            ]
+                                .init(color: .clear, location: 0.0),
+                                .init(color: Color.white.opacity(0.24), location: 0.15),
+                                .init(color: Color.white.opacity(0.24), location: 0.85),
+                                .init(color: .clear, location: 1.0)
+                              ]
                             : [
-                                Color.white.opacity(0.55),
-                                Color.white.opacity(0.18),
-                                Color.black.opacity(0.06),
-                                Color.black.opacity(0.10),
-                            ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                                .init(color: .clear, location: 0.0),
+                                .init(color: Color.black.opacity(0.10), location: 0.15),
+                                .init(color: Color.black.opacity(0.10), location: 0.85),
+                                .init(color: .clear, location: 1.0)
+                              ],
+                        startPoint: .bottomLeading,
+                        endPoint: .topTrailing
                     ),
-                    lineWidth: colorScheme == .dark ? 0.8 : 0.6
+                    lineWidth: colorScheme == .dark ? 0.8 : 0.7
                 )
         )
-        .shadow(
-            color: cardShadowColor,
-            radius: isHovering ? hoverShadowRadius : restingShadowRadius,
-            y: isHovering ? hoverShadowYOffset : restingShadowYOffset
-        )
+        .background {
+            ZStack {
+                // 【底层】阴影投射层：深色模式下使用 0.01 极度透明的实体，既能骗过系统产生高阶阴影，又绝不挡住壁纸
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(colorScheme == .dark ? Color.black.opacity(0.01) : Color.white)
+                    .shadow(
+                        color: colorScheme == .dark
+                            ? Color.black.opacity(isHovering ? 0.65 : 0.40) // 深色下稍微加重阴影，弥补透明底的感官损失
+                            : Color(hex: "#0F172A").opacity(isHovering ? 0.10 : 0.05),
+                        radius: isHovering ? 15 : 6,
+                        x: 0,
+                        y: isHovering ? 7 : 2.5
+                    )
+                
+                // 【中层】原生的 Liquid 毛玻璃，直接透出系统桌面壁纸
+                LightGlassView()
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                
+                // 【顶层】环境光注入：深色模式下通过一层极其微弱的灰白卡片叠加层，把“闷黑感”打破，注入高级通透感
+                if colorScheme == .dark {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white.opacity(isHovering ? 0.05 : 0.02))
+                        .allowsHitTesting(false)
+                }
+            }
+        }
         .offset(y: isHovering ? -2 : 0)
         .animation(.easeOut(duration: hoverAnimationDuration), value: isHovering)
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
