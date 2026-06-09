@@ -11,8 +11,8 @@ private func iosProjectReorderLog(_ message: String) {
 
 struct IOSGlassView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIVisualEffectView {
-        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
-        view.alpha = 0.3
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemThickMaterial))
+        view.alpha = 0.45
         return view
     }
 
