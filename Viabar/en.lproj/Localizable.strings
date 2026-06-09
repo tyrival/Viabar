@@ -283,3 +283,9 @@
 
 /* ---- 菜单 ---- */
 "检查更新..." = "Check for Updates...";
+
+/* ---- Yearly Report ---- */
+"年度报告" = "Yearly Report";
+"选择年份" = "Select Year";
+"该年度没有已完成的任务" = "No completed tasks this year";
+"导出" = "Export";

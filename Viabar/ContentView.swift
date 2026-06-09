@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var overviewDeleteProject: Project?
     @State private var memoSearchDraft: String = ""
     @State private var activeMemoSearchQuery: String = ""
+    @State private var isYearlyReportPresented = false
     @State private var isGlobalSearchPresented = false
     @State private var globalSearchQuery = ""
     @State private var highlightedSearchResultID: String?
@@ -121,6 +122,10 @@ struct ContentView: View {
         .onChange(of: selectedProject?.projectId) { _, projectID in
             guard let navigationRequest, projectID != navigationRequest.projectID else { return }
             self.navigationRequest = nil
+        }
+        .sheet(isPresented: $isYearlyReportPresented) {
+            YearlyReportView(projects: allProjects, language: effectiveLanguage)
+                .environment(\.locale, effectiveLanguage.locale)
         }
         .sheet(item: $overviewEditProject) { project in
             NewProjectView(editingProject: project)
@@ -381,6 +386,22 @@ struct ContentView: View {
         .zIndex(5)
     }
 
+    private var yearlyReportButton: some View {
+        Button {
+            isYearlyReportPresented = true
+        } label: {
+            Image(systemName: "wand.and.sparkles")
+                .font(.system(size: toolbarButtonIconSize, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: toolbarButtonSize, height: toolbarButtonSize)
+                .background(toolbarButtonBackground(isHovered: hoveredToolbarButton == .yearlyReport))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("年度报告")
+        .onHover { hoveredToolbarButton = $0 ? .yearlyReport : nil }
+    }
+
     private var overviewToggleButton: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -439,6 +460,10 @@ struct ContentView: View {
                         onPresent: presentGlobalSearch,
                         onSelect: openSearchResult(_:)
                     )
+
+                    if isOverviewSelected {
+                        yearlyReportButton
+                    }
 
                     if let project = selectedProject {
                         hideCompletedButton(project: project)
@@ -594,6 +619,7 @@ struct ContentView: View {
 private enum ToolbarButtonKind: Equatable {
     case memoDrawer
     case overviewReport
+    case yearlyReport
     case hideCompleted
 }
 
