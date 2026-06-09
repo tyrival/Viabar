@@ -596,7 +596,7 @@ private struct IOSPersistentReportCardView: View {
             }
 
             ForEach(card.groups) { group in
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 6) {
                     taskRow(title: group.title, reminderDate: group.reminderDate, isPrimary: true)
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -636,22 +636,16 @@ private struct IOSPersistentReportCardView: View {
                 .frame(width: 5, height: 5)
                 .padding(.top, 7)
 
-            Group {
+            VStack(alignment: .leading, spacing: 2) {
                 if let reminderDate {
-                    HStack(alignment: .center, spacing: 5) {
-                        reminderLabel(reminderDate, fontSize: 13, iconSize: 8)
-                        Text(title)
-                            .font(.callout)
-                            .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                    }
-                } else {
-                    Text(title)
-                        .font(.callout)
-                        .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    reminderLabel(reminderDate, fontSize: 11, iconSize: 8)
                 }
+                Text(title)
+                    .font(isPrimary ? .system(size: 13, weight: .medium) : .system(size: 12))
+                    .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
