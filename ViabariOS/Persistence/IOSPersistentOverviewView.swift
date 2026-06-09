@@ -962,7 +962,7 @@ struct IOSPersistentOverviewProjectCard: View {
                             .lineLimit(1)
                     }
                     .padding(.leading, 22)
-                    .padding(.top, 6)
+                    .padding(.top, 8)
                 }
             }
 
