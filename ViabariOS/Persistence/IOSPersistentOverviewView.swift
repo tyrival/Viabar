@@ -637,10 +637,11 @@ private struct IOSPersistentReportCardView: View {
     }
 
     private func taskRow(title: String, reminderDate: Date?, isPrimary: Bool) -> some View {
-        HStack(alignment: .center, spacing: 5) {
+        HStack(alignment: .top, spacing: 5) {
             Circle()
                 .fill(Color.gray.opacity(0.35))
                 .frame(width: 5, height: 5)
+                .padding(.top, 6)
 
             taskText(title: title, reminderDate: reminderDate, isPrimary: isPrimary)
                 .lineLimit(nil)
