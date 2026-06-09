@@ -501,22 +501,22 @@ private struct IOSPersistentReportSectionView: View {
         switch section.kind {
         case .weekTodo:
             Picker("", selection: $weekTodoOffset) {
-                Text("本周待办").tag(0)
-                Text("下周待办").tag(1)
+                Text("本周待办").font(.system(size: 10)).tag(0)
+                Text("下周待办").font(.system(size: 10)).tag(1)
             }
             .iosReportCapsulePicker()
 
         case .weekDone:
             Picker("", selection: $weekDoneOffset) {
-                Text("本周完成").tag(0)
-                Text("上周完成").tag(-1)
+                Text("本周完成").font(.system(size: 10)).tag(0)
+                Text("上周完成").font(.system(size: 10)).tag(-1)
             }
             .iosReportCapsulePicker()
 
         case .monthDone:
             Picker("", selection: $monthDoneOffset) {
-                Text("本月完成").tag(0)
-                Text("上月完成").tag(-1)
+                Text("本月完成").font(.system(size: 10)).tag(0)
+                Text("上月完成").font(.system(size: 10)).tag(-1)
             }
             .iosReportCapsulePicker()
         }
@@ -530,7 +530,7 @@ private struct IOSReportCapsulePickerStyle: ViewModifier {
         content
             .pickerStyle(.menu)
             .labelsHidden()
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 10, weight: .semibold))
             .lineLimit(1)
             .tint(.secondary)
             .padding(.horizontal, 7)
