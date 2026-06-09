@@ -237,6 +237,18 @@ struct IOSPersistentOverviewView: View {
                     Text("报告")
                         .font(.title3.weight(.bold))
                     Spacer()
+                    NavigationLink {
+                        IOSYearlyReportView(projects: projects, language: effectiveLanguage)
+                    } label: {
+                        Image(systemName: "wand.and.sparkles")
+                            .font(.system(size: 17, weight: .medium))
+                            .frame(width: 42, height: 42)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .iosPrototypeInteractiveCircleSurface()
+                    .shadow(color: IOSPrototypeSurfaceStyle.shadow(for: colorScheme), radius: 8, y: 3)
                 }
                 .padding(.top, 14)
                 .padding(.bottom, 4)
@@ -523,7 +535,7 @@ private struct IOSPersistentReportSectionView: View {
     }
 }
 
-private struct IOSReportCapsulePickerStyle: ViewModifier {
+struct IOSReportCapsulePickerStyle: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
@@ -547,7 +559,7 @@ private struct IOSReportCapsulePickerStyle: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func iosReportCapsulePicker() -> some View {
         modifier(IOSReportCapsulePickerStyle())
     }

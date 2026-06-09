@@ -312,3 +312,7 @@
 "移动至..." = "Move To...";
 "选择归档文件夹" = "Choose Folder";
 "请先在归档页面新建文件夹" = "Create a folder from the Archive page first.";
+
+/* ---- Yearly Report ---- */
+"年度报告" = "Yearly Report";
+"该年度没有已完成的任务" = "No completed tasks this year";
