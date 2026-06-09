@@ -634,12 +634,18 @@ private struct IOSPersistentReportCardView: View {
             Circle()
                 .fill(Color.gray.opacity(0.35))
                 .frame(width: 5, height: 5)
-                .padding(.top, 7)
+                .padding(.top, 6)
 
-            VStack(alignment: .leading, spacing: 2) {
-                if let reminderDate {
+            if let reminderDate {
+                HStack(alignment: .top, spacing: 5) {
                     reminderLabel(reminderDate, fontSize: 11, iconSize: 8)
+                    Text(title)
+                        .font(isPrimary ? .system(size: 13, weight: .medium) : .system(size: 12))
+                        .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+            } else {
                 Text(title)
                     .font(isPrimary ? .system(size: 13, weight: .medium) : .system(size: 12))
                     .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
