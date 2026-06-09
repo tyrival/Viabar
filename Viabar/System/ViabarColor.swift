@@ -47,7 +47,7 @@ enum ViabarColor {
 #else
     static let mainPanelBackground = Color(uiColor: UIColor { traitCollection in
         traitCollection.userInterfaceStyle == .dark
-            ? UIColor(red: 0.10, green: 0.14, blue: 0.20, alpha: 0.95)
+            ? UIColor(red: 0.196, green: 0.196, blue: 0.196, alpha: 0.95)
             : UIColor(red: 0.93, green: 0.93, blue: 0.93, alpha: 1)
     })
     static let mainPanelMemoBackground = Color(uiColor: .secondarySystemBackground)
