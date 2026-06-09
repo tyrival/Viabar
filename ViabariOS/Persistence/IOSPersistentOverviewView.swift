@@ -692,7 +692,7 @@ private enum IOSProjectSection: Hashable {
 }
 
 private enum IOSProjectReorderMetrics {
-    static let cardHeight: CGFloat = 150
+    static let cardHeight: CGFloat = 118
     static let cardSpacing: CGFloat = 8
     static let verticalInset: CGFloat = 4
     static let animation: Animation = .easeInOut(duration: 0.12)
@@ -932,7 +932,7 @@ struct IOSPersistentOverviewProjectCard: View {
                 }
             }
 
-            Spacer().frame(height: 18)
+            Spacer().frame(height: 10)
 
             if let milestone = topMilestone {
                 HStack(spacing: 6) {
@@ -961,7 +961,7 @@ struct IOSPersistentOverviewProjectCard: View {
                             .lineLimit(1)
                     }
                     .padding(.leading, 22)
-                    .padding(.top, 10)
+                    .padding(.top, 4)
                 }
             }
 
@@ -984,8 +984,8 @@ struct IOSPersistentOverviewProjectCard: View {
         }
         .padding(.leading, 12)
         .padding(.trailing, 14)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
         .frame(height: IOSProjectReorderMetrics.cardHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
@@ -1076,32 +1076,23 @@ struct IOSPersistentOverviewProjectCard: View {
         let ringTrackColor = Color(hex: "#00BBE1").opacity(0.2)
         let ringStartColor = Color(hex: "#00BBE1")
         let ringEndColor = Color(hex: "#00F9D0")
-        let percentColor = Color(hex: "#00BBE1")
 
-        return HStack(spacing: 12) {
-            Text("\(Int(project.progress * 100))%")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(percentColor)
-                .monospacedDigit()
-                .frame(width: 40, alignment: .trailing)
+        return ZStack {
+            Circle()
+                .stroke(ringTrackColor, lineWidth: 5)
+                .frame(width: 24, height: 24)
 
-            ZStack {
-                Circle()
-                    .stroke(ringTrackColor, lineWidth: 7)
-                    .frame(width: 28, height: 28)
-
-                Circle()
-                    .trim(from: 0, to: CGFloat(max(0, min(1, project.progress))))
-                    .stroke(
-                        AngularGradient(
-                            gradient: Gradient(colors: [ringStartColor, ringEndColor, ringStartColor]),
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 7, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 28, height: 28)
-            }
+            Circle()
+                .trim(from: 0, to: CGFloat(max(0, min(1, project.progress))))
+                .stroke(
+                    AngularGradient(
+                        gradient: Gradient(colors: [ringStartColor, ringEndColor, ringStartColor]),
+                        center: .center
+                    ),
+                    style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .frame(width: 24, height: 24)
         }
     }
 }
