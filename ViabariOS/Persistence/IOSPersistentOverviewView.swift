@@ -575,7 +575,14 @@ private struct IOSPersistentReportCardView: View {
                 Spacer(minLength: 8)
 
                 if isTodo, let projectReminder = card.projectReminderDate {
-                    reminderLabel(projectReminder, fontSize: 10, iconSize: 9)
+                    HStack(alignment: .center, spacing: 3) {
+                        Image(systemName: "alarm.fill")
+                            .font(.system(size: 9))
+                        Text(formatReminderDate(projectReminder))
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(IOSPrototypeReminderStyle.color(for: projectReminder))
+                    .fixedSize()
                 }
 
                 if card.project.isFavorite, !card.project.isArchived {
@@ -630,40 +637,39 @@ private struct IOSPersistentReportCardView: View {
     }
 
     private func taskRow(title: String, reminderDate: Date?, isPrimary: Bool) -> some View {
-        HStack(alignment: .top, spacing: 5) {
+        HStack(alignment: .center, spacing: 5) {
             Circle()
                 .fill(Color.gray.opacity(0.35))
                 .frame(width: 5, height: 5)
-                .padding(.top, 6)
 
-            if let reminderDate {
-                HStack(alignment: .top, spacing: 5) {
-                    reminderLabel(reminderDate, fontSize: 11, iconSize: 8)
-                    Text(title)
-                        .font(isPrimary ? .system(size: 13, weight: .medium) : .system(size: 12))
-                        .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                Text(title)
-                    .font(isPrimary ? .system(size: 13, weight: .medium) : .system(size: 12))
-                    .foregroundStyle(isPrimary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            taskText(title: title, reminderDate: reminderDate, isPrimary: isPrimary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func reminderLabel(_ date: Date, fontSize: CGFloat, iconSize: CGFloat) -> some View {
-        HStack(alignment: .center, spacing: 3) {
-            Image(systemName: "alarm.fill")
-                .font(.system(size: iconSize))
-            Text(formatReminderDate(date))
-                .font(.system(size: fontSize))
+    private func taskText(title: String, reminderDate: Date?, isPrimary: Bool) -> Text {
+        let titleText = Text(title)
+            .font(isPrimary ? .system(size: 13, weight: .medium) : .system(size: 12))
+            .foregroundColor(isPrimary ? .primary : .secondary)
+
+        guard let date = reminderDate else {
+            return titleText
         }
-        .foregroundStyle(IOSPrototypeReminderStyle.color(for: date))
-        .fixedSize()
+
+        let reminderText = (
+            Text(Image(systemName: "alarm.fill"))
+                .font(.system(size: 8))
+            + Text(" \(formatReminderDate(date)) ")
+                .font(.system(size: 10, weight: .medium))
+        )
+        .foregroundColor(reminderColor(date))
+
+        return reminderText + titleText
+    }
+
+    private func reminderColor(_ date: Date) -> Color {
+        IOSPrototypeReminderStyle.color(for: date)
     }
 
     private func formatReminderDate(_ date: Date) -> String {
