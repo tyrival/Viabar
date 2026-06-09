@@ -9,6 +9,16 @@ private func iosProjectReorderLog(_ message: String) {
     print(String(format: "[IOSProjectReorder +%.3fs] %@", elapsed, message))
 }
 
+struct IOSGlassView: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+        view.alpha = 0.3
+        return view
+    }
+
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+}
+
 struct IOSPersistentOverviewView: View {
     @Environment(ServiceContainer.self) private var services
     @Environment(\.colorScheme) private var colorScheme
@@ -37,7 +47,7 @@ struct IOSPersistentOverviewView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color(uiColor: .systemGroupedBackground)
+            ViabarColor.mainPanelBackground
                 .ignoresSafeArea()
                 .onTapGesture {
                     dismissIOSPrototypeKeyboard()
@@ -682,7 +692,7 @@ private enum IOSProjectSection: Hashable {
 }
 
 private enum IOSProjectReorderMetrics {
-    static let cardHeight: CGFloat = 116
+    static let cardHeight: CGFloat = 150
     static let cardSpacing: CGFloat = 8
     static let verticalInset: CGFloat = 4
     static let animation: Animation = .easeInOut(duration: 0.12)
@@ -905,93 +915,125 @@ struct IOSPersistentOverviewProjectCard: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(spacing: 0) {
-            Rectangle()
-                .fill(accentColor)
-                .frame(width: 4)
-
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Image(systemName: project.sfSymbolName)
-                        .font(.title3)
-                        .foregroundStyle(accentColor)
-                    Text(project.title)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(colorScheme == .dark ? AnyShapeStyle(Color.primary) : AnyShapeStyle(ViabarColor.primary))
-                    Spacer()
-                    if project.isFavorite {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(ViabarColor.warning)
-                    }
-                }
-
-                Spacer().frame(height: 8)
-
-                if let milestone = topMilestone {
-                    HStack(spacing: 6) {
-                        Image(systemName: "mappin.and.ellipse")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.gray.opacity(0.55))
-                            .frame(width: 16)
-                        Text(milestone.title)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(colorScheme == .dark ? AnyShapeStyle(Color.secondary) : AnyShapeStyle(Color(hex: "#4B5563")))
-                            .lineLimit(1)
-                    }
-                    .padding(.leading, 4)
-
-                    if let subtask = milestone.subtasks
-                        .sorted(by: { $0.orderIndex < $1.orderIndex })
-                        .first(where: { !$0.isCompleted }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "list.bullet.indent")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color.gray)
-                                .frame(width: 16)
-                            Text(subtask.title)
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.gray)
-                                .lineLimit(1)
-                        }
-                        .padding(.leading, 22)
-                        .padding(.top, 4)
-                    }
-                }
-
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: project.sfSymbolName)
+                    .font(.system(size: 13))
+                    .foregroundStyle(accentColor)
+                Text(project.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                    .lineLimit(1)
                 Spacer(minLength: 0)
-
-                HStack(alignment: .bottom) {
-                    if let reminder = topMilestone?.reminder {
-                        IOSPersistentReminderSummary(
-                            reminder: reminder,
-                            dateFormatPattern: savedDateFormat,
-                            language: effectiveLanguage,
-                            font: .system(size: 11)
-                        )
-                            .padding(.leading, 8)
-                    }
-                    Spacer()
-                    HStack(spacing: 12) {
-                        Text("\(Int(project.progress * 100))%")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(IOSPrototypeProgressStyle.percentColor)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .frame(minWidth: 44, alignment: .trailing)
-                        IOSPrototypeProgressRing(progress: project.progress)
-                    }
+                if project.isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(ViabarColor.warning)
                 }
             }
-            .padding(.leading, 12)
-            .padding(.top, 8)
-            .padding(.trailing, 16)
-            .padding(.bottom, 16)
+
+            Spacer().frame(height: 18)
+
+            if let milestone = topMilestone {
+                HStack(spacing: 6) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.gray.opacity(0.55))
+                        .frame(width: 16, alignment: .center)
+                    Text(milestone.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(milestoneTitleColor(milestone.markerColor))
+                        .lineLimit(1)
+                }
+                .padding(.leading, 4)
+
+                if let subtask = milestone.subtasks
+                    .sorted(by: { $0.orderIndex < $1.orderIndex })
+                    .first(where: { !$0.isCompleted }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "list.bullet.indent")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.gray.opacity(0.55))
+                            .frame(width: 16, alignment: .center)
+                        Text(subtask.title)
+                            .font(.system(size: 12))
+                            .foregroundStyle(subtaskTitleColor(subtask.markerColor))
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, 22)
+                    .padding(.top, 10)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(alignment: .bottom) {
+                if let reminder = topMilestone?.reminder {
+                    IOSPersistentReminderSummary(
+                        reminder: reminder,
+                        dateFormatPattern: savedDateFormat,
+                        language: effectiveLanguage,
+                        font: .system(size: 11)
+                    )
+                        .padding(.leading, 8)
+                        .offset(y: -5)
+                }
+                Spacer(minLength: 8)
+                progressRing
+            }
         }
+        .padding(.leading, 12)
+        .padding(.trailing, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
         .frame(height: IOSProjectReorderMetrics.cardHeight)
-        .iosPrototypeCardSurface(cornerRadius: 12)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        stops: colorScheme == .dark
+                            ? [
+                                .init(color: .clear, location: 0.0),
+                                .init(color: Color.white.opacity(0.24), location: 0.15),
+                                .init(color: Color.white.opacity(0.24), location: 0.85),
+                                .init(color: .clear, location: 1.0)
+                              ]
+                            : [
+                                .init(color: .clear, location: 0.0),
+                                .init(color: Color.black.opacity(0.10), location: 0.15),
+                                .init(color: Color.black.opacity(0.10), location: 0.85),
+                                .init(color: .clear, location: 1.0)
+                              ],
+                        startPoint: .bottomLeading,
+                        endPoint: .topTrailing
+                    ),
+                    lineWidth: colorScheme == .dark ? 0.8 : 0.7
+                )
+        )
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(colorScheme == .dark ? Color.black.opacity(0.01) : Color.white)
+                    .shadow(
+                        color: colorScheme == .dark
+                            ? Color.black.opacity(0.40)
+                            : Color(hex: "#0F172A").opacity(0.05),
+                        radius: 6,
+                        x: 0,
+                        y: 2.5
+                    )
+
+                IOSGlassView()
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                if colorScheme == .dark {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white.opacity(0.02))
+                        .allowsHitTesting(false)
+                }
+            }
+        }
         .contextMenu {
             Button("编辑", systemImage: "pencil", action: onEdit)
             Button(LocalizedStringKey(project.isFavorite ? "取消收藏" : "收藏"), systemImage: project.isFavorite ? "star.slash" : "star", action: onToggleFavorite)
@@ -1014,6 +1056,53 @@ struct IOSPersistentOverviewProjectCard: View {
 
     private var effectiveLanguage: EffectiveAppLanguage {
         AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
+    private func milestoneTitleColor(_ markerColor: String?) -> Color {
+        if let marker = TaskMarkerColor.resolve(markerColor) {
+            return ViabarColor.taskMarker(marker)
+        }
+        return colorScheme == .dark ? Color(hex: "#C6CBD2") : Color(hex: "#4B5563")
+    }
+
+    private func subtaskTitleColor(_ markerColor: String?) -> Color {
+        if let marker = TaskMarkerColor.resolve(markerColor) {
+            return ViabarColor.taskMarker(marker)
+        }
+        return .gray
+    }
+
+    private var progressRing: some View {
+        let ringTrackColor = Color(hex: "#00BBE1").opacity(0.2)
+        let ringStartColor = Color(hex: "#00BBE1")
+        let ringEndColor = Color(hex: "#00F9D0")
+        let percentColor = Color(hex: "#00BBE1")
+
+        return HStack(spacing: 12) {
+            Text("\(Int(project.progress * 100))%")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(percentColor)
+                .monospacedDigit()
+                .frame(width: 40, alignment: .trailing)
+
+            ZStack {
+                Circle()
+                    .stroke(ringTrackColor, lineWidth: 7)
+                    .frame(width: 28, height: 28)
+
+                Circle()
+                    .trim(from: 0, to: CGFloat(max(0, min(1, project.progress))))
+                    .stroke(
+                        AngularGradient(
+                            gradient: Gradient(colors: [ringStartColor, ringEndColor, ringStartColor]),
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 7, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 28, height: 28)
+            }
+        }
     }
 }
 
