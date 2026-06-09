@@ -182,14 +182,14 @@ struct IOSPersistentOverviewView: View {
 
                 if !favoriteProjects.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
-                        IOSPrototypeSectionLabel(title: "星标项目")
+                        IOSPrototypeSectionLabel(title: "星标项目", systemImage: "star.fill")
                         projectList(favoriteProjects, section: .favorites)
                     }
                 }
 
                 if !regularProjects.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
-                        IOSPrototypeSectionLabel(title: "其他项目")
+                        IOSPrototypeSectionLabel(title: "其他项目", systemImage: "list.bullet")
                             .padding(.top, 4)
                         projectList(regularProjects, section: .regular)
                     }

@@ -249,13 +249,19 @@ enum IOSPrototypeReminderStyle {
 
 struct IOSPrototypeSectionLabel: View {
     let title: LocalizedStringKey
+    var systemImage: String?
 
     var body: some View {
-        Text(title)
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .tracking(0.5)
+        HStack(spacing: 4) {
+            if let systemImage {
+                Image(systemName: systemImage)
+            }
+            Text(title)
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(.secondary)
+        .textCase(.uppercase)
+        .tracking(0.5)
     }
 }
 
