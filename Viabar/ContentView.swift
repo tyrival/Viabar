@@ -1113,7 +1113,7 @@ struct OverviewProjectCard: View {
                                 .lineLimit(1)
                         }
                         .padding(.leading, taskRowIndent + subtaskExtraIndent)
-                        .padding(.top, 16)
+                        .padding(.top, 12)
                     }
                 }
 
@@ -1139,7 +1139,7 @@ struct OverviewProjectCard: View {
             }
             .padding(.leading, 12)
             .padding(.trailing, 14)
-            .padding(.top, 26)
+            .padding(.top, 28)
             .padding(.bottom, 14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -1152,12 +1152,12 @@ struct OverviewProjectCard: View {
                         lineWidth: colorScheme == .dark ? 0.8 : 0.7
                     )
             )
-            .padding(.horizontal, 4)
-            .padding(.bottom, 4)
+            .padding(.horizontal, 6)
+            .padding(.bottom, 6)
             .padding(.top, 11)
         }
         .padding(.top, 15)
-        .frame(height: 193)
+        .frame(height: 187)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
