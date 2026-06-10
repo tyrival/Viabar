@@ -1067,80 +1067,98 @@ struct OverviewProjectCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // 项目图标 + 标题 + 收藏星（留在 Liquid Glass 上）
             HStack(spacing: 8) {
                 Image(systemName: project.sfSymbolName)
-                    .font(.title3)
-                    .foregroundStyle(accentColor)
+                    .font(.system(size: 13))
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                 Text(project.title)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                     .lineLimit(1)
-                Spacer(minLength: 0)
+                Spacer(minLength: 6)
                 if project.isFavorite {
                     Image(systemName: "star.fill")
                         .font(.system(size: 12))
                         .foregroundStyle(ViabarColor.warning)
                 }
             }
+            .padding(.leading, 16)
+            .padding(.trailing, 16)
 
-            Spacer().frame(height: headerToTaskSpacing)
-
-            if let milestone = topMilestone {
-                HStack(spacing: 6) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.gray.opacity(0.55))
-                        .frame(width: 16, alignment: .center)
-                    Text(milestone.title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(milestoneTitleColor(milestone.markerColor))
-                        .lineLimit(1)
-                }
-                .padding(.leading, taskRowIndent)
-
-                if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
+            // 不透明卡片：任务/子任务、提醒、进度环
+            VStack(alignment: .leading, spacing: 0) {
+                if let milestone = topMilestone {
                     HStack(spacing: 6) {
-                        Image(systemName: "list.bullet.indent")
-                            .font(.system(size: 11))
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 12))
                             .foregroundStyle(Color.gray.opacity(0.55))
                             .frame(width: 16, alignment: .center)
-                        Text(subtask.title)
-                            .font(.system(size: 12))
-                            .foregroundStyle(subtaskTitleColor(subtask.markerColor))
+                        Text(milestone.title)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(milestoneTitleColor(milestone.markerColor))
                             .lineLimit(1)
                     }
-                    .padding(.leading, taskRowIndent + subtaskExtraIndent)
-                    .padding(.top, 10)
-                }
-            }
+                    .padding(.leading, taskRowIndent)
 
-            Spacer(minLength: 0)
-
-            HStack(alignment: .bottom) {
-                if let reminderDate, displayedMilestoneReminder != nil {
-                    HStack(spacing: 4) {
-                        Image(systemName: "alarm.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(reminderForegroundColor)
-                        Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
-                            .font(.system(size: 11))
-                            .foregroundStyle(reminderForegroundColor)
-                    }.padding(.leading, 8)
-                        .offset(y: -5)
+                    if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "list.bullet.indent")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.gray.opacity(0.55))
+                                .frame(width: 16, alignment: .center)
+                            Text(subtask.title)
+                                .font(.system(size: 12))
+                                .foregroundStyle(subtaskTitleColor(subtask.markerColor))
+                                .lineLimit(1)
+                        }
+                        .padding(.leading, taskRowIndent + subtaskExtraIndent)
+                        .padding(.top, 16)
+                    }
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 0)
 
-                progressRing
+                HStack(alignment: .bottom) {
+                    if let reminderDate, displayedMilestoneReminder != nil {
+                        HStack(spacing: 4) {
+                            Image(systemName: "alarm.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(reminderForegroundColor)
+                            Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
+                                .font(.system(size: 11))
+                                .foregroundStyle(reminderForegroundColor)
+                        }.padding(.leading, 8)
+                            .offset(y: -5)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    progressRing
+                }
             }
+            .padding(.leading, 12)
+            .padding(.trailing, 14)
+            .padding(.top, 26)
+            .padding(.bottom, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(ViabarColor.mainPanelBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08),
+                        lineWidth: colorScheme == .dark ? 0.8 : 0.7
+                    )
+            )
+            .padding(.horizontal, 4)
+            .padding(.bottom, 4)
+            .padding(.top, 11)
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 14)
-        .padding(.top, 12)
-        .padding(.bottom, cardBottomPadding)
-        .frame(height: 150)
+        .padding(.top, 15)
+        .frame(height: 193)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // 1. 拟态边框高光：深色模式下浅色切面，浅色模式下深色切面，且保持右上/左下透明渐变
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(
@@ -1166,23 +1184,20 @@ struct OverviewProjectCard: View {
         )
         .background {
             ZStack {
-                // 【底层】阴影投射层：深色模式下使用 0.01 极度透明的实体，既能骗过系统产生高阶阴影，又绝不挡住壁纸
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(colorScheme == .dark ? Color.black.opacity(0.01) : Color.white)
                     .shadow(
                         color: colorScheme == .dark
-                            ? Color.black.opacity(isHovering ? 0.65 : 0.40) // 深色下稍微加重阴影，弥补透明底的感官损失
+                            ? Color.black.opacity(isHovering ? 0.65 : 0.40)
                             : Color(hex: "#0F172A").opacity(isHovering ? 0.10 : 0.05),
                         radius: isHovering ? 15 : 6,
                         x: 0,
                         y: isHovering ? 7 : 2.5
                     )
-                
-                // 【中层】原生的 Liquid 毛玻璃，直接透出系统桌面壁纸
+
                 LightGlassView()
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                
-                // 【顶层】环境光注入：深色模式下通过一层极其微弱的灰白卡片叠加层，把“闷黑感”打破，注入高级通透感
+
                 if colorScheme == .dark {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(Color.white.opacity(isHovering ? 0.05 : 0.02))
