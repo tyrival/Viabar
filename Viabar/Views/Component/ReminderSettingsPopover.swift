@@ -107,8 +107,15 @@ struct ReminderSettingsPopover: View {
     private func loadReminder() {
         guard let reminder else {
             print("[Reminder] loadReminder: 无现有提醒，使用默认值")
-            selectedDate = Date()
-            selectedTime = Date()
+            let now = Date()
+            let nextHour = Calendar.current.date(
+                bySettingHour: Calendar.current.component(.hour, from: now) + 1,
+                minute: 0,
+                second: 0,
+                of: now
+            ) ?? now
+            selectedDate = nextHour
+            selectedTime = nextHour
             repeatOption = .never
             existingReminderId = nil
             return
