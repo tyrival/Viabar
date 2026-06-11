@@ -12,7 +12,15 @@ struct IOSPersistentReminderEditor: View {
     init(reminder: Reminder?, onSubmit: @escaping (Reminder?) -> Void) {
         self.reminder = reminder
         self.onSubmit = onSubmit
-        let timestamp = reminder?.fireTimestamp ?? Date()
+        let timestamp = reminder?.fireTimestamp ?? {
+            let now = Date()
+            return Calendar.current.date(
+                bySettingHour: Calendar.current.component(.hour, from: now) + 1,
+                minute: 0,
+                second: 0,
+                of: now
+            ) ?? now
+        }()
         _selectedDate = State(initialValue: timestamp)
         _selectedTime = State(initialValue: timestamp)
         _repeatOption = State(initialValue: IOSReminderRepeatOption(reminder: reminder))
