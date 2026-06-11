@@ -617,14 +617,24 @@ private struct IOSPersistentReportCardView: View {
 
             ForEach(card.groups) { group in
                 VStack(alignment: .leading, spacing: 6) {
-                    taskRow(title: group.title, reminderDate: group.reminderDate, isPrimary: true)
+                    taskRow(
+                        title: group.title,
+                        reminderDate: group.reminderDate,
+                        markerColor: isTodo ? group.markerColor : nil,
+                        isPrimary: true
+                    )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             onNavigate(card.project, .milestone(group.milestoneID))
                         }
 
                     ForEach(group.subtasks) { subtask in
-                        taskRow(title: subtask.title, reminderDate: subtask.reminderDate, isPrimary: false)
+                        taskRow(
+                            title: subtask.title,
+                            reminderDate: subtask.reminderDate,
+                            markerColor: isTodo ? subtask.markerColor : nil,
+                            isPrimary: false
+                        )
                             .padding(.leading, 12)
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -649,23 +659,40 @@ private struct IOSPersistentReportCardView: View {
             : .white
     }
 
-    private func taskRow(title: String, reminderDate: Date?, isPrimary: Bool) -> some View {
+    private func taskRow(
+        title: String,
+        reminderDate: Date?,
+        markerColor: TaskMarkerColor?,
+        isPrimary: Bool
+    ) -> some View {
         HStack(alignment: .top, spacing: 5) {
             Circle()
                 .fill(Color.gray.opacity(0.35))
                 .frame(width: 5, height: 5)
                 .padding(.top, 6)
 
-            taskText(title: title, reminderDate: reminderDate, isPrimary: isPrimary)
+            taskText(
+                title: title,
+                reminderDate: reminderDate,
+                markerColor: markerColor,
+                isPrimary: isPrimary
+            )
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func taskText(title: String, reminderDate: Date?, isPrimary: Bool) -> Text {
+    private func taskText(
+        title: String,
+        reminderDate: Date?,
+        markerColor: TaskMarkerColor?,
+        isPrimary: Bool
+    ) -> Text {
+        let titleColor = markerColor.map(ViabarColor.taskMarker)
+            ?? (isPrimary ? Color.primary : Color.secondary)
         let titleText = Text(title)
             .font(isPrimary ? .system(size: 13, weight: .medium) : .system(size: 12))
-            .foregroundColor(isPrimary ? .primary : .secondary)
+            .foregroundColor(titleColor)
 
         guard let date = reminderDate else {
             return titleText

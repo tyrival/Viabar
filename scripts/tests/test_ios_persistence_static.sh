@@ -54,6 +54,25 @@ rg -q 'updateReminder\(.*for: milestone\)' "$IOS_DIR/Persistence/IOSPersistentPr
     fail "milestone reminder editing must reuse ProjectService"
 rg -q 'updateReminder\(.*for: subtask\)' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
     fail "subtask reminder editing must reuse ProjectService"
+rg -q 'updateMarkerColor\(markerColor, for: milestone\)' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "milestone color tags must reuse ProjectService"
+rg -q 'updateMarkerColor\(markerColor, for: subtask\)' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "subtask color tags must reuse ProjectService"
+rg -q 'TaskMarkerColor\.resolve\(milestone\.markerColor\)' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "milestone color tags must reuse the shared TaskMarkerColor representation"
+rg -q 'TaskMarkerColor\.resolve\(subtask\.markerColor\)' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "subtask color tags must reuse the shared TaskMarkerColor representation"
+rg -q 'taskMarkerColorButtons' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "task color choices must be exposed directly in the first-level context menu"
+if rg -q 'taskMarkerColorMenu' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift"; then
+    fail "task color choices must not be nested in a submenu"
+fi
+rg -q 'renderingMode: \.alwaysOriginal' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
+    fail "task color menu dots must preserve their red/yellow/green colors"
+rg -q 'markerColor: isTodo \? group\.markerColor : nil' "$IOS_DIR/Persistence/IOSPersistentOverviewView.swift" ||
+    fail "iOS todo report milestone text must use its task color tag"
+rg -q 'markerColor: isTodo \? subtask\.markerColor : nil' "$IOS_DIR/Persistence/IOSPersistentOverviewView.swift" ||
+    fail "iOS todo report subtask text must use its task color tag"
 rg -q 'displaySummary\(' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" &&
     rg -q 'dateFormatPattern: savedDateFormat' "$IOS_DIR/Persistence/IOSPersistentProjectDetailView.swift" ||
     fail "project detail reminder summaries must honor the saved date format"

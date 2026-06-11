@@ -23,6 +23,7 @@
 		D10000272FDD000100000001 /* Viabar/Models/TaskCompletionMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000372FDD000100000001 /* Viabar/Models/TaskCompletionMutation.swift */; };
 		D10000282FDD000100000001 /* Viabar/Models/WidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000382FDD000100000001 /* Viabar/Models/WidgetContent.swift */; };
 		D10000292FDD000100000001 /* Viabar/System/SharedModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000392FDD000100000001 /* Viabar/System/SharedModelContainer.swift */; };
+		F10000012FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000022FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift */; };
 		E10000012FCE700000000001 /* Viabar/Models/Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000312FDD000100000001 /* Viabar/Models/Project.swift */; };
 		E10000022FCE700000000001 /* Viabar/Models/AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000322FDD000100000001 /* Viabar/Models/AppSettings.swift */; };
 		E10000032FCE700000000001 /* Viabar/Models/ReminderDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000332FDD000100000001 /* Viabar/Models/ReminderDisplay.swift */; };
@@ -136,9 +137,17 @@
 		E20000182FCE700000000001 /* Viabar/Services/TrashService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/TrashService.swift; sourceTree = SOURCE_ROOT; };
 		E20000192FCE700000000001 /* Viabar/Services/ProjectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/ProjectService.swift; sourceTree = SOURCE_ROOT; };
 		E200001A2FCE700000000001 /* Viabar/Models/OverviewReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/OverviewReport.swift; sourceTree = SOURCE_ROOT; };
+		F10000022FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Views/Component/DragSessionEndReset.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F10000032FDF000100000001 /* Exceptions for "Viabar" folder in "Viabar" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Views/Component/DragSessionEndReset.swift,
+			);
+			target = C3F31B002FBC0DBC00CEC84F /* Viabar */;
+		};
 		C3AE2E132FCE642F00528C34 /* Exceptions for "ViabariOSWidget" folder in "ViabariOSWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -181,6 +190,9 @@
 		};
 		C3F31B032FBC0DBC00CEC84F /* Viabar */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F10000032FDF000100000001 /* Exceptions for "Viabar" folder in "Viabar" target */,
+			);
 			path = Viabar;
 			sourceTree = "<group>";
 		};
@@ -274,6 +286,7 @@
 				E20000172FCE700000000001 /* Viabar/Services/NotificationScheduleService.swift */,
 				E20000182FCE700000000001 /* Viabar/Services/TrashService.swift */,
 				E20000192FCE700000000001 /* Viabar/Services/ProjectService.swift */,
+				F10000022FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -617,6 +630,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F10000012FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

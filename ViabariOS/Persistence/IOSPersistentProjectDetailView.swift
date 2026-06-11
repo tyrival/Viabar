@@ -256,6 +256,13 @@ struct IOSPersistentProjectDetailView: View {
                     composerText = ""
                     session = .addSubtask(milestoneID: milestone.milestoneId)
                 }
+                Divider()
+                taskMarkerColorButtons(
+                    selected: TaskMarkerColor.resolve(milestone.markerColor)
+                ) { markerColor in
+                    services.projectService?.updateMarkerColor(markerColor, for: milestone)
+                }
+                Divider()
             }
             Button("复制", systemImage: "doc.on.doc") {
                 copyIOSPrototypeText(milestone.title)
@@ -307,6 +314,13 @@ struct IOSPersistentProjectDetailView: View {
                 Button("编辑", systemImage: "pencil") {
                     beginEditing(subtask, milestone: milestone)
                 }
+                Divider()
+                taskMarkerColorButtons(
+                    selected: TaskMarkerColor.resolve(subtask.markerColor)
+                ) { markerColor in
+                    services.projectService?.updateMarkerColor(markerColor, for: subtask)
+                }
+                Divider()
             }
             Button("复制", systemImage: "doc.on.doc") {
                 copyIOSPrototypeText(subtask.title)
@@ -528,12 +542,22 @@ struct IOSPersistentProjectDetailView: View {
         return row.milestoneID != nextRow.milestoneID
     }
 
-    private func titleContent(_ title: String, reminder: Reminder?, isCompleted: Bool, isHighlighted: Bool) -> some View {
+    private func titleContent(
+        _ title: String,
+        reminder: Reminder?,
+        markerColor: TaskMarkerColor?,
+        isCompleted: Bool,
+        isHighlighted: Bool
+    ) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline)
-                    .foregroundStyle(isHighlighted ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                    .foregroundStyle(taskTitleColor(
+                        markerColor: markerColor,
+                        isCompleted: isCompleted,
+                        isHighlighted: isHighlighted
+                    ))
                 if let reminder {
                     Text(reminder.displaySummary(
                         dateFormatPattern: savedDateFormat,
@@ -572,13 +596,26 @@ struct IOSPersistentProjectDetailView: View {
 
     @ViewBuilder
     private func milestoneTitleControl(_ milestone: Milestone, isHighlighted: Bool) -> some View {
+        let markerColor = TaskMarkerColor.resolve(milestone.markerColor)
         if project.isArchived {
-            titleContent(milestone.title, reminder: milestone.reminder, isCompleted: milestone.score >= 1, isHighlighted: isHighlighted)
+            titleContent(
+                milestone.title,
+                reminder: milestone.reminder,
+                markerColor: markerColor,
+                isCompleted: milestone.score >= 1,
+                isHighlighted: isHighlighted
+            )
         } else {
             Button {
                 beginEditing(milestone)
             } label: {
-                titleContent(milestone.title, reminder: milestone.reminder, isCompleted: milestone.score >= 1, isHighlighted: isHighlighted)
+                titleContent(
+                    milestone.title,
+                    reminder: milestone.reminder,
+                    markerColor: markerColor,
+                    isCompleted: milestone.score >= 1,
+                    isHighlighted: isHighlighted
+                )
             }
             .buttonStyle(.plain)
         }
@@ -606,15 +643,108 @@ struct IOSPersistentProjectDetailView: View {
 
     @ViewBuilder
     private func subtaskTitleControl(_ subtask: SubTask, milestone: Milestone, isHighlighted: Bool) -> some View {
+        let markerColor = TaskMarkerColor.resolve(subtask.markerColor)
         if project.isArchived {
-            titleContent(subtask.title, reminder: subtask.reminder, isCompleted: subtask.isCompleted, isHighlighted: isHighlighted)
+            titleContent(
+                subtask.title,
+                reminder: subtask.reminder,
+                markerColor: markerColor,
+                isCompleted: subtask.isCompleted,
+                isHighlighted: isHighlighted
+            )
         } else {
             Button {
                 beginEditing(subtask, milestone: milestone)
             } label: {
-                titleContent(subtask.title, reminder: subtask.reminder, isCompleted: subtask.isCompleted, isHighlighted: isHighlighted)
+                titleContent(
+                    subtask.title,
+                    reminder: subtask.reminder,
+                    markerColor: markerColor,
+                    isCompleted: subtask.isCompleted,
+                    isHighlighted: isHighlighted
+                )
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private func taskTitleColor(
+        markerColor: TaskMarkerColor?,
+        isCompleted: Bool,
+        isHighlighted: Bool
+    ) -> AnyShapeStyle {
+        if isHighlighted {
+            return AnyShapeStyle(.white)
+        }
+        if isCompleted {
+            return AnyShapeStyle(.secondary)
+        }
+        return markerColor
+            .map { AnyShapeStyle(ViabarColor.taskMarker($0)) }
+            ?? AnyShapeStyle(.primary)
+    }
+
+    @ViewBuilder
+    private func taskMarkerColorButtons(
+        selected: TaskMarkerColor?,
+        onSelect: @escaping (TaskMarkerColor?) -> Void
+    ) -> some View {
+        Button {
+            onSelect(nil)
+        } label: {
+            taskMarkerColorLabel(
+                title: "无颜色",
+                color: .secondary,
+                isSelected: selected == nil,
+                isFilled: false
+            )
+        }
+
+        ForEach(TaskMarkerColor.allCases) { markerColor in
+            Button {
+                onSelect(markerColor)
+            } label: {
+                taskMarkerColorLabel(
+                    title: taskMarkerColorTitle(markerColor),
+                    color: ViabarColor.taskMarker(markerColor),
+                    isSelected: selected == markerColor
+                )
+            }
+        }
+    }
+
+    private func taskMarkerColorLabel(
+        title: LocalizedStringKey,
+        color: Color,
+        isSelected: Bool,
+        isFilled: Bool = true
+    ) -> some View {
+        HStack {
+            Image(uiImage: taskMarkerMenuIcon(
+                color: color,
+                isFilled: isFilled
+            ))
+            Text(title)
+            if isSelected {
+                Spacer()
+                Image(systemName: "checkmark")
+            }
+        }
+    }
+
+    private func taskMarkerMenuIcon(color: Color, isFilled: Bool) -> UIImage {
+        let configuration = UIImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        let symbolName = isFilled ? "circle.fill" : "circle"
+        return UIImage(systemName: symbolName, withConfiguration: configuration)?
+            .withTintColor(UIColor(color), renderingMode: .alwaysOriginal)
+            ?? UIImage()
+    }
+
+    private func taskMarkerColorTitle(_ markerColor: TaskMarkerColor) -> LocalizedStringKey {
+        switch markerColor {
+        case .red: "红"
+        case .yellow: "黄"
+        case .green: "绿"
         }
     }
 
