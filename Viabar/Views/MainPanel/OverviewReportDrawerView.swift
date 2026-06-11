@@ -192,6 +192,13 @@ private struct OverviewReportCardView: View {
     let isTodo: Bool
     let onNavigate: (Project, GlobalSearchDestination) -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var hoveredText: HoveredText?
+
+    private enum HoveredText: Equatable {
+        case project
+        case milestone(UUID)
+        case subtask(UUID)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -203,7 +210,10 @@ private struct OverviewReportCardView: View {
 
                 Text(card.project.title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                    .foregroundStyle(
+                        (colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                            .opacity(hoveredText == .project ? 0.72 : 1)
+                    )
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -238,6 +248,7 @@ private struct OverviewReportCardView: View {
             .onTapGesture {
                 onNavigate(card.project, .project)
             }
+            .onHover { hoveredText = $0 ? .project : nil }
 
             ForEach(card.groups) { group in
                 VStack(alignment: .leading, spacing: 3) {
@@ -246,11 +257,15 @@ private struct OverviewReportCardView: View {
                         title: group.title,
                         markerColor: isTodo ? group.markerColor : nil,
                         reminderDate: group.reminderDate,
-                        isPrimary: true
+                        isPrimary: true,
+                        isHovered: hoveredText == .milestone(group.milestoneID)
                     )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             onNavigate(card.project, .milestone(group.milestoneID))
+                        }
+                        .onHover {
+                            hoveredText = $0 ? .milestone(group.milestoneID) : nil
                         }
 
                     ForEach(group.subtasks) { subtask in
@@ -259,12 +274,16 @@ private struct OverviewReportCardView: View {
                             title: subtask.title,
                             markerColor: isTodo ? subtask.markerColor : nil,
                             reminderDate: subtask.reminderDate,
-                            isPrimary: false
+                            isPrimary: false,
+                            isHovered: hoveredText == .subtask(subtask.taskID)
                         )
                             .padding(.leading, 12)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 onNavigate(card.project, .subTask(milestoneID: group.milestoneID, subTaskID: subtask.taskID))
+                            }
+                            .onHover {
+                                hoveredText = $0 ? .subtask(subtask.taskID) : nil
                             }
                     }
                 }
@@ -277,28 +296,44 @@ private struct OverviewReportCardView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(OverviewReportDrawerStyle.cardBorder, lineWidth: 1)
         }
+        .animation(.easeOut(duration: 0.12), value: hoveredText)
     }
 
     private func taskRow(
         title: String,
         markerColor: TaskMarkerColor?,
         reminderDate: Date?,
-        isPrimary: Bool
+        isPrimary: Bool,
+        isHovered: Bool
     ) -> some View {
         HStack(alignment: .center, spacing: 5) {
             Circle()
                 .fill(Color.gray.opacity(0.35))
                 .frame(width: 5, height: 5)
 
-            taskText(title: title, markerColor: markerColor, reminderDate: reminderDate, isPrimary: isPrimary)
+            taskText(
+                title: title,
+                markerColor: markerColor,
+                reminderDate: reminderDate,
+                isPrimary: isPrimary,
+                isHovered: isHovered
+            )
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func taskText(title: String, markerColor: TaskMarkerColor?, reminderDate: Date?, isPrimary: Bool) -> Text {
-        let titleColor: Color = markerColor.map(ViabarColor.taskMarker) ?? (isPrimary ? .primary : .secondary)
+    private func taskText(
+        title: String,
+        markerColor: TaskMarkerColor?,
+        reminderDate: Date?,
+        isPrimary: Bool,
+        isHovered: Bool
+    ) -> Text {
+        let baseTitleColor: Color = markerColor.map(ViabarColor.taskMarker) ?? (isPrimary ? .primary : .secondary)
+        let titleColor = baseTitleColor.opacity(isHovered ? 0.72 : 1)
         let titleText = Text(title)
             .font(.callout)
             .foregroundColor(titleColor)

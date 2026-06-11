@@ -406,6 +406,12 @@ private struct MenuBarProjectCardView: View {
     let onToggleEntry: (MenuBarTaskEntry) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var hoveredText: HoveredText?
+
+    private enum HoveredText: Equatable {
+        case project
+        case entry(String)
+    }
 
     private var effectiveLanguage: EffectiveAppLanguage {
         AppLanguage.effectiveLanguage(storedValue: settings?.language)
@@ -420,7 +426,10 @@ private struct MenuBarProjectCardView: View {
                         .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                     Text(card.project.title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                        .foregroundStyle(
+                            (colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                                .opacity(hoveredText == .project ? 0.72 : 1)
+                        )
                     Spacer()
                     if card.project.isFavorite {
                         Image(systemName: "star.fill")
@@ -430,6 +439,7 @@ private struct MenuBarProjectCardView: View {
                 }
             }
             .buttonStyle(.plain)
+            .onHover { hoveredText = $0 ? .project : nil }
 
             ForEach(card.entries) { entry in
                 HStack(alignment: .top, spacing: 8) {
@@ -452,6 +462,7 @@ private struct MenuBarProjectCardView: View {
                             HStack(spacing: 5) {
                                 Text(entry.title)
                                     .lineLimit(2)
+                                    .opacity(hoveredText == .entry(entry.id) ? 0.72 : 1)
                                 if entry.source == .projectReminder {
                                     Text("项目提醒")
                                         .font(.caption2)
@@ -465,6 +476,7 @@ private struct MenuBarProjectCardView: View {
                                 Text(parentTitle)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                    .opacity(hoveredText == .entry(entry.id) ? 0.72 : 1)
                             }
 
                             if let reminder = entry.reminder {
@@ -480,6 +492,9 @@ private struct MenuBarProjectCardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
+                    .onHover {
+                        hoveredText = $0 ? .entry(entry.id) : nil
+                    }
                 }
             }
         }
@@ -490,6 +505,7 @@ private struct MenuBarProjectCardView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(MenuBarPanelStyle.cardBorder, lineWidth: 1)
         }
+        .animation(.easeOut(duration: 0.12), value: hoveredText)
     }
 }
 

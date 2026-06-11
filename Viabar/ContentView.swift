@@ -988,6 +988,13 @@ struct OverviewProjectCard: View {
     @Environment(ServiceContainer.self) private var container
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var isHovering = false
+    @State private var hoveredText: HoveredText?
+
+    private enum HoveredText: Equatable {
+        case project
+        case milestone
+        case subtask
+    }
 
     private let hoverAnimationDuration = 0.16
     private let progressRingSize: CGFloat = 28
@@ -1036,18 +1043,19 @@ struct OverviewProjectCard: View {
         return colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity)
     }
 
-    private func milestoneTitleColor(_ markerColor: String?) -> Color {
+    private func milestoneTitleColor(_ markerColor: String?, isHovered: Bool) -> Color {
         if let marker = TaskMarkerColor.resolve(markerColor) {
-            return ViabarColor.taskMarker(marker)
+            return ViabarColor.taskMarker(marker).opacity(isHovered ? 0.72 : 1)
         }
-        return colorScheme == .dark ? Color(hex: "#C6CBD2") : Color(hex: "#4B5563")
+        let color = colorScheme == .dark ? Color(hex: "#C6CBD2") : Color(hex: "#4B5563")
+        return color.opacity(isHovered ? 0.72 : 1)
     }
 
-    private func subtaskTitleColor(_ markerColor: String?) -> Color {
+    private func subtaskTitleColor(_ markerColor: String?, isHovered: Bool) -> Color {
         if let marker = TaskMarkerColor.resolve(markerColor) {
-            return ViabarColor.taskMarker(marker)
+            return ViabarColor.taskMarker(marker).opacity(isHovered ? 0.72 : 1)
         }
-        return .gray
+        return Color.gray.opacity(isHovered ? 0.72 : 1)
     }
 
     private var reminderTextColor: Color {
@@ -1079,7 +1087,10 @@ struct OverviewProjectCard: View {
                     .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                 Text(project.title)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                    .foregroundStyle(
+                        (colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                            .opacity(hoveredText == .project ? 0.72 : 1)
+                    )
                     .lineLimit(1)
                 Spacer(minLength: 6)
                 if project.isFavorite {
@@ -1090,6 +1101,7 @@ struct OverviewProjectCard: View {
             }
             .padding(.leading, 16)
             .padding(.trailing, 16)
+            .onHover { hoveredText = $0 ? .project : nil }
 
             // 不透明卡片：任务/子任务、提醒、进度环
             VStack(alignment: .leading, spacing: 0) {
@@ -1101,18 +1113,32 @@ struct OverviewProjectCard: View {
                             .frame(width: 16, alignment: .center)
                         Text(milestone.title)
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(milestoneTitleColor(milestone.markerColor))
+                            .foregroundStyle(
+                                milestoneTitleColor(
+                                    milestone.markerColor,
+                                    isHovered: hoveredText == .milestone
+                                )
+                            )
                             .lineLimit(1)
                     }
                     .padding(.leading, taskRowIndent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onHover { hoveredText = $0 ? .milestone : nil }
 
                     if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
                         Text(subtask.title)
                             .font(.system(size: 12))
-                            .foregroundStyle(subtaskTitleColor(subtask.markerColor))
+                            .foregroundStyle(
+                                subtaskTitleColor(
+                                    subtask.markerColor,
+                                    isHovered: hoveredText == .subtask
+                                )
+                            )
                             .lineLimit(1)
                             .padding(.leading, taskRowIndent + 16 + 6)
                             .padding(.top, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .onHover { hoveredText = $0 ? .subtask : nil }
                     }
                 }
 
@@ -1213,6 +1239,7 @@ struct OverviewProjectCard: View {
         }
         .offset(y: isHovering ? -2 : 0)
         .animation(.easeOut(duration: hoverAnimationDuration), value: isHovering)
+        .animation(.easeOut(duration: 0.12), value: hoveredText)
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .onHover { isHovering = $0 }
         .onTapGesture(perform: onSelect)
