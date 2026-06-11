@@ -6,7 +6,7 @@
 
 #### 说明
 
-[English](README.md) ｜ 中文
+[English](README.md) ｜ 中文 ｜ [日本語](README_ja.md) ｜ [한국어](README_ko.md) ｜ [Deutsch](README_de.md) ｜ [Français](README_fr.md) ｜ [Español](README_es.md)
 
 ## 概述
 

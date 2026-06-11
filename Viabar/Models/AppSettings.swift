@@ -22,6 +22,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case system
     case english
     case simplifiedChinese
+    case japanese
+    case korean
+    case german
+    case french
+    case spanish
 
     var id: String { rawValue }
 
@@ -30,6 +35,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .system: "系统"
         case .english: "English"
         case .simplifiedChinese: "简体中文"
+        case .japanese: "日本語"
+        case .korean: "한국어"
+        case .german: "Deutsch"
+        case .french: "Français"
+        case .spanish: "Español"
         }
     }
 
@@ -42,13 +52,25 @@ enum AppLanguage: String, CaseIterable, Identifiable {
             return .english
         case .simplifiedChinese:
             return .simplifiedChinese
+        case .japanese:
+            return .japanese
+        case .korean:
+            return .korean
+        case .german:
+            return .german
+        case .french:
+            return .french
+        case .spanish:
+            return .spanish
         case .system:
             let preferred = preferredLanguages.first?.lowercased() ?? ""
-            return preferred.hasPrefix("zh-hans")
-                || preferred.hasPrefix("zh-cn")
-                || preferred.hasPrefix("zh_cn")
-                ? .simplifiedChinese
-                : .english
+            if preferred.hasPrefix("zh-hans") || preferred.hasPrefix("zh-cn") || preferred.hasPrefix("zh_cn") { return .simplifiedChinese }
+            if preferred.hasPrefix("ja") { return .japanese }
+            if preferred.hasPrefix("ko") { return .korean }
+            if preferred.hasPrefix("de") { return .german }
+            if preferred.hasPrefix("fr") { return .french }
+            if preferred.hasPrefix("es") { return .spanish }
+            return .english
         }
     }
 }
@@ -56,13 +78,25 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 enum EffectiveAppLanguage: String {
     case english = "en"
     case simplifiedChinese = "zh-Hans"
+    case japanese = "ja"
+    case korean = "ko"
+    case german = "de"
+    case french = "fr"
+    case spanish = "es"
 
     var locale: Locale {
         Locale(identifier: rawValue)
     }
 
     static func resolve(locale: Locale) -> EffectiveAppLanguage {
-        locale.identifier.lowercased().hasPrefix("zh-hans") ? .simplifiedChinese : .english
+        let id = locale.identifier.lowercased()
+        if id.hasPrefix("zh-hans") || id.hasPrefix("zh-cn") || id.hasPrefix("zh_cn") { return .simplifiedChinese }
+        if id.hasPrefix("ja") { return .japanese }
+        if id.hasPrefix("ko") { return .korean }
+        if id.hasPrefix("de") { return .german }
+        if id.hasPrefix("fr") { return .french }
+        if id.hasPrefix("es") { return .spanish }
+        return .english
     }
 }
 
