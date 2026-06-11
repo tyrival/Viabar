@@ -740,6 +740,11 @@ struct OverviewDashboardView: View {
             .padding(.trailing, trailingPanelWidth)
         }
         .background(ViabarColor.mainPanelBackground)
+        .dragSessionEndReset(isActive: draggingProjectID != nil) {
+            guard draggingProjectID != nil else { return }
+            draggingProjectID = nil
+            projectDropTarget = nil
+        }
     }
 
     private func sectionHeader(icon: String, title: String) -> some View {

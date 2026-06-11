@@ -3,17 +3,6 @@ import SwiftData
 import UniformTypeIdentifiers
 import AppKit
 
-private let projectDropLogStart = Date()
-
-private func projectDropLog(_ message: String) {
-    let elapsed = Date().timeIntervalSince(projectDropLogStart)
-    print(String(format: "[ProjectDrop +%.3fs] %@", elapsed, message))
-}
-
-private func sidebarContextLog(_ message: String) {
-    print("[SidebarContext] \(message)")
-}
-
 private struct RightClickContextReader: NSViewRepresentable {
     let onRightClick: () -> Void
 
@@ -43,13 +32,11 @@ private enum SidebarMenuEntry {
 }
 
 private struct SidebarRightClickMenu: NSViewRepresentable {
-    let source: String
     let entries: () -> [SidebarMenuEntry]
     let onRightClick: () -> Void
 
     func makeNSView(context: Context) -> MenuHostView {
         let view = MenuHostView()
-        view.source = source
         view.entries = entries
         view.onRightClick = onRightClick
         view.installMonitor()
@@ -57,7 +44,6 @@ private struct SidebarRightClickMenu: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: MenuHostView, context: Context) {
-        nsView.source = source
         nsView.entries = entries
         nsView.onRightClick = onRightClick
     }
@@ -67,7 +53,6 @@ private struct SidebarRightClickMenu: NSViewRepresentable {
     }
 
     final class MenuHostView: NSView {
-        var source = ""
         var entries: (() -> [SidebarMenuEntry])?
         var onRightClick: (() -> Void)?
         private var monitor: Any?
@@ -84,7 +69,6 @@ private struct SidebarRightClickMenu: NSViewRepresentable {
                 guard bounds.contains(pointInView) else { return event }
 
                 onRightClick?()
-                sidebarContextLog("show menu source=\(source) point=\(String(format: "%.1f,%.1f", pointInView.x, pointInView.y)) bounds=\(String(format: "%.1fx%.1f", bounds.width, bounds.height))")
                 let menu = NSMenu()
                 for entry in entries?() ?? [] {
                     switch entry {
@@ -249,24 +233,16 @@ struct SidebarView: View {
         container.projectService
     }
 
-    private func setContextProject(_ project: Project, source: String) {
+    private func setContextProject(_ project: Project) {
         contextProjectId = project.projectId
-        sidebarContextLog("set project source=\(source) title=\(project.title) id=\(project.projectId)")
-    }
-
-    private func setContextArchiveFolder(_ folder: ArchiveFolder, source: String) {
-        contextArchiveFolderId = folder.folderId
-        sidebarContextLog("set folder source=\(source) name=\(folder.name) id=\(folder.folderId)")
     }
 
     private func contextProject(fallback project: Project) -> Project {
         guard let contextProjectId,
               let target = allProjects.first(where: { $0.projectId == contextProjectId })
         else {
-            sidebarContextLog("resolve project fallback title=\(project.title) id=\(project.projectId) context=\(contextProjectId?.uuidString ?? "nil")")
             return project
         }
-        sidebarContextLog("resolve project fallback=\(project.title) -> target=\(target.title) id=\(target.projectId)")
         return target
     }
 
@@ -274,22 +250,9 @@ struct SidebarView: View {
         guard let contextArchiveFolderId,
               let target = allFolders.first(where: { $0.folderId == contextArchiveFolderId })
         else {
-            sidebarContextLog("resolve folder fallback name=\(folder.name) id=\(folder.folderId) context=\(contextArchiveFolderId?.uuidString ?? "nil")")
             return folder
         }
-        sidebarContextLog("resolve folder fallback=\(folder.name) -> target=\(target.name) id=\(target.folderId)")
         return target
-    }
-
-    private func selectionDescription(_ value: SidebarSelection?) -> String {
-        switch value {
-        case .overview:
-            return "overview"
-        case .project(let project):
-            return "project title=\(project.title) id=\(project.projectId)"
-        case nil:
-            return "nil"
-        }
     }
 
     private var activeProjects: [Project] {
@@ -350,6 +313,24 @@ struct SidebarView: View {
         var displayed = order.compactMap { byID.removeValue(forKey: $0) }
         displayed.append(contentsOf: projects.filter { byID[$0.projectId] != nil })
         return displayed
+    }
+
+    private func resetSidebarDragState() {
+        guard draggingActiveProjectId != nil || draggingArchiveFolderId != nil else { return }
+
+        draggingActiveProjectId = nil
+        draggingArchiveFolderId = nil
+        activeProjectDropTarget = nil
+        archiveFolderDropTarget = nil
+        archiveProjectDropTargetFolderId = nil
+        archiveProjectDropTarget = nil
+        archiveRootDropHighlighted = false
+        archiveFolderDisplayOrderByParent.removeAll()
+        archiveProjectDisplayOrderByFolder.removeAll()
+
+        if !isCommittingActiveProjectDrop {
+            activeProjectDisplayOrder = nil
+        }
     }
 
     // MARK: - Body
@@ -439,8 +420,10 @@ struct SidebarView: View {
         .onChange(of: revealRequest?.id) { _, _ in
             revealArchivedProject(revealRequest?.projectID)
         }
-        .onChange(of: selection) { oldValue, newValue in
-            sidebarContextLog("selection old=\(selectionDescription(oldValue)) new=\(selectionDescription(newValue))")
+        .dragSessionEndReset(
+            isActive: draggingActiveProjectId != nil || draggingArchiveFolderId != nil
+        ) {
+            resetSidebarDragState()
         }
         .archiveFolderPicker(
             isPresented: Binding(
@@ -531,19 +514,15 @@ struct SidebarView: View {
                                 contextProject(fallback: project).isFavorite
                             },
                             onEdit: {
-                                sidebarContextLog("action active.edit fallback=\(project.title)")
                                 editingProject = contextProject(fallback: project)
                             },
                             onArchive: {
-                                sidebarContextLog("action active.archive fallback=\(project.title)")
                                 archivePickerProject = contextProject(fallback: project)
                             },
                             onToggleFavorite: {
-                                sidebarContextLog("action active.favorite fallback=\(project.title)")
                                 projectService?.toggleFavorite(contextProject(fallback: project))
                             },
                             onDelete: {
-                                sidebarContextLog("action active.delete fallback=\(project.title)")
                                 showDeleteProjectConfirmation(contextProject(fallback: project))
                             },
                             onSelect: {
@@ -552,18 +531,17 @@ struct SidebarView: View {
                         )
                         .onHover { hovering in
                             if hovering {
-                                setContextProject(project, source: "active.hover")
+                                setContextProject(project)
                             }
                         }
                         .background {
                             RightClickContextReader {
-                                setContextProject(project, source: "active.rightMouseDown")
+                                setContextProject(project)
                             }
                         }
                         .onDrag {
                             draggingActiveProjectId = project.projectId
                             activeProjectDisplayOrder = displayedActiveProjects.map(\.projectId)
-                            projectDropLog("drag start project=\(project.title) id=\(project.projectId)")
                             let provider = NSItemProvider(object: project.projectId.uuidString as NSString)
                             return provider
                         }
@@ -588,9 +566,7 @@ struct SidebarView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .onChange(of: draggingActiveProjectId) { _, newValue in
-                    projectDropLog("draggingActiveProjectId changed to \(newValue?.uuidString ?? "nil")")
                     if newValue == nil {
-                        projectDropLog("clear drop target because dragging project is nil")
                         activeProjectDropTarget = nil
                         if !isCommittingActiveProjectDrop {
                             activeProjectDisplayOrder = nil
@@ -727,23 +703,18 @@ struct SidebarView: View {
                         allFolders: allFolders,
                         service: projectService,
                         onCreateSubfolder: { folder in
-                            sidebarContextLog("action folder.createChild fallback=\(folder.name)")
                             showCreateSubfolderPrompt(parent: contextArchiveFolder(fallback: folder))
                         },
                         onRenameFolder: { folder in
-                            sidebarContextLog("action folder.rename fallback=\(folder.name)")
                             showRenameFolderPrompt(folder: contextArchiveFolder(fallback: folder))
                         },
                         onDeleteFolder: { folder in
-                            sidebarContextLog("action folder.delete fallback=\(folder.name)")
                             requestDeleteFolder(contextArchiveFolder(fallback: folder))
                         },
                         onUnarchiveProject: { project in
-                            sidebarContextLog("action archiveProject.unarchive fallback=\(project.title)")
                             projectService?.unarchiveProject(contextProject(fallback: project))
                         },
                         onDeleteProject: { project in
-                            sidebarContextLog("action archiveProject.delete fallback=\(project.title)")
                             showDeleteProjectConfirmation(contextProject(fallback: project))
                         },
                         onSelectProject: { selection = .project($0) }
@@ -764,14 +735,12 @@ struct SidebarView: View {
                             draggingActiveProjectId = project.projectId
                         },
                         onContextTarget: {
-                            setContextProject(project, source: "archiveRootProject.contextTarget")
+                            setContextProject(project)
                         },
                         onUnarchive: {
-                            sidebarContextLog("action archiveRootProject.unarchive fallback=\(project.title)")
                             projectService?.unarchiveProject(contextProject(fallback: project))
                         },
                         onDelete: {
-                            sidebarContextLog("action archiveRootProject.delete fallback=\(project.title)")
                             showDeleteProjectConfirmation(contextProject(fallback: project))
                         }
                     ) {
@@ -780,12 +749,12 @@ struct SidebarView: View {
                     .id(project.projectId)
                     .onHover { hovering in
                         if hovering {
-                            setContextProject(project, source: "archiveRootProject.hover")
+                            setContextProject(project)
                         }
                     }
                     .background {
                         RightClickContextReader {
-                            setContextProject(project, source: "archiveRootProject.rightMouseDown")
+                            setContextProject(project)
                         }
                     }
                     .onDrop(
@@ -1030,16 +999,14 @@ private struct ArchiveFolderFlatRow: View {
             dragPreview
         }
         .background {
-            SidebarRightClickMenu(source: "archiveFolder:\(folder.name)") {
+            SidebarRightClickMenu {
                 [
                     .item("新建子文件夹", systemImage: "folder.badge.plus", action: onCreateSubfolder),
                     .item("重命名", systemImage: "pencil", action: onRename),
                     .separator,
                     .item("删除文件夹", systemImage: "trash", action: onDelete)
                 ]
-            } onRightClick: {
-                sidebarContextLog("row rightClick archiveFolder name=\(folder.name) id=\(folder.folderId)")
-            }
+            } onRightClick: {}
         }
     }
 }
@@ -1137,13 +1104,11 @@ private struct ArchiveFolderBranchView: View {
             .onHover { hovering in
                 if hovering {
                     contextArchiveFolderId = folder.folderId
-                    sidebarContextLog("set folder source=folder.hover name=\(folder.name) id=\(folder.folderId)")
                 }
             }
             .background {
                 RightClickContextReader {
                     contextArchiveFolderId = folder.folderId
-                    sidebarContextLog("set folder source=folder.rightMouseDown name=\(folder.name) id=\(folder.folderId)")
                 }
             }
             .onDrop(
@@ -1205,7 +1170,6 @@ private struct ArchiveFolderBranchView: View {
                         },
                         onContextTarget: {
                             contextProjectId = project.projectId
-                            sidebarContextLog("set project source=archiveProject.contextTarget title=\(project.title) id=\(project.projectId)")
                         },
                         onUnarchive: { onUnarchiveProject(project) },
                         onDelete: { onDeleteProject(project) }
@@ -1216,13 +1180,11 @@ private struct ArchiveFolderBranchView: View {
                     .onHover { hovering in
                         if hovering {
                             contextProjectId = project.projectId
-                            sidebarContextLog("set project source=archiveProject.hover title=\(project.title) id=\(project.projectId)")
                         }
                     }
                     .background {
                         RightClickContextReader {
                             contextProjectId = project.projectId
-                            sidebarContextLog("set project source=archiveProject.rightMouseDown title=\(project.title) id=\(project.projectId)")
                         }
                     }
                     .onDrop(
@@ -1894,7 +1856,7 @@ struct ActiveProjectRow: View {
             onSelect()
         }
         .background {
-            SidebarRightClickMenu(source: "activeProject:\(project.title)") {
+            SidebarRightClickMenu {
                 [
                     .item(isFavoriteForContext() ? "取消收藏" : "收藏", systemImage: isFavoriteForContext() ? "star.slash" : "star", action: onToggleFavorite),
                     .item("编辑", systemImage: "pencil", action: onEdit),
@@ -1902,9 +1864,7 @@ struct ActiveProjectRow: View {
                     .separator,
                     .item("删除", systemImage: "trash", action: onDelete)
                 ]
-            } onRightClick: {
-                sidebarContextLog("row rightClick activeProject title=\(project.title) id=\(project.projectId)")
-            }
+            } onRightClick: {}
         }
     }
 
@@ -2087,30 +2047,19 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
     @Binding var isCommittingDrop: Bool
 
     func validateDrop(info: DropInfo) -> Bool {
-        guard info.hasItemsConforming(to: [.plainText]) else {
-            projectDropLog("validate=false reason=no plainText")
-            return false
-        }
-        guard let draggingProjectId else {
-            projectDropLog("validate=false reason=no draggingProjectId")
-            return false
-        }
-        let isValid = activeProjects.contains { $0.projectId == draggingProjectId }
-        if !isValid {
-            projectDropLog("validate=false reason=dragging id not active id=\(draggingProjectId)")
-        }
-        return isValid
+        guard info.hasItemsConforming(to: [.plainText]),
+              let draggingProjectId
+        else { return false }
+        return activeProjects.contains { $0.projectId == draggingProjectId }
     }
 
     func dropEntered(info: DropInfo) {
-        projectDropLog("dropEntered y=\(info.location.y)")
         updateDisplayOrder(info: info)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         guard draggingProjectId != nil else {
             dropTarget = nil
-            projectDropLog("dropUpdated proposal=nil reason=no draggingProjectId")
             return nil
         }
         updateDisplayOrder(info: info)
@@ -2118,16 +2067,13 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
     }
 
     func dropExited(info: DropInfo) {
-        projectDropLog("dropExited reset display order y=\(info.location.y)")
         restoreDisplayOrder()
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        projectDropLog("performDrop begin y=\(info.location.y)")
         updateDisplayOrder(info: info)
 
         guard let service else {
-            projectDropLog("performDrop=false reason=missing service")
             resetDragState(restoresDisplayOrder: true)
             return false
         }
@@ -2137,7 +2083,6 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
         resetDragState(restoresDisplayOrder: false)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + ActiveProjectRowMetrics.projectReorderPersistDelay) {
-            projectDropLog("performDrop persist begin")
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
@@ -2146,10 +2091,8 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
                 }
             }
             service.save()
-            projectDropLog("performDrop persist end")
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                projectDropLog("performDrop clear display order override")
                 displayOrderOverride = nil
                 isCommittingDrop = false
             }
@@ -2184,7 +2127,6 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
         let reorderedIDs = reorderedProjects.map(\.projectId)
         guard displayOrderOverride != reorderedIDs else { return }
 
-        projectDropLog("update display order source=\(sourceIndex) target=\(targetIndex) destination=\(destination) placement=\(String(describing: zone.placement)) y=\(info.location.y)")
         withAnimation(.easeInOut(duration: 0.12)) {
             displayOrderOverride = reorderedIDs
         }
@@ -2225,14 +2167,12 @@ private struct ActiveProjectOverlayDropDelegate: DropDelegate {
     }
 
     private func resetDragState(restoresDisplayOrder: Bool) {
-        projectDropLog("reset state begin")
         draggingProjectId = nil
         dropTarget = nil
         if restoresDisplayOrder {
             displayOrderOverride = nil
             isCommittingDrop = false
         }
-        projectDropLog("reset state end")
     }
 
     private func restoreDisplayOrder() {
@@ -2700,7 +2640,7 @@ struct ArchivedProjectSelectableRow: View {
             return NSItemProvider(object: project.projectId.uuidString as NSString)
         }
         .background {
-            SidebarRightClickMenu(source: "archivedProject:\(project.title)") {
+            SidebarRightClickMenu {
                 [
                     .item("取消归档", systemImage: "arrow.uturn.backward", action: onUnarchive),
                     .separator,
@@ -2708,7 +2648,6 @@ struct ArchivedProjectSelectableRow: View {
                 ]
             } onRightClick: {
                 onContextTarget()
-                sidebarContextLog("row rightClick archivedProject title=\(project.title) id=\(project.projectId)")
             }
         }
     }

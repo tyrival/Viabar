@@ -83,6 +83,11 @@ struct MemoTimelineView: View {
             inputBar
         }
         .background(MemoTimelineStyle.panelBackground)
+        .dragSessionEndReset(isActive: draggingMemoID != nil) {
+            guard draggingMemoID != nil else { return }
+            draggingMemoID = nil
+            displayOrderOverride = nil
+        }
     }
 
     // MARK: - Memo Timeline

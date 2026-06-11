@@ -145,9 +145,9 @@ extension ViabarColor {
     static func taskMarker(_ marker: TaskMarkerColor) -> Color {
         switch marker {
         case .red:
-            return danger
+            return Color(hex: "#F94144")
         case .yellow:
-            return warning
+            return Color(hex: "#F9C74F")
         case .green:
             return success
         }

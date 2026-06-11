@@ -627,6 +627,11 @@ private struct SafeMilestoneListView: View {
                 scrollToTarget(proxy)
             }
         }
+        .dragSessionEndReset(isActive: draggingItem != nil) {
+            guard draggingItem != nil else { return }
+            draggingItem = nil
+            dropTarget = nil
+        }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -1035,34 +1040,203 @@ private struct TaskMarkerDot: View {
     }
 }
 
-private struct TaskMarkerColorMenu: View {
+private struct TaskMarkerColorPicker: View {
     let selected: TaskMarkerColor?
     let onSelect: (TaskMarkerColor?) -> Void
 
     var body: some View {
-        Menu {
-            markerButton(nil, title: "无颜色")
-            Divider()
-            markerButton(.red, title: "红")
-            markerButton(.yellow, title: "黄")
-            markerButton(.green, title: "绿")
-        } label: {
-            Label("标记颜色", systemImage: "circle.fill")
+        HStack(spacing: 6) {
+            TaskMarkerColorButton(
+                markerColor: nil,
+                title: "无颜色",
+                isSelected: selected == nil,
+                onSelect: onSelect
+            )
+            TaskMarkerColorButton(
+                markerColor: .red,
+                title: "红",
+                isSelected: selected == .red,
+                onSelect: onSelect
+            )
+            TaskMarkerColorButton(
+                markerColor: .yellow,
+                title: "黄",
+                isSelected: selected == .yellow,
+                onSelect: onSelect
+            )
+            TaskMarkerColorButton(
+                markerColor: .green,
+                title: "绿",
+                isSelected: selected == .green,
+                onSelect: onSelect
+            )
         }
+        .padding(.horizontal, 12)
+        .frame(width: 132, height: 28)
     }
+}
 
-    @ViewBuilder
-    private func markerButton(_ markerColor: TaskMarkerColor?, title: LocalizedStringKey) -> some View {
+private struct TaskMarkerColorButton: View {
+    let markerColor: TaskMarkerColor?
+    let title: LocalizedStringKey
+    let isSelected: Bool
+    let onSelect: (TaskMarkerColor?) -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
         Button {
             onSelect(markerColor)
         } label: {
-            if selected == markerColor {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
+            Circle()
+                .fill(markerColor.map(ViabarColor.taskMarker) ?? Color.primary.opacity(0.001))
+                .frame(width: 14, height: 14)
+                .overlay {
+                    Circle()
+                        .stroke(
+                            isSelected ? Color.primary : Color.secondary.opacity(0.65),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                }
+                .scaleEffect(isHovered ? 1.28 : 1)
+                .frame(width: 22, height: 22)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovered = hovering
             }
         }
+        .accessibilityLabel(title)
     }
+}
+
+private enum TaskContextMenuEntry {
+    case item(String, systemImage: String, action: () -> Void)
+    case colorPicker(selected: TaskMarkerColor?, onSelect: (TaskMarkerColor?) -> Void)
+    case separator
+}
+
+private struct TaskRightClickMenu: NSViewRepresentable {
+    let locale: Locale
+    let entries: () -> [TaskContextMenuEntry]
+
+    func makeNSView(context: Context) -> MenuHostView {
+        let view = MenuHostView()
+        view.locale = locale
+        view.entries = entries
+        view.installMonitor()
+        return view
+    }
+
+    func updateNSView(_ nsView: MenuHostView, context: Context) {
+        nsView.locale = locale
+        nsView.entries = entries
+    }
+
+    static func dismantleNSView(_ nsView: MenuHostView, coordinator: ()) {
+        nsView.removeMonitor()
+    }
+
+    final class MenuHostView: NSView {
+        var locale = Locale.current
+        var entries: (() -> [TaskContextMenuEntry])?
+        private var monitor: Any?
+
+        func installMonitor() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+                guard let self,
+                      let window,
+                      event.window === window
+                else { return event }
+
+                let pointInView = convert(event.locationInWindow, from: nil)
+                guard bounds.contains(pointInView) else { return event }
+
+                let menu = NSMenu()
+                for entry in entries?() ?? [] {
+                    switch entry {
+                    case .separator:
+                        menu.addItem(.separator())
+                    case .item(let title, let systemImage, let action):
+                        let localizedTitle = localizedTaskMenuString(title, locale: locale)
+                        let item = ClosureMenuItem(
+                            title: localizedTitle,
+                            action: #selector(ClosureMenuItem.invoke),
+                            keyEquivalent: ""
+                        )
+                        item.handler = action
+                        item.target = item
+                        item.image = NSImage(
+                            systemSymbolName: systemImage,
+                            accessibilityDescription: localizedTitle
+                        )
+                        menu.addItem(item)
+                    case .colorPicker(let selected, let onSelect):
+                        let item = NSMenuItem()
+                        let hostingView = NSHostingView(
+                            rootView: TaskMarkerColorPicker(selected: selected) { markerColor in
+                                onSelect(markerColor)
+                                menu.cancelTracking()
+                            }
+                            .environment(\.locale, locale)
+                        )
+                        hostingView.frame = NSRect(x: 0, y: 0, width: 132, height: 28)
+                        item.view = hostingView
+                        menu.addItem(item)
+                    }
+                }
+
+                menu.popUp(positioning: nil, at: pointInView, in: self)
+                return nil
+            }
+        }
+
+        func removeMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        deinit {
+            removeMonitor()
+        }
+    }
+
+    private final class ClosureMenuItem: NSMenuItem {
+        var handler: (() -> Void)?
+
+        @objc func invoke() {
+            handler?()
+        }
+    }
+}
+
+private func localizedTaskMenuString(_ key: String, locale: Locale) -> String {
+    let identifier = locale.identifier.lowercased()
+    let language: EffectiveAppLanguage
+
+    if identifier.hasPrefix("zh") {
+        language = .simplifiedChinese
+    } else if identifier.hasPrefix("ja") {
+        language = .japanese
+    } else if identifier.hasPrefix("ko") {
+        language = .korean
+    } else if identifier.hasPrefix("de") {
+        language = .german
+    } else if identifier.hasPrefix("fr") {
+        language = .french
+    } else if identifier.hasPrefix("es") {
+        language = .spanish
+    } else {
+        language = .english
+    }
+
+    return AppLocalization.string(key, language: language)
 }
 
 private struct SafeMilestoneRowView: View {
@@ -1083,6 +1257,7 @@ private struct SafeMilestoneRowView: View {
     @State private var isRowHovered = false
     @State private var isSearchHighlighted = false
     @FocusState private var isTitleFocused: Bool
+    @Environment(\.locale) private var locale
 
     var body: some View {
         milestoneRow
@@ -1173,25 +1348,20 @@ private struct SafeMilestoneRowView: View {
                         .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
                 )
         }
-        .contextMenu {
-            Button {
-                onBeginAddSubTask()
-            } label: {
-                Label("新增子任务", systemImage: "list.bullet.below.rectangle")
-            }
-            Divider()
-            Button {
-                beginTitleEdit()
-            } label: {
-                Label("编辑", systemImage: "pencil")
-            }
-            TaskMarkerColorMenu(selected: snapshot.markerColor) { markerColor in
-                onUpdateMarkerColor(snapshot.id, markerColor)
-            }
-            Button {
-                onDeleteMilestone(snapshot.id)
-            } label: {
-                Label("删除", systemImage: "trash")
+        .background {
+            TaskRightClickMenu(locale: locale) {
+                [
+                    .item("新增子任务", systemImage: "list.bullet.below.rectangle", action: onBeginAddSubTask),
+                    .separator,
+                    .colorPicker(selected: snapshot.markerColor) { markerColor in
+                        onUpdateMarkerColor(snapshot.id, markerColor)
+                    },
+                    .separator,
+                    .item("编辑", systemImage: "pencil", action: beginTitleEdit),
+                    .item("删除", systemImage: "trash") {
+                        onDeleteMilestone(snapshot.id)
+                    }
+                ]
             }
         }
     }
@@ -1317,6 +1487,7 @@ private struct SafeSubTaskRowView: View {
     @State private var isRowHovered = false
     @State private var isSearchHighlighted = false
     @FocusState private var isTitleFocused: Bool
+    @Environment(\.locale) private var locale
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -1385,19 +1556,19 @@ private struct SafeSubTaskRowView: View {
                         .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
                 )
         }
-        .contextMenu {
-            Button {
-                beginTitleEdit()
-            } label: {
-                Label("编辑", systemImage: "pencil")
-            }
-            TaskMarkerColorMenu(selected: subtask.markerColor) { markerColor in
-                onUpdateMarkerColor(subtask.id, markerColor)
-            }
-            Button {
-                onDelete(subtask.id)
-            } label: {
-                Label("删除", systemImage: "trash")
+        .background {
+            TaskRightClickMenu(locale: locale) {
+                [
+                    .item("编辑", systemImage: "pencil", action: beginTitleEdit),
+                    .separator,
+                    .colorPicker(selected: subtask.markerColor) { markerColor in
+                        onUpdateMarkerColor(subtask.id, markerColor)
+                    },
+                    .separator,
+                    .item("删除", systemImage: "trash") {
+                        onDelete(subtask.id)
+                    }
+                ]
             }
         }
         .onChange(of: isTitleFocused) { _, focused in
