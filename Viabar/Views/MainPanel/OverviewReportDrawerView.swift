@@ -198,7 +198,8 @@ private struct OverviewReportCardView: View {
             // 项目标题行 — 点击跳转项目
             HStack(alignment: .center, spacing: 7) {
                 Image(systemName: card.project.sfSymbolName)
-                    .foregroundStyle(Color(hex: card.project.accentColor))
+                    .font(.system(size: 10))
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
 
                 Text(card.project.title)
                     .font(.subheadline.weight(.semibold))

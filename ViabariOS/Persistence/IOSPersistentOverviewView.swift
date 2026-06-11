@@ -576,6 +576,7 @@ private struct IOSPersistentReportCardView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .center, spacing: 7) {
                 Image(systemName: card.project.sfSymbolName)
+                    .font(.system(size: 12))
                     .foregroundStyle(Color(hex: card.project.accentColor))
 
                 Text(card.project.title)
@@ -935,78 +936,96 @@ struct IOSPersistentOverviewProjectCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // 项目图标 + 标题 + 收藏星（留在 Liquid Glass 上）
             HStack(spacing: 8) {
                 Image(systemName: project.sfSymbolName)
-                    .font(.system(size: 13))
-                    .foregroundStyle(accentColor)
+                    .font(.system(size: 11))
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                 Text(project.title)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                     .lineLimit(1)
-                Spacer(minLength: 0)
+                Spacer(minLength: 6)
                 if project.isFavorite {
                     Image(systemName: "star.fill")
                         .font(.system(size: 12))
                         .foregroundStyle(ViabarColor.warning)
                 }
             }
-            .padding(.leading, 4)
+            .padding(.leading, 16)
+            .padding(.trailing, 16)
 
-            Spacer().frame(height: 10)
-
-            if let milestone = topMilestone {
-                HStack(spacing: 6) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.gray.opacity(0.55))
-                        .frame(width: 16, alignment: .center)
-                    Text(milestone.title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(milestoneTitleColor(milestone.markerColor))
-                        .lineLimit(1)
-                }
-                .padding(.leading, 4)
-
-                if let subtask = milestone.subtasks
-                    .sorted(by: { $0.orderIndex < $1.orderIndex })
-                    .first(where: { !$0.isCompleted }) {
+            // 不透明卡片：任务/子任务、提醒、进度环
+            VStack(alignment: .leading, spacing: 0) {
+                if let milestone = topMilestone {
                     HStack(spacing: 6) {
-                        Image(systemName: "list.bullet.indent")
-                            .font(.system(size: 11))
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 12))
                             .foregroundStyle(Color.gray.opacity(0.55))
                             .frame(width: 16, alignment: .center)
+                        Text(milestone.title)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(milestoneTitleColor(milestone.markerColor))
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, 4)
+
+                    if let subtask = milestone.subtasks
+                        .sorted(by: { $0.orderIndex < $1.orderIndex })
+                        .first(where: { !$0.isCompleted }) {
                         Text(subtask.title)
                             .font(.system(size: 12))
                             .foregroundStyle(subtaskTitleColor(subtask.markerColor))
                             .lineLimit(1)
+                            .padding(.leading, 4 + 16 + 6)
+                            .padding(.top, 8)
                     }
-                    .padding(.leading, 22)
-                    .padding(.top, 8)
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(alignment: .bottom) {
+                    if let reminder = topMilestone?.reminder {
+                        IOSPersistentReminderSummary(
+                            reminder: reminder,
+                            dateFormatPattern: savedDateFormat,
+                            language: effectiveLanguage,
+                            font: .system(size: 11)
+                        )
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(colorScheme == .dark ? Color(hex: "#333333") : Color(hex: "#EFEFEF"))
+                            )
+                            .padding(.leading, 4)
+                            .padding(.bottom, -2)
+                    }
+                    Spacer(minLength: 8)
+                    progressRing
                 }
             }
-
-            Spacer(minLength: 0)
-
-            HStack(alignment: .bottom) {
-                if let reminder = topMilestone?.reminder {
-                    IOSPersistentReminderSummary(
-                        reminder: reminder,
-                        dateFormatPattern: savedDateFormat,
-                        language: effectiveLanguage,
-                        font: .system(size: 11)
+            .padding(.leading, 12)
+            .padding(.trailing, 14)
+            .padding(.top, 20)
+            .padding(.bottom, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(colorScheme == .dark ? ViabarColor.mainPanelBackground : Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08),
+                        lineWidth: colorScheme == .dark ? 0.8 : 0.7
                     )
-                        .padding(.leading, 8)
-                        .offset(y: 0)
-                }
-                Spacer(minLength: 8)
-                progressRing
-            }
+            )
+            .padding(.horizontal, 6)
+            .padding(.bottom, 6)
+            .padding(.top, 11)
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 14)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
-        .frame(height: IOSProjectReorderMetrics.cardHeight)
+        .padding(.top, 15)
+        .frame(height: 160)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -1060,10 +1079,6 @@ struct IOSPersistentOverviewProjectCard: View {
             Button("归档", systemImage: "archivebox", action: onArchive)
             Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
         }
-    }
-
-    private var accentColor: Color {
-        project.progress >= 1 ? ViabarColor.success : Color(hex: project.accentColor)
     }
 
     private var topMilestone: Milestone? {

@@ -416,7 +416,8 @@ private struct MenuBarProjectCardView: View {
             Button(action: onOpenProject) {
                 HStack(spacing: 7) {
                     Image(systemName: card.project.sfSymbolName)
-                        .foregroundStyle(Color(hex: card.project.accentColor))
+                        .font(.system(size: 10))
+                        .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
                     Text(card.project.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
