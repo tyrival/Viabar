@@ -1102,18 +1102,12 @@ struct OverviewProjectCard: View {
                     .padding(.leading, taskRowIndent)
 
                     if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "list.bullet.indent")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color.gray.opacity(0.55))
-                                .frame(width: 16, alignment: .center)
-                            Text(subtask.title)
-                                .font(.system(size: 12))
-                                .foregroundStyle(subtaskTitleColor(subtask.markerColor))
-                                .lineLimit(1)
-                        }
-                        .padding(.leading, taskRowIndent + subtaskExtraIndent)
-                        .padding(.top, 12)
+                        Text(subtask.title)
+                            .font(.system(size: 12))
+                            .foregroundStyle(subtaskTitleColor(subtask.markerColor))
+                            .lineLimit(1)
+                            .padding(.leading, taskRowIndent + 16 + 6)
+                            .padding(.top, 8)
                     }
                 }
 
@@ -1128,8 +1122,15 @@ struct OverviewProjectCard: View {
                             Text(AppDateFormatter.string(from: reminderDate, pattern: savedDateFormat))
                                 .font(.system(size: 11))
                                 .foregroundStyle(reminderForegroundColor)
-                        }.padding(.leading, 8)
-                            .offset(y: -5)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(colorScheme == .dark ? Color(hex: "#333333") : Color(hex: "#EFEFEF"))
+                        )
+                        .padding(.leading, 4)
+                        .padding(.bottom, -2)
                     }
 
                     Spacer(minLength: 8)
