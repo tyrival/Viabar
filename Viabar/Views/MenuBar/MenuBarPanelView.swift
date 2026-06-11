@@ -79,7 +79,9 @@ struct MenuBarPanelView: View {
         .frame(width: 390, height: 560)
         .background {
             ZStack {
-                MenuBarPanelWindowConfigurator()
+                MenuBarPanelWindowConfigurator(
+                    onPanelPresented: runtimeController.menuBarPanelDidPresent
+                )
                 Rectangle()
                     .fill(MenuBarPanelStyle.panelTint)
             }
@@ -545,6 +547,8 @@ private struct MenuBarReminderSummary: View {
 }
 
 private struct MenuBarPanelWindowConfigurator: NSViewRepresentable {
+    let onPanelPresented: () -> Void
+
     func makeNSView(context: Context) -> MenuBarPanelProbeView {
         let view = MenuBarPanelProbeView()
         view.onWindowResolved = applyWindowAppearance
@@ -562,6 +566,7 @@ private struct MenuBarPanelWindowConfigurator: NSViewRepresentable {
         window.titlebarAppearsTransparent = true
         window.contentView?.wantsLayer = true
         window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+        onPanelPresented()
     }
 }
 

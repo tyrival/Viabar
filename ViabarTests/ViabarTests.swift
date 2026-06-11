@@ -861,6 +861,55 @@ struct AppSettingsTests {
     }
 }
 
+struct MainWindowVisibilityPolicyTests {
+    @Test func menuBarPanelPresentationKeepsPreviouslyVisibleMainWindowHidden() {
+        var policy = MainWindowVisibilityPolicy()
+
+        policy.applicationWillHide(mainWindowIsVisible: true)
+
+        #expect(policy.consumeMenuBarPanelPresentationShouldHideMainWindow())
+        #expect(!policy.consumeMenuBarPanelPresentationShouldHideMainWindow())
+    }
+
+    @Test func menuBarPanelPresentationDoesNotHideWindowWhenMainWindowWasAlreadyClosed() {
+        var policy = MainWindowVisibilityPolicy()
+
+        policy.applicationWillHide(mainWindowIsVisible: false)
+
+        #expect(!policy.consumeMenuBarPanelPresentationShouldHideMainWindow())
+    }
+
+    @Test func explicitMainWindowPresentationCancelsPendingMenuBarSuppression() {
+        var policy = MainWindowVisibilityPolicy()
+
+        policy.applicationWillHide(mainWindowIsVisible: true)
+        policy.cancelPendingMenuBarSuppression()
+
+        #expect(!policy.consumeMenuBarPanelPresentationShouldHideMainWindow())
+    }
+
+    @Test func applicationUnhideRepeatsSuppressionWhenPanelAppearedFirst() {
+        var policy = MainWindowVisibilityPolicy()
+
+        policy.applicationWillHide(mainWindowIsVisible: true)
+        #expect(policy.consumeMenuBarPanelPresentationShouldHideMainWindow())
+
+        #expect(policy.applicationDidUnhideShouldHideMainWindow())
+        #expect(!policy.applicationDidUnhideShouldHideMainWindow())
+    }
+
+    @Test func delayedCleanupFromEarlierUnhideDoesNotCancelNewHideCycle() {
+        var policy = MainWindowVisibilityPolicy()
+
+        policy.applicationWillHide(mainWindowIsVisible: true)
+        let firstGeneration = policy.generation
+        policy.applicationWillHide(mainWindowIsVisible: true)
+        policy.cancelPendingMenuBarSuppression(ifGeneration: firstGeneration)
+
+        #expect(policy.consumeMenuBarPanelPresentationShouldHideMainWindow())
+    }
+}
+
 struct MenuBarContentTests {
     @Test func currentModeReturnsFirstUnfinishedSubtaskOnly() {
         let project = Project(title: "Release", orderIndex: 0)
