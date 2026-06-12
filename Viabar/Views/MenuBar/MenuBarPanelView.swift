@@ -454,9 +454,6 @@ private struct MenuBarProjectCardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    MenuBarTaskMarkerDot(markerColor: entry.markerColor)
-                        .padding(.top, 5)
-
                     Button {
                         onOpenEntry(entry)
                     } label: {
@@ -464,6 +461,7 @@ private struct MenuBarProjectCardView: View {
                             HStack(spacing: 5) {
                                 Text(entry.title)
                                     .lineLimit(2)
+                                    .foregroundStyle(entry.markerColor.map { ViabarColor.taskMarker($0) } ?? .primary)
                                     .opacity(hoveredText == .entry(entry.id) ? 0.72 : 1)
                                 if entry.source == .projectReminder {
                                     Text("项目提醒")
@@ -508,19 +506,6 @@ private struct MenuBarProjectCardView: View {
                 .stroke(MenuBarPanelStyle.cardBorder, lineWidth: 1)
         }
         .animation(.easeOut(duration: 0.12), value: hoveredText)
-    }
-}
-
-private struct MenuBarTaskMarkerDot: View {
-    let markerColor: TaskMarkerColor?
-
-    var body: some View {
-        if let markerColor {
-            Circle()
-                .fill(ViabarColor.taskMarker(markerColor))
-                .frame(width: 6, height: 6)
-                .accessibilityHidden(true)
-        }
     }
 }
 

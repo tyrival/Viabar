@@ -147,7 +147,7 @@ extension ViabarColor {
         case .red:
             return Color(hex: "#F94144")
         case .yellow:
-            return Color(hex: "#F9C74F")
+            return Color(hex: "#f8961e")
         case .green:
             return success
         }
