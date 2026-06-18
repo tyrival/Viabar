@@ -33,6 +33,7 @@ private struct DragSessionEndMonitor: NSViewRepresentable {
     final class Coordinator {
         private var localMonitor: Any?
         private var globalMonitor: Any?
+        private var mouseButtonTimer: Timer?
         private var isActive = false
         private var isResetScheduled = false
         private var onEnd: (() -> Void)?
@@ -57,11 +58,16 @@ private struct DragSessionEndMonitor: NSViewRepresentable {
                 NSEvent.removeMonitor(globalMonitor)
                 self.globalMonitor = nil
             }
+            mouseButtonTimer?.invalidate()
+            mouseButtonTimer = nil
             isActive = false
         }
 
         private func startMonitoring() {
-            guard localMonitor == nil, globalMonitor == nil else { return }
+            guard localMonitor == nil,
+                  globalMonitor == nil,
+                  mouseButtonTimer == nil
+            else { return }
 
             localMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
                 self?.scheduleReset()
@@ -70,6 +76,14 @@ private struct DragSessionEndMonitor: NSViewRepresentable {
             globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
                 self?.scheduleReset()
             }
+
+            // Native drag tracking can consume mouse-up events before event monitors see them.
+            let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+                guard NSEvent.pressedMouseButtons & 1 == 0 else { return }
+                self?.scheduleReset()
+            }
+            mouseButtonTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
         }
 
         private func scheduleReset() {
