@@ -1280,10 +1280,10 @@ struct OverviewProjectCard: View {
 
         return HStack(spacing: progressRingTextSpacing) {
             Text("\(Int(project.progress * 100))%")
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(percentColor)
                 .monospacedDigit()
-                .frame(width: progressTextWidth, alignment: .trailing)
+                .fixedSize(horizontal: true, vertical: false)
 
             ZStack {
                 Circle()
