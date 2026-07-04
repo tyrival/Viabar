@@ -266,6 +266,8 @@
 "复制月完成" = "Copy Completed Month";
 "暂无待办提醒" = "No upcoming reminders";
 "暂无完成内容" = "Nothing completed";
+"展开" = "Expand";
+"收起" = "Collapse";
 
 /* ---- 侧边栏 ---- */
 "其他项目" = "Other Projects";

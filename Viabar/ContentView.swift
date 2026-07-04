@@ -116,6 +116,9 @@ struct ContentView: View {
             consumePendingNavigationIfNeeded()
         }
         .onOpenURL { url in
+            if handleExternalAddURL(url) {
+                return
+            }
             guard let request = WidgetNavigationURL.navigationRequest(from: url) else { return }
             runtimeController.navigate(to: request)
         }
@@ -603,6 +606,20 @@ struct ContentView: View {
             isMemoDrawerVisible = true
         }
         dismissGlobalSearch()
+    }
+
+    private func handleExternalAddURL(_ url: URL) -> Bool {
+        guard let request = ExternalAddURL.request(from: url),
+              let projectService,
+              let navigation = ExternalAddHandler.perform(
+                request,
+                projects: allProjects,
+                projectService: projectService
+              )
+        else { return false }
+
+        runtimeController.navigate(to: navigation)
+        return true
     }
 
     private func toolbarButtonBackground(isHovered: Bool) -> some View {

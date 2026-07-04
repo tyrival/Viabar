@@ -10,6 +10,7 @@ struct OverviewReportDrawerView: View {
 
     @State private var copiedKind: OverviewReportSectionKind?
     @State private var hoveredCopyKind: OverviewReportSectionKind?
+    @State private var collapsedKinds: Set<OverviewReportSectionKind> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +29,8 @@ struct OverviewReportDrawerView: View {
                             monthDoneOffset: $monthDoneOffset,
                             showsCopiedTag: copiedKind == section.kind,
                             isCopyButtonHovered: hoveredCopyKind == section.kind,
+                            isCollapsed: collapsedKinds.contains(section.kind),
+                            onToggleCollapsed: { toggleCollapsed(section.kind) },
                             onCopy: { copy(section) },
                             onCopyHover: { hovering in
                                 setCopyHover(hovering, for: section.kind, isEnabled: !section.cards.isEmpty)
@@ -61,6 +64,16 @@ struct OverviewReportDrawerView: View {
         hoveredCopyKind = hovering ? kind : nil
         if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
     }
+
+    private func toggleCollapsed(_ kind: OverviewReportSectionKind) {
+        withAnimation(.easeInOut(duration: 0.16)) {
+            if collapsedKinds.contains(kind) {
+                collapsedKinds.remove(kind)
+            } else {
+                collapsedKinds.insert(kind)
+            }
+        }
+    }
 }
 
 // MARK: - Section View
@@ -72,13 +85,27 @@ private struct OverviewReportSectionView: View {
     @Binding var monthDoneOffset: Int
     let showsCopiedTag: Bool
     let isCopyButtonHovered: Bool
+    let isCollapsed: Bool
+    let onToggleCollapsed: () -> Void
     let onCopy: () -> Void
     let onCopyHover: (Bool) -> Void
     let onNavigate: (Project, GlobalSearchDestination) -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
+                Button(action: onToggleCollapsed) {
+                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, height: 18)
+                        .background(ViabarColor.panelInputBackground, in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(isCollapsed ? Text("展开") : Text("收起"))
+
                 periodPicker
 
                 Spacer()
@@ -95,7 +122,7 @@ private struct OverviewReportSectionView: View {
                 Button(action: onCopy) {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(isCopyButtonHovered ? AnyShapeStyle(.blue) : AnyShapeStyle(.blue.opacity(0.72)))
+                        .foregroundStyle(copyButtonForeground)
                 }
                 .buttonStyle(.plain)
                 .disabled(section.cards.isEmpty)
@@ -104,7 +131,9 @@ private struct OverviewReportSectionView: View {
             }
             .frame(height: 22)
 
-            if section.cards.isEmpty {
+            if isCollapsed {
+                EmptyView()
+            } else if section.cards.isEmpty {
                 Text(emptyMessage)
                     .font(.caption).foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
@@ -119,6 +148,16 @@ private struct OverviewReportSectionView: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
+    private var copyButtonForeground: AnyShapeStyle {
+        guard !section.cards.isEmpty else {
+            return AnyShapeStyle(.tertiary)
+        }
+        if colorScheme == .dark {
+            return AnyShapeStyle(ViabarColor.primary)
+        }
+        return AnyShapeStyle(isCopyButtonHovered ? .blue : .blue.opacity(0.72))
     }
 
     private var copyHelp: LocalizedStringKey {
@@ -180,7 +219,7 @@ private struct OverviewReportSectionView: View {
             .padding(.vertical, 3)
             .background(ViabarColor.panelInputBackground, in: Capsule())
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .fixedSize(horizontal: true, vertical: true)
     }
 }
