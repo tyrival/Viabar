@@ -1,4 +1,5 @@
 "系统" = "System";
+"LanguageSystemOption" = "System";
 "浅色" = "Light";
 "深色" = "Dark";
 "简体中文" = "Simplified Chinese";
@@ -291,3 +292,17 @@
 "选择年份" = "Select Year";
 "该年度没有已完成的任务" = "No completed tasks this year";
 "导出" = "Export";
+
+/* ---- Today Focus ---- */
+"今日推荐" = "Today’s Recommendations";
+"%d 项" = "%d items";
+"今天没有需要推进的任务" = "Nothing needs your attention today";
+"暂时无法读取今日推荐" = "Today’s Recommendations are temporarily unavailable";
+"提醒已逾期" = "Overdue";
+"今天需要处理" = "Due today";
+"收藏项目" = "Favorite project";
+"已 %d 天未推进" = "No progress for %d days";
+"按项目顺序推荐" = "Project order";
+"AI 建议" = "AI suggestion";
+"展示当前最值得推进的任务" = "Shows the tasks most worth moving forward now";
+"标记为完成" = "Mark as completed";

@@ -1,0 +1,13 @@
+"LanguageSystemOption" = "System";
+"今日推荐" = "Recommandations du jour";
+"%d 项" = "%d éléments";
+"今天没有需要推进的任务" = "Aucune tâche à faire avancer aujourd’hui";
+"暂时无法读取今日推荐" = "Impossible de charger temporairement les recommandations du jour";
+"提醒已逾期" = "En retard";
+"今天需要处理" = "À faire aujourd’hui";
+"收藏项目" = "Projet favori";
+"已 %d 天未推进" = "Aucune progression depuis %d jours";
+"按项目顺序推荐" = "Ordre des projets";
+"AI 建议" = "Suggestion de l’IA";
+"标记为完成" = "Marquer comme terminé";
+"展示当前最值得推进的任务" = "Affiche les tâches les plus importantes à faire avancer maintenant";

@@ -13,7 +13,8 @@ enum SharedModelContainer {
     static let migrationMarkerFileName = ".viabar-shared-store-v1"
     static let mediumWidgetKind = "ViabarMediumWidget"
     static let largeWidgetKind = "ViabarLargeWidget"
-    static let widgetKinds = [mediumWidgetKind, largeWidgetKind]
+    static let todayFocusWidgetKind = "ViabarTodayFocusWidget"
+    static let widgetKinds = [mediumWidgetKind, largeWidgetKind, todayFocusWidgetKind]
 
     static var schema: Schema {
         Schema([
