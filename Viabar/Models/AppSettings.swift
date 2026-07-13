@@ -32,7 +32,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     var title: LocalizedStringKey {
         switch self {
-        case .system: "系统"
+        case .system: "LanguageSystemOption"
         case .english: "English"
         case .simplifiedChinese: "简体中文"
         case .japanese: "日本語"

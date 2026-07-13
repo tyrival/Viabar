@@ -171,6 +171,25 @@ struct ContentView: View {
                     )
                     selection = .project(project)
                 },
+                onOpenTodayFocusItem: { item in
+                    guard let project = allProjects.first(where: { $0.projectId == item.projectID })
+                    else { return }
+                    let destination: GlobalSearchDestination
+                    switch item.taskKind {
+                    case .milestone:
+                        destination = .milestone(item.milestoneID)
+                    case .subTask:
+                        destination = .subTask(
+                            milestoneID: item.milestoneID,
+                            subTaskID: item.taskID
+                        )
+                    }
+                    navigationRequest = GlobalSearchNavigationRequest(
+                        projectID: item.projectID,
+                        destination: destination
+                    )
+                    selection = .project(project)
+                },
                 onEditProject: { overviewEditProject = $0 },
                 onArchiveProject: { overviewArchiveProject = $0 },
                 onDeleteProject: { overviewDeleteProject = $0 }
@@ -645,12 +664,14 @@ struct OverviewDashboardView: View {
     let overviewScope: String?
     let trailingPanelWidth: CGFloat
     let onSelectProject: (Project) -> Void
+    let onOpenTodayFocusItem: (TodayFocusItem) -> Void
     let onEditProject: (Project) -> Void
     let onArchiveProject: (Project) -> Void
     let onDeleteProject: (Project) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ServiceContainer.self) private var container
+    @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @State private var draggingProjectID: UUID?
     @State private var projectDropTarget: OverviewProjectDropTarget?
 
@@ -674,12 +695,31 @@ struct OverviewDashboardView: View {
         visibleProjects.filter { !$0.isFavorite }
     }
 
+    private var todayFocusItems: [TodayFocusItem] {
+        TodayFocusEngine().items(projects: projects)
+    }
+
+    private var effectiveLanguage: EffectiveAppLanguage {
+        AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
+    }
+
     var body: some View {
         GeometryReader { proxy in
-            let columns = overviewColumns(for: proxy.size.width - trailingPanelWidth)
+            let contentWidth = max(1, proxy.size.width - trailingPanelWidth)
+            let availableWidth = max(1, contentWidth - contentPadding * 2)
+            let columns = overviewColumns(for: contentWidth)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    TodayFocusSectionView(
+                        items: todayFocusItems,
+                        availableWidth: availableWidth,
+                        dateFormatPattern: settingsRecords.first?.dateFormat,
+                        language: effectiveLanguage,
+                        onOpen: onOpenTodayFocusItem,
+                        onToggle: toggleTodayFocusItem
+                    )
+
                     if !starredProjects.isEmpty {
                         sectionHeader(icon: "star.fill", title: "星标项目")
                         LazyVGrid(columns: columns, alignment: .leading, spacing: cardSpacing) {
@@ -789,6 +829,27 @@ struct OverviewDashboardView: View {
     private func moveProject(id: UUID, targetID: UUID, placement: ReorderPlacement) {
         guard id != targetID else { return }
         projectService?.reorderActiveProject(movingID: id, targetID: targetID, placement: placement)
+    }
+
+    private func toggleTodayFocusItem(_ item: TodayFocusItem) {
+        guard let project = projects.first(where: {
+            $0.projectId == item.projectID && !$0.isArchived
+        }),
+        let milestone = project.milestones.first(where: {
+            $0.milestoneId == item.milestoneID && !$0.isCompleted
+        })
+        else { return }
+
+        switch item.taskKind {
+        case .milestone:
+            guard milestone.milestoneId == item.taskID else { return }
+            projectService?.toggleMilestoneComplete(milestone)
+        case .subTask:
+            guard let subtask = milestone.subtasks.first(where: {
+                $0.taskId == item.taskID && !$0.isCompleted
+            }) else { return }
+            projectService?.toggleSubTaskComplete(subtask)
+        }
     }
 
     private func isProjectDropTarget(_ id: UUID) -> Bool {

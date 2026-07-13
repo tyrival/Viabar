@@ -1,4 +1,5 @@
 "系统" = "Sistema";
+"LanguageSystemOption" = "System";
 "浅色" = "Claro";
 "深色" = "Oscuro";
 "简体中文" = "Chino simplificado";
@@ -284,3 +285,17 @@
 "选择年份" = "Seleccionar año";
 "检查更新..." = "No hay tareas completadas este año";
 "导出" = "Exportar";
+
+/* ---- Enfoque de hoy ---- */
+"今日推荐" = "Recomendaciones de hoy";
+"%d 项" = "%d elementos";
+"今天没有需要推进的任务" = "No hay tareas que avanzar hoy";
+"暂时无法读取今日推荐" = "No se pueden cargar temporalmente las recomendaciones de hoy";
+"提醒已逾期" = "Atrasado";
+"今天需要处理" = "Para hoy";
+"收藏项目" = "Proyecto favorito";
+"已 %d 天未推进" = "Sin avances durante %d días";
+"按项目顺序推荐" = "Orden del proyecto";
+"AI 建议" = "Sugerencia de IA";
+"标记为完成" = "Marcar como completado";
+"展示当前最值得推进的任务" = "Muestra las tareas que más conviene avanzar ahora";

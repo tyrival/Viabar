@@ -6,5 +6,6 @@ struct ViabarWidgetBundle: WidgetBundle {
     var body: some Widget {
         ViabarMediumWidget()
         ViabarLargeWidget()
+        ViabarTodayFocusWidget()
     }
 }

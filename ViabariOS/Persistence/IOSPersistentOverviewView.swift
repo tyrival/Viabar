@@ -180,6 +180,14 @@ struct IOSPersistentOverviewView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 4)
 
+                IOSPersistentTodayFocusSection(
+                    items: todayFocusItems,
+                    dateFormatPattern: settingsRecords.first?.dateFormat,
+                    language: effectiveLanguage,
+                    onOpen: openTodayFocusItem,
+                    onToggle: toggleTodayFocusItem
+                )
+
                 if !favoriteProjects.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         IOSPrototypeSectionLabel(title: "星标项目", systemImage: "star.fill")
@@ -326,6 +334,29 @@ struct IOSPersistentOverviewView: View {
         AppLanguage.effectiveLanguage(storedValue: settingsRecords.first?.language)
     }
 
+    private var todayFocusItems: [TodayFocusItem] {
+        TodayFocusEngine().items(projects: activeProjects)
+    }
+
+    private func openTodayFocusItem(_ item: TodayFocusItem) {
+        guard let project = projects.first(where: { $0.projectId == item.projectID }) else { return }
+        coordinator.selectProject(project)
+    }
+
+    private func toggleTodayFocusItem(_ item: TodayFocusItem) {
+        guard let project = projects.first(where: { $0.projectId == item.projectID }),
+              let milestone = project.milestones.first(where: { $0.milestoneId == item.milestoneID })
+        else { return }
+
+        switch item.taskKind {
+        case .milestone:
+            services.projectService?.toggleMilestoneComplete(milestone)
+        case .subTask:
+            guard let subtask = milestone.subtasks.first(where: { $0.taskId == item.taskID }) else { return }
+            services.projectService?.toggleSubTaskComplete(subtask)
+        }
+    }
+
     private var reportSections: [OverviewReportSection] {
         OverviewReportBuilder.makeReport(
             projects: projects,
@@ -443,6 +474,233 @@ struct IOSPersistentOverviewView: View {
             draggingProjectID = nil
             projectDisplayOrderBySection.removeAll()
             projectDragSessionID = nil
+        }
+    }
+}
+
+private struct IOSPersistentTodayFocusSection: View {
+    let items: [TodayFocusItem]
+    let dateFormatPattern: String?
+    let language: EffectiveAppLanguage
+    let onOpen: (TodayFocusItem) -> Void
+    let onToggle: (TodayFocusItem) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 4) {
+                Image(systemName: "scope")
+                Text(AppLocalization.string("今日推荐", language: language))
+                Spacer()
+                if !items.isEmpty {
+                    Text(AppLocalization.format("%d 项", language: language, items.count))
+                }
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .tracking(0.5)
+
+            if items.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(ViabarColor.success)
+                    Text(AppLocalization.string("今天没有需要推进的任务", language: language))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(14)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        IOSPersistentTodayFocusCard(
+                            item: item,
+                            isPrimary: index == 0,
+                            dateFormatPattern: dateFormatPattern,
+                            language: language,
+                            onOpen: { onOpen(item) },
+                            onToggle: { onToggle(item) }
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.top, 4)
+        .padding(.bottom, 4)
+    }
+}
+
+private struct IOSPersistentTodayFocusCard: View {
+    let item: TodayFocusItem
+    let isPrimary: Bool
+    let dateFormatPattern: String?
+    let language: EffectiveAppLanguage
+    let onOpen: () -> Void
+    let onToggle: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var accentColor: Color {
+        Color(hex: item.projectAccentColor)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: item.projectSymbolName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                Text(item.projectTitle)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(colorScheme == .dark ? ViabarColor.primaryPale : ViabarColor.primary)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(alignment: .center, spacing: 8) {
+                Button(action: onToggle) {
+                    Image(systemName: "circle")
+                        .font(.system(size: isPrimary ? 17 : 16, weight: .medium))
+                        .foregroundStyle(reasonColor)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(AppLocalization.string("标记为完成", language: language))
+
+                Text(item.taskTitle)
+                    .font(.system(size: isPrimary ? 13 : 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(alignment: .bottom, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: reasonSymbolName)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(reasonColor)
+                    Text(reasonText)
+                        .lineLimit(1)
+                    if let reminderDate = item.reminderDate {
+                        Text("·")
+                        Text(AppDateFormatter.string(from: reminderDate, pattern: dateFormatPattern))
+                            .lineLimit(1)
+                    }
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 8)
+
+                progressRing
+            }
+        }
+        .padding(isPrimary ? 14 : 12)
+        .frame(height: 132)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(
+                    outerBorderGradient,
+                    lineWidth: colorScheme == .dark ? 0.8 : 0.7
+                )
+        )
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(colorScheme == .dark ? Color.black.opacity(0.01) : Color.white)
+                    .shadow(
+                        color: colorScheme == .dark
+                            ? Color.black.opacity(0.40)
+                            : Color(hex: "#0F172A").opacity(0.05),
+                        radius: 6,
+                        x: 0,
+                        y: 2.5
+                    )
+
+                IOSGlassView()
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                if colorScheme == .dark {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white.opacity(0.02))
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .onTapGesture(perform: onOpen)
+    }
+
+    private var progressRing: some View {
+        IOSPrototypeProgressRing(progress: item.projectProgress, size: 24, lineWidth: 5)
+    }
+
+    private var outerBorderGradient: LinearGradient {
+        LinearGradient(
+            stops: colorScheme == .dark
+                ? [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: Color.white.opacity(0.24), location: 0.15),
+                    .init(color: Color.white.opacity(0.24), location: 0.85),
+                    .init(color: .clear, location: 1.0)
+                ]
+                : [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: Color.black.opacity(0.10), location: 0.15),
+                    .init(color: Color.black.opacity(0.10), location: 0.85),
+                    .init(color: .clear, location: 1.0)
+                ],
+            startPoint: .bottomLeading,
+            endPoint: .topTrailing
+        )
+    }
+
+    private var reasonSymbolName: String {
+        switch item.reason {
+        case .overdue, .today:
+            "alarm.fill"
+        case .favorite:
+            "star.fill"
+        case .stalled:
+            "clock.arrow.circlepath"
+        case .projectOrder:
+            "list.number"
+        case .aiSuggested:
+            "sparkles"
+        }
+    }
+
+    private var reasonColor: Color {
+        switch item.reason {
+        case .overdue: .red
+        case .today: .orange
+        case .favorite: .yellow
+        case .stalled: .blue
+        case .projectOrder: accentColor
+        case .aiSuggested: .purple
+        }
+    }
+
+    private var reasonText: String {
+        switch item.reason {
+        case .overdue:
+            AppLocalization.string("提醒已逾期", language: language)
+        case .today:
+            AppLocalization.string("今天需要处理", language: language)
+        case .favorite:
+            AppLocalization.string("收藏项目", language: language)
+        case let .stalled(days):
+            AppLocalization.format("已 %d 天未推进", language: language, days)
+        case .projectOrder:
+            AppLocalization.string("按项目顺序推荐", language: language)
+        case .aiSuggested:
+            AppLocalization.string("AI 建议", language: language)
         }
     }
 }

@@ -316,7 +316,7 @@ private struct WidgetTaskMarkerDot: View {
     }
 }
 
-private enum ViabarWidgetNavigationURL {
+enum ViabarWidgetNavigationURL {
     static func project(_ projectID: UUID) -> URL {
         url(path: "project/\(projectID.uuidString)")
     }
