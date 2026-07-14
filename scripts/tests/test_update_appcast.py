@@ -46,6 +46,7 @@ class UpdateAppcastTests(unittest.TestCase):
         *,
         version: str = "1.0.6",
         build: str = "7",
+        description: str = "Widget refresh",
         check: bool = True,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -61,7 +62,7 @@ class UpdateAppcastTests(unittest.TestCase):
                 "--minimum-system-version",
                 "14.0",
                 "--description",
-                "Widget refresh",
+                description,
                 "--url",
                 f"https://example.com/Viabar-{version}.dmg",
                 "--length",
@@ -86,6 +87,15 @@ class UpdateAppcastTests(unittest.TestCase):
         self.assertEqual("signed-value", enclosure.attrib[sparkle("edSignature")])
         self.assertEqual("84", enclosure.attrib["length"])
         self.assertEqual("14.0", items[0].findtext(sparkle("minimumSystemVersion")))
+
+    def test_marks_multiline_description_as_markdown(self) -> None:
+        notes = "## Improvements\n- Preserve line breaks"
+        self.run_update(description=notes)
+
+        description = ET.parse(self.appcast).getroot().find("./channel/item/description")
+        self.assertIsNotNone(description)
+        self.assertEqual("markdown", description.attrib[sparkle("format")])
+        self.assertEqual(notes, description.text)
 
     def test_rejects_duplicate_marketing_version(self) -> None:
         result = self.run_update(version="1.0.5", build="7", check=False)

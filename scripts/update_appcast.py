@@ -73,7 +73,11 @@ def update_appcast(args: argparse.Namespace) -> None:
     ET.SubElement(item, sparkle("version")).text = str(args.build)
     ET.SubElement(item, sparkle("shortVersionString")).text = args.version
     ET.SubElement(item, sparkle("minimumSystemVersion")).text = args.minimum_system_version
-    ET.SubElement(item, "description").text = args.description
+    ET.SubElement(
+        item,
+        "description",
+        {sparkle("format"): "markdown"},
+    ).text = args.description
     ET.SubElement(
         item,
         "enclosure",
