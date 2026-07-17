@@ -408,8 +408,8 @@ struct NewProjectView: View {
         project.title = name
         project.accentColor = selectedColorHex
         project.sfSymbolName = selectedSymbol
-        project.reminder = Self.copyReminder(projectReminder)
         svc.updateProject(project)
+        svc.updateReminder(Self.copyReminder(projectReminder), for: project)
         dismiss()
     }
 

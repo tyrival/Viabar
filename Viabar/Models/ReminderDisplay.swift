@@ -58,6 +58,18 @@ extension Reminder {
         return nil
     }
 
+    func latestMissedFireDate(now: Date, calendar: Calendar = .current) -> Date? {
+        guard isRepeating, let fireTimestamp, fireTimestamp <= now else { return nil }
+        var latest = fireTimestamp
+        for _ in 0..<10000 {
+            guard let next = nextCycle(after: latest, calendar: calendar), next <= now else {
+                return latest
+            }
+            latest = next
+        }
+        return latest
+    }
+
     var postponedByOneCycle: Date? {
         guard isRepeating, let baseDate = displayFireDate else { return nil }
         return nextCycle(after: baseDate, calendar: .current)

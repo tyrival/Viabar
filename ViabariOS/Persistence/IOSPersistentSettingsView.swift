@@ -5,6 +5,7 @@ struct IOSPersistentSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
+    @AppStorage(TodayFocusVisibilitySettingsStore.key) private var isTodayFocusVisible = true
     let systemColorScheme: ColorScheme
 
     init(systemColorScheme: ColorScheme = .light) {
@@ -53,6 +54,7 @@ struct IOSPersistentSettingsView: View {
             }
 
             Section("显示") {
+                Toggle("今日推荐", isOn: $isTodayFocusVisible)
                 Picker("主题", selection: themeBinding(settings)) {
                     ForEach(AppTheme.allCases) { theme in
                         Text(theme.title).tag(theme)

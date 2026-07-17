@@ -298,15 +298,12 @@ struct MilestoneListView: View {
     private func toggleMilestone(id: UUID) {
         guard let milestone = project.milestones.first(where: { $0.milestoneId == id }) else { return }
         projectService?.toggleMilestoneComplete(milestone)
-        syncMilestoneAndSubTaskReminders(milestone)
     }
 
     private func toggleSubTask(id: UUID) {
         for milestone in project.milestones {
             if let subtask = milestone.subtasks.first(where: { $0.taskId == id }) {
                 projectService?.toggleSubTaskComplete(subtask)
-                syncSubTaskReminder(subtask, project: project)
-                syncMilestoneReminder(milestone, project: project)
                 return
             }
         }
@@ -476,11 +473,6 @@ struct MilestoneListView: View {
                 return
             }
         }
-    }
-
-    private func syncMilestoneAndSubTaskReminders(_ milestone: Milestone) {
-        syncMilestoneReminder(milestone, project: project)
-        milestone.subtasks.forEach { syncSubTaskReminder($0, project: project) }
     }
 
     private func syncMilestoneReminder(_ milestone: Milestone, project: Project) {
@@ -1956,8 +1948,7 @@ struct MilestoneRowView: View {
                     ReminderSettingsPopover(reminder: Binding(
                         get: { milestone.reminder },
                         set: {
-                            milestone.reminder = $0
-                            projectService?.save()
+                            projectService?.updateReminder($0, for: milestone)
                         }
                     ))
                 }
@@ -2146,8 +2137,7 @@ struct SubTaskRowView: View {
                     ReminderSettingsPopover(reminder: Binding(
                         get: { subTask.reminder },
                         set: {
-                            subTask.reminder = $0
-                            projectService?.save()
+                            projectService?.updateReminder($0, for: subTask)
                         }
                     ))
                 }

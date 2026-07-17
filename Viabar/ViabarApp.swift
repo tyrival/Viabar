@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SwiftData
 
@@ -23,6 +24,14 @@ struct ViabarApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
 
+        do {
+            try MainStoreDataMigrator.runPendingMigrations(
+                in: sharedModelContainer.mainContext
+            )
+        } catch {
+            print("[MainStoreDataMigration] failed: \(error.localizedDescription)")
+        }
+
         let settings = AppSettingsStore.ensureDefaultSettings(in: sharedModelContainer.mainContext)
         AppSettingsStore.adoptViabarMenuBarIconDefaultIfNeeded(
             settings,
@@ -39,7 +48,9 @@ struct ViabarApp: App {
         let notificationScheduleService = container.registerNotificationScheduleService(
             modelContext: sharedModelContainer.mainContext
         )
-        notificationScheduleService.start()
+        notificationScheduleService.configureCompleteAction { [weak projectService] ownerId, ownerKind in
+            projectService?.completeReminderOwner(id: ownerId, kind: ownerKind)
+        }
         let trashService = container.registerTrashService(
             modelContext: trashModelContainer.mainContext,
             projectModelContext: sharedModelContainer.mainContext,
@@ -78,12 +89,17 @@ struct ViabarApp: App {
                 .environment(serviceContainer)
                 .environment(runtimeController)
                 .task {
+                    await Task.yield()
+                    serviceContainer.notificationScheduleService?.start()
                     let settings = AppSettingsStore.ensureDefaultSettings(
                         in: sharedModelContainer.mainContext
                     )
                     AppAppearanceController.apply(storedTheme: settings.theme)
                     try? runtimeController.configureShortcuts(from: settings)
                     serviceContainer.backupService?.start(settings: settings)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    serviceContainer.notificationScheduleService?.applicationDidBecomeActive()
                 }
         }
         .commands {

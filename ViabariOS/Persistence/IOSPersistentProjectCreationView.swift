@@ -134,8 +134,8 @@ struct IOSPersistentProjectCreationView: View {
         project.title = trimmedTitle
         project.accentColor = accentColor
         project.sfSymbolName = symbolName
-        project.reminder = Self.copyReminder(projectReminder)
         projectService.updateProject(project)
+        projectService.updateReminder(Self.copyReminder(projectReminder), for: project)
         dismiss()
     }
 

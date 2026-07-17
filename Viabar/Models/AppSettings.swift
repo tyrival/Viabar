@@ -164,6 +164,19 @@ enum WeekStartDaySettingsStore {
     }
 }
 
+enum TodayFocusVisibilitySettingsStore {
+    static let key = "todayFocusVisible"
+
+    static func isVisible(defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: key) != nil else { return true }
+        return defaults.bool(forKey: key)
+    }
+
+    static func setVisible(_ isVisible: Bool, defaults: UserDefaults = .standard) {
+        defaults.set(isVisible, forKey: key)
+    }
+}
+
 enum MenuBarIcon: String, CaseIterable, Identifiable {
     case viabar = "MenuBarViabar"
     case bookmark

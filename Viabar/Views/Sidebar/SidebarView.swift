@@ -2991,7 +2991,10 @@ private struct SidebarPreviewData {
         let modelContainer = try! ModelContainer(for: schema, configurations: [configuration])
         let serviceContainer = ServiceContainer()
         let projectService = ProjectService(modelContext: modelContainer.mainContext, container: serviceContainer)
-        let scheduleService = NotificationScheduleService(modelContext: modelContainer.mainContext, notificationPoster: { _, _, _, _, _, _, _ in })
+        let scheduleService = NotificationScheduleService(
+            modelContext: modelContainer.mainContext,
+            notificationCenter: DisabledUserNotificationCenterClient()
+        )
         let trashService = TrashService(
             modelContext: modelContainer.mainContext,
             projectModelContext: modelContainer.mainContext,

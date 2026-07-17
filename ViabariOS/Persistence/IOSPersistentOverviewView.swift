@@ -24,6 +24,7 @@ struct IOSPersistentOverviewView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
     @Query(sort: \NotificationScheduleEntry.fireDate) private var notificationScheduleEntries: [NotificationScheduleEntry]
+    @AppStorage(TodayFocusVisibilitySettingsStore.key) private var isTodayFocusVisible = true
     @Bindable var coordinator: IOSPersistenceCoordinator
     let projects: [Project]
     let archiveFolders: [ArchiveFolder]
@@ -180,13 +181,15 @@ struct IOSPersistentOverviewView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 4)
 
-                IOSPersistentTodayFocusSection(
-                    items: todayFocusItems,
-                    dateFormatPattern: settingsRecords.first?.dateFormat,
-                    language: effectiveLanguage,
-                    onOpen: openTodayFocusItem,
-                    onToggle: toggleTodayFocusItem
-                )
+                if isTodayFocusVisible {
+                    IOSPersistentTodayFocusSection(
+                        items: todayFocusItems,
+                        dateFormatPattern: settingsRecords.first?.dateFormat,
+                        language: effectiveLanguage,
+                        onOpen: openTodayFocusItem,
+                        onToggle: toggleTodayFocusItem
+                    )
+                }
 
                 if !favoriteProjects.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {

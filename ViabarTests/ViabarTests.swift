@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import SwiftData
+import UserNotifications
 @testable import Viabar
 
 struct TrashItemModelTests {
@@ -245,7 +246,7 @@ struct TrashServiceTests {
         let trashContainer = try ModelContainer(for: trashSchema, configurations: [trashConfiguration])
         let trashContext = trashContainer.mainContext
         let container = ServiceContainer()
-        let scheduleService = NotificationScheduleService(modelContext: projectContext, notificationPoster: { _, _ in })
+        let scheduleService = NotificationScheduleService(modelContext: projectContext, notificationCenter: DisabledUserNotificationCenterClient())
         let trashService = TrashService(
             modelContext: trashContext,
             projectModelContext: projectContext,
@@ -747,6 +748,18 @@ struct AppSettingsTests {
         )
     }
 
+    @Test func todayFocusVisibilityDefaultsToVisibleAndPersistsSelection() throws {
+        let suiteName = "ViabarTests.TodayFocusVisibility.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(TodayFocusVisibilitySettingsStore.isVisible(defaults: defaults))
+        TodayFocusVisibilitySettingsStore.setVisible(false, defaults: defaults)
+        #expect(!TodayFocusVisibilitySettingsStore.isVisible(defaults: defaults))
+        TodayFocusVisibilitySettingsStore.setVisible(true, defaults: defaults)
+        #expect(TodayFocusVisibilitySettingsStore.isVisible(defaults: defaults))
+    }
+
     @Test func trashRetentionSettingsStoreRepairsInvalidValues() throws {
         let suiteName = "ViabarTests.TrashRetention.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -858,6 +871,161 @@ struct AppSettingsTests {
     @Test func rejectsDuplicateConfiguredShortcuts() {
         #expect(AppShortcutConfiguration(toggleMainPanel: "Option+V", openSearch: "Command+F").isValid)
         #expect(!AppShortcutConfiguration(toggleMainPanel: "Option+V", openSearch: "Option+V").isValid)
+    }
+}
+
+@MainActor
+struct MainStoreDataMigratorTests {
+    @Test func removesOnlyRemindersWithoutAnyOwnerReference() throws {
+        let context = try makeContext()
+        let project = Project(title: "Project")
+        let milestone = Milestone(title: "Milestone")
+        let subTask = SubTask(title: "SubTask")
+        milestone.project = project
+        project.milestones.append(milestone)
+        subTask.milestone = milestone
+        milestone.subtasks.append(subTask)
+
+        let projectReminder = Reminder(type: "single", fireTimestamp: Date())
+        let milestoneReminder = Reminder(type: "single", fireTimestamp: Date())
+        let subTaskReminder = Reminder(type: "single", fireTimestamp: Date())
+        let orphanReminder = Reminder(type: "single", fireTimestamp: Date())
+        orphanReminder.reminderId = projectReminder.reminderId
+        project.reminder = projectReminder
+        milestone.reminder = milestoneReminder
+        subTask.reminder = subTaskReminder
+        context.insert(project)
+        context.insert(orphanReminder)
+        try context.save()
+
+        let removedCount = try MainStoreDataMigrator.removeOrphanReminders(in: context)
+        let remainingIDs = Set(try context.fetch(FetchDescriptor<Reminder>()).map(\.persistentModelID))
+
+        #expect(removedCount == 1)
+        #expect(remainingIDs == Set([
+            projectReminder.persistentModelID,
+            milestoneReminder.persistentModelID,
+            subTaskReminder.persistentModelID,
+        ]))
+    }
+
+    @Test func pendingMigrationPersistsVersionAndDoesNotRunTwice() throws {
+        let context = try makeContext()
+        let suiteName = "ViabarTests.MainStoreMigration.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        context.insert(Reminder(type: "single", fireTimestamp: Date()))
+        try context.save()
+
+        try MainStoreDataMigrator.runPendingMigrations(in: context, defaults: defaults)
+        #expect(defaults.integer(forKey: MainStoreDataMigrator.versionKey) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<Reminder>()) == 0)
+
+        context.insert(Reminder(type: "single", fireTimestamp: Date()))
+        try context.save()
+        try MainStoreDataMigrator.runPendingMigrations(in: context, defaults: defaults)
+        #expect(try context.fetchCount(FetchDescriptor<Reminder>()) == 1)
+    }
+
+    private func makeContext() throws -> ModelContext {
+        let schema = SharedModelContainer.schema
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
+        )
+        return container.mainContext
+    }
+}
+
+@MainActor
+struct ReminderOwnershipLifecycleTests {
+    @Test func replacingProjectReminderDeletesOldEntity() throws {
+        let (service, context) = try makeService()
+        let project = service.createProject(title: "Project")
+        let old = Reminder(type: "single", fireTimestamp: Date())
+        service.updateReminder(old, for: project)
+
+        let replacement = Reminder(type: "single", fireTimestamp: Date().addingTimeInterval(60))
+        service.updateReminder(replacement, for: project)
+
+        #expect(project.reminder?.reminderId == replacement.reminderId)
+        #expect(!try context.fetch(FetchDescriptor<Reminder>()).contains { $0.reminderId == old.reminderId })
+    }
+
+    @Test func clearingMilestoneReminderDeletesOldEntity() throws {
+        let (service, context) = try makeService()
+        let project = service.createProject(title: "Project")
+        let milestone = service.addMilestone(to: project, title: "Milestone")
+        let old = Reminder(type: "single", fireTimestamp: Date())
+        service.updateReminder(old, for: milestone)
+
+        service.updateReminder(nil, for: milestone)
+
+        #expect(milestone.reminder == nil)
+        #expect(!try context.fetch(FetchDescriptor<Reminder>()).contains { $0.reminderId == old.reminderId })
+    }
+
+    @Test func reusingSameSubTaskReminderDoesNotDeleteIt() throws {
+        let (service, context) = try makeService()
+        let project = service.createProject(title: "Project")
+        let milestone = service.addMilestone(to: project, title: "Milestone")
+        let subTask = service.addSubTask(to: milestone, title: "SubTask")
+        let reminder = Reminder(type: "single", fireTimestamp: Date())
+        service.updateReminder(reminder, for: subTask)
+
+        service.updateReminder(reminder, for: subTask)
+
+        #expect(subTask.reminder?.reminderId == reminder.reminderId)
+        #expect(try context.fetch(FetchDescriptor<Reminder>()).contains { $0.reminderId == reminder.reminderId })
+    }
+
+    @Test func replacingAndClearingEveryOwnerLeavesNoOldReminderEntities() throws {
+        let (service, context) = try makeService()
+        let project = service.createProject(title: "Project")
+        let milestone = service.addMilestone(to: project, title: "Milestone")
+        let subTask = service.addSubTask(to: milestone, title: "SubTask")
+        let oldProject = Reminder(type: "single", fireTimestamp: Date())
+        let oldMilestone = Reminder(type: "single", fireTimestamp: Date())
+        let oldSubTask = Reminder(type: "single", fireTimestamp: Date())
+        service.updateReminder(oldProject, for: project)
+        service.updateReminder(oldMilestone, for: milestone)
+        service.updateReminder(oldSubTask, for: subTask)
+
+        let newProject = Reminder(type: "single", fireTimestamp: Date().addingTimeInterval(60))
+        let newMilestone = Reminder(type: "single", fireTimestamp: Date().addingTimeInterval(60))
+        let newSubTask = Reminder(type: "single", fireTimestamp: Date().addingTimeInterval(60))
+        service.updateReminder(newProject, for: project)
+        service.updateReminder(newMilestone, for: milestone)
+        service.updateReminder(newSubTask, for: subTask)
+
+        let idsAfterReplacement = Set(try context.fetch(FetchDescriptor<Reminder>()).map(\.persistentModelID))
+        #expect(idsAfterReplacement == Set([
+            newProject.persistentModelID,
+            newMilestone.persistentModelID,
+            newSubTask.persistentModelID,
+        ]))
+
+        service.updateReminder(nil, for: project)
+        service.updateReminder(nil, for: milestone)
+        service.updateReminder(nil, for: subTask)
+        #expect(try context.fetchCount(FetchDescriptor<Reminder>()) == 0)
+    }
+
+    private func makeService() throws -> (ProjectService, ModelContext) {
+        let schema = SharedModelContainer.schema
+        let modelContainer = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)]
+        )
+        let context = modelContainer.mainContext
+        let container = ServiceContainer()
+        let service = ProjectService(modelContext: context, container: container)
+        container.register(service)
+        container.register(NotificationScheduleService(
+            modelContext: context,
+            notificationCenter: DisabledUserNotificationCenterClient()
+        ))
+        return (service, context)
     }
 }
 
@@ -1402,7 +1570,7 @@ struct BackupRestoreTests {
             configurations: [ModelConfiguration(schema: trashSchema, isStoredInMemoryOnly: true)]
         )
         let trashContext = trashContainer.mainContext
-        let schedule = NotificationScheduleService(modelContext: context, notificationPoster: { _, _ in })
+        let schedule = NotificationScheduleService(modelContext: context, notificationCenter: DisabledUserNotificationCenterClient())
         let trashService = TrashService(
             modelContext: trashContext,
             projectModelContext: context,
@@ -1413,6 +1581,8 @@ struct BackupRestoreTests {
             notificationScheduleService: schedule,
             trashService: trashService
         )
+        context.insert(Reminder(type: "single", fireTimestamp: Date()))
+        try context.save()
         let fireDate = Date().addingTimeInterval(3600)
         let projectID = UUID()
         let milestoneID = UUID()
@@ -1462,6 +1632,7 @@ struct BackupRestoreTests {
 
         #expect(try context.fetch(FetchDescriptor<Project>()).map(\.title) == ["Recovered"])
         #expect(try context.fetch(FetchDescriptor<NotificationScheduleEntry>()).map(\.ownerId) == [milestoneID])
+        #expect(try context.fetchCount(FetchDescriptor<Reminder>()) == 1)
         #expect(WeekStartDaySettingsStore.value() == WeekStartDay.defaultValue())
     }
 
@@ -1490,7 +1661,7 @@ struct BackupRestoreTests {
             configurations: [ModelConfiguration(schema: trashSchema, isStoredInMemoryOnly: true)]
         )
         let trashContext = trashContainer.mainContext
-        let schedule = NotificationScheduleService(modelContext: context, notificationPoster: { _, _ in })
+        let schedule = NotificationScheduleService(modelContext: context, notificationCenter: DisabledUserNotificationCenterClient())
         let trashService = TrashService(
             modelContext: trashContext,
             projectModelContext: context,
@@ -1542,21 +1713,107 @@ struct BackupRestoreTests {
 
 @MainActor
 struct NotificationScheduleLifecycleTests {
-    @Test func singleTaskReminderRemainsPersistedAfterNotificationIsConsumed() throws {
-        let (service, scheduleService, context) = try makeServices()
+    @Test func activationBeforeStartDoesNotReconcile() async throws {
+        let (_, scheduleService, _, notifications) = try makeServices()
+
+        scheduleService.applicationDidBecomeActive()
+        await Task.yield()
+
+        #expect(notifications.authorizationStatusRequestCount == 0)
+    }
+
+    @Test func notificationServiceStartIsIdempotent() throws {
+        let (_, scheduleService, _, notifications) = try makeServices()
+
+        scheduleService.start()
+        scheduleService.start()
+
+        #expect(notifications.categoryRegistrationCount == 1)
+    }
+
+    @Test func secondMilestoneReminderSchedulesWithoutCompletingFirstMilestone() async throws {
+        let (service, scheduleService, _, notifications) = try makeServices()
+        let project = service.createProject(title: "Release")
+        _ = service.addMilestone(to: project, title: "First")
+        let second = service.addMilestone(to: project, title: "Second")
+        let fireDate = Date().addingTimeInterval(3600)
+        service.updateReminder(Reminder(type: "single", fireTimestamp: fireDate), for: second)
+
+        await scheduleService.reconcile()
+
+        let identifier = "viabar.milestone.\(second.milestoneId.uuidString)"
+        let request = try #require(notifications.pending[identifier])
+        let trigger = try #require(request.trigger as? UNCalendarNotificationTrigger)
+        #expect(trigger.repeats == false)
+        #expect(trigger.nextTriggerDate() != nil)
+        #expect(project.milestones.first?.isCompleted == false)
+    }
+
+    @Test func reconcileBackfillsOnlyTheMostRecentMissedReminder() async throws {
+        let (service, scheduleService, _, notifications) = try makeServices()
+        let project = service.createProject(title: "Release")
+        let first = service.addMilestone(to: project, title: "First")
+        let second = service.addMilestone(to: project, title: "Second")
+        let olderDate = Date().addingTimeInterval(-7200)
+        let recentDate = Date().addingTimeInterval(-3600)
+        service.updateReminder(Reminder(type: "single", fireTimestamp: olderDate), for: first)
+        service.updateReminder(Reminder(type: "single", fireTimestamp: recentDate), for: second)
+
+        await scheduleService.reconcile()
+        await scheduleService.reconcile()
+
+        let missed = notifications.addedIdentifiers.filter { $0.hasSuffix(".missed") }
+        #expect(missed == ["viabar.milestone.\(second.milestoneId.uuidString).missed"])
+        #expect(first.reminder?.lastTriggeredTimestamp == olderDate)
+        #expect(second.reminder?.lastTriggeredTimestamp == recentDate)
+    }
+
+    @Test func reconcileDoesNotBackfillDeliveredSingleReminderAgain() async throws {
+        let (service, scheduleService, _, notifications) = try makeServices()
+        let project = service.createProject(title: "Release")
+        let milestone = service.addMilestone(to: project, title: "Review")
+        let missedDate = Date().addingTimeInterval(-3600)
+        service.updateReminder(Reminder(type: "single", fireTimestamp: missedDate), for: milestone)
+        let identifier = "viabar.milestone.\(milestone.milestoneId.uuidString)"
+        notifications.deliveredIdentifiers.insert(identifier)
+
+        await scheduleService.reconcile()
+
+        #expect(notifications.addedIdentifiers.isEmpty)
+        #expect(milestone.reminder?.lastTriggeredTimestamp == missedDate)
+    }
+
+    @Test func completingUnrelatedTaskDoesNotRescheduleConsumedSingleReminder() async throws {
+        let (service, _, _, notifications) = try makeServices()
+        let project = service.createProject(title: "Release")
+        let reminded = service.addMilestone(to: project, title: "Reminded")
+        let unrelated = service.addMilestone(to: project, title: "Unrelated")
+        let firedAt = Date().addingTimeInterval(-3600)
+        let reminder = Reminder(type: "single", fireTimestamp: firedAt)
+        reminder.lastTriggeredTimestamp = firedAt
+        service.updateReminder(reminder, for: reminded)
+
+        service.toggleMilestoneComplete(unrelated)
+        await Task.yield()
+
+        #expect(notifications.addedIdentifiers.filter { $0.contains(reminded.milestoneId.uuidString) }.isEmpty)
+    }
+
+    @Test func singleTaskReminderRemainsPersistedAfterNotificationIsConsumed() async throws {
+        let (service, scheduleService, context, _) = try makeServices()
         let project = service.createProject(title: "Release")
         let milestone = service.addMilestone(to: project, title: "Review")
         let firedAt = Date().addingTimeInterval(60)
         service.updateReminder(Reminder(type: "single", fireTimestamp: firedAt), for: milestone)
 
-        scheduleService.processDueEntries(now: firedAt.addingTimeInterval(1))
+        await scheduleService.reconcile(now: firedAt.addingTimeInterval(1))
 
         #expect(milestone.reminder?.fireTimestamp == firedAt)
-        #expect(fetchEntries(in: context).isEmpty)
+        #expect(fetchEntries(in: context).count == 1)
     }
 
-    @Test func repeatingSubTaskReminderAdvancesToTheNextFutureFireDate() throws {
-        let (service, scheduleService, context) = try makeServices()
+    @Test func repeatingSubTaskReminderAdvancesToTheNextFutureFireDate() async throws {
+        let (service, scheduleService, context, notifications) = try makeServices()
         let project = service.createProject(title: "Release")
         let milestone = service.addMilestone(to: project, title: "Prepare")
         let subTask = service.addSubTask(to: milestone, title: "Review")
@@ -1567,18 +1824,16 @@ struct NotificationScheduleLifecycleTests {
             for: subTask
         )
 
-        scheduleService.processDueEntries(now: now)
+        await scheduleService.reconcile(now: now)
 
         let advancedDate = try #require(subTask.reminder?.fireTimestamp)
         #expect(advancedDate > now)
         #expect(fetchEntries(in: context).map(\.fireDate) == [advancedDate])
+        #expect(notifications.addedIdentifiers.filter { $0.hasSuffix(".missed") }.count == 1)
     }
 
-    @Test func projectNotificationUsesSelectedEnglishLanguageForBuiltInBody() throws {
-        var deliveredNotification: (title: String, body: String)?
-        let (service, scheduleService, context) = try makeServices { title, body in
-            deliveredNotification = (title, body)
-        }
+    @Test func projectNotificationUsesSelectedEnglishLanguageForBuiltInBody() async throws {
+        let (service, scheduleService, context, notifications) = try makeServices()
         context.insert(AppSettings(language: AppLanguage.english.rawValue))
         let project = service.createProject(title: "Release")
         _ = service.addMilestone(to: project, title: "Review")
@@ -1586,17 +1841,15 @@ struct NotificationScheduleLifecycleTests {
         project.reminder = Reminder(type: "single", fireTimestamp: firedAt)
         scheduleService.syncProject(project)
 
-        scheduleService.processDueEntries(now: firedAt.addingTimeInterval(1))
+        await scheduleService.reconcile(now: firedAt.addingTimeInterval(1))
 
-        #expect(deliveredNotification?.title == "Release")
-        #expect(deliveredNotification?.body == "Next: Review")
+        let request = try #require(notifications.addedRequests.last)
+        #expect(request.content.title == "Release")
+        #expect(request.content.body.contains("Next: Review"))
     }
 
     @Test func updatingDisplayPreferencesDoesNotProcessOverdueProjectEntries() throws {
-        var deliveredCount = 0
-        let (service, _, context) = try makeServices { _, _ in
-            deliveredCount += 1
-        }
+        let (service, _, context, notifications) = try makeServices()
         let project = service.createProject(title: "Release")
         _ = service.addMilestone(to: project, title: "Review")
         let overdueDate = Date().addingTimeInterval(-60)
@@ -1614,13 +1867,16 @@ struct NotificationScheduleLifecycleTests {
         project.hideCompleted.toggle()
         service.updateProjectDisplayPreferences(project)
 
-        #expect(deliveredCount == 0)
+        #expect(notifications.addedRequests.isEmpty)
         #expect(fetchEntries(in: context).count == 1)
     }
 
-    private func makeServices(
-        notificationPoster: @escaping (String, String) -> Void = { _, _ in }
-    ) throws -> (ProjectService, NotificationScheduleService, ModelContext) {
+    private func makeServices() throws -> (
+        ProjectService,
+        NotificationScheduleService,
+        ModelContext,
+        FakeUserNotificationCenterClient
+    ) {
         let schema = Schema([
             Project.self,
             Milestone.self,
@@ -1640,13 +1896,50 @@ struct NotificationScheduleLifecycleTests {
         let context = modelContainer.mainContext
         let container = ServiceContainer()
         let service = ProjectService(modelContext: context, container: container)
-        let scheduleService = NotificationScheduleService(modelContext: context, notificationPoster: notificationPoster)
+        let notifications = FakeUserNotificationCenterClient()
+        let scheduleService = NotificationScheduleService(modelContext: context, notificationCenter: notifications)
         container.register(service)
         container.register(scheduleService)
-        return (service, scheduleService, context)
+        return (service, scheduleService, context, notifications)
     }
 
     private func fetchEntries(in context: ModelContext) -> [NotificationScheduleEntry] {
         (try? context.fetch(FetchDescriptor<NotificationScheduleEntry>())) ?? []
+    }
+}
+
+@MainActor
+private final class FakeUserNotificationCenterClient: UserNotificationCenterClient {
+    var authorizationStatus: UNAuthorizationStatus = .authorized
+    var authorizationStatusRequestCount = 0
+    var categoryRegistrationCount = 0
+    var pending: [String: UNNotificationRequest] = [:]
+    var deliveredIdentifiers: Set<String> = []
+    var addedRequests: [UNNotificationRequest] = []
+    var addedIdentifiers: [String] { addedRequests.map(\.identifier) }
+    var removedPendingIdentifiers: [String] = []
+    var removedDeliveredIdentifiers: [String] = []
+
+    func currentAuthorizationStatus() async -> UNAuthorizationStatus {
+        authorizationStatusRequestCount += 1
+        return authorizationStatus
+    }
+    func requestAuthorization() async throws -> Bool { true }
+    func setCategories(_ categories: Set<UNNotificationCategory>) {
+        categoryRegistrationCount += 1
+    }
+    func add(_ request: UNNotificationRequest) async throws {
+        pending[request.identifier] = request
+        addedRequests.append(request)
+    }
+    func pendingRequests() async -> [UNNotificationRequest] { Array(pending.values) }
+    func deliveredRequestIdentifiers() async -> Set<String> { deliveredIdentifiers }
+    func removePendingRequests(withIdentifiers identifiers: [String]) {
+        identifiers.forEach { pending.removeValue(forKey: $0) }
+        removedPendingIdentifiers.append(contentsOf: identifiers)
+    }
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        identifiers.forEach { deliveredIdentifiers.remove($0) }
+        removedDeliveredIdentifiers.append(contentsOf: identifiers)
     }
 }

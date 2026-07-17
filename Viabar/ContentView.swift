@@ -678,6 +678,7 @@ struct OverviewDashboardView: View {
     private let cardMinimumWidth: CGFloat = 320
     private let cardSpacing: CGFloat = 12
     private let contentPadding: CGFloat = 16
+    @AppStorage(TodayFocusVisibilitySettingsStore.key) private var isTodayFocusVisible = true
 
     private var projectService: ProjectService? {
         container.projectService
@@ -711,14 +712,16 @@ struct OverviewDashboardView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    TodayFocusSectionView(
-                        items: todayFocusItems,
-                        availableWidth: availableWidth,
-                        dateFormatPattern: settingsRecords.first?.dateFormat,
-                        language: effectiveLanguage,
-                        onOpen: onOpenTodayFocusItem,
-                        onToggle: toggleTodayFocusItem
-                    )
+                    if isTodayFocusVisible {
+                        TodayFocusSectionView(
+                            items: todayFocusItems,
+                            availableWidth: availableWidth,
+                            dateFormatPattern: settingsRecords.first?.dateFormat,
+                            language: effectiveLanguage,
+                            onOpen: onOpenTodayFocusItem,
+                            onToggle: toggleTodayFocusItem
+                        )
+                    }
 
                     if !starredProjects.isEmpty {
                         sectionHeader(icon: "star.fill", title: "星标项目")

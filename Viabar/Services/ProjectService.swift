@@ -28,6 +28,7 @@ protocol ProjectServiceProtocol: AnyObject {
     func createProject(title: String, hideCompleted: Bool, orderIndex: Int, template: ProjectTemplate?) -> Project
     func allProjects() -> [Project]
     func updateProject(_ project: Project)
+    func updateReminder(_ reminder: Reminder?, for project: Project)
     func updateProjectDisplayPreferences(_ project: Project)
     func deleteProject(_ project: Project)
     func toggleFavorite(_ project: Project)
@@ -167,7 +168,20 @@ final class ProjectService: ProjectServiceProtocol {
         // SwiftData auto-tracks changes on managed objects,
         // keeping this as an explicit entry point for future side-effects (sync, undo, etc.)
         save()
-        syncReminderTimeline(for: project)
+        notificationScheduleService?.syncProject(project)
+        project.milestones.forEach { milestone in
+            notificationScheduleService?.syncMilestone(milestone, project: project)
+            milestone.subtasks.forEach {
+                notificationScheduleService?.syncSubTask($0, project: project)
+            }
+        }
+    }
+
+    func updateReminder(_ reminder: Reminder?, for project: Project) {
+        replaceReminder(project.reminder, with: reminder) {
+            project.reminder = reminder
+        }
+        notificationScheduleService?.replaceProjectReminder(project)
     }
 
     func updateProjectDisplayPreferences(_ project: Project) {
@@ -176,7 +190,7 @@ final class ProjectService: ProjectServiceProtocol {
     }
 
     func deleteProject(_ project: Project) {
-        notificationScheduleService?.removeEntries(projectId: project.projectId)
+        notificationScheduleService?.cancelProject(project, removeDelivered: true)
         modelContext.delete(project)
         save()
     }
@@ -218,10 +232,11 @@ final class ProjectService: ProjectServiceProtocol {
 
     func updateReminder(_ reminder: Reminder?, for milestone: Milestone) {
         print("[ProjectService] updateReminder(milestone: \(milestone.milestoneId)) reminderId=\(reminder?.reminderId.uuidString ?? "nil") fireTimestamp=\(String(describing: reminder?.fireTimestamp))")
-        milestone.reminder = reminder
-        save()
+        replaceReminder(milestone.reminder, with: reminder) {
+            milestone.reminder = reminder
+        }
         guard let project = milestone.project else { return }
-        notificationScheduleService?.syncMilestone(milestone, project: project)
+        notificationScheduleService?.replaceMilestoneReminder(milestone, project: project)
     }
 
     func updateMarkerColor(_ markerColor: TaskMarkerColor?, for milestone: Milestone) {
@@ -232,9 +247,16 @@ final class ProjectService: ProjectServiceProtocol {
     func toggleMilestoneComplete(_ milestone: Milestone) {
         TaskCompletionMutation.toggle(milestone)
         save()
-        if let project = milestone.project {
-            syncReminderTimeline(for: project)
+        guard let project = milestone.project else { return }
+        if milestone.isCompleted {
+            notificationScheduleService?.cancelMilestone(milestone, removeDelivered: true)
+        } else {
+            notificationScheduleService?.syncMilestone(milestone, project: project)
+            milestone.subtasks.forEach {
+                notificationScheduleService?.syncSubTask($0, project: project)
+            }
         }
+        syncProjectReminder(project)
     }
 
     // MARK: - SubTask CRUD
@@ -273,10 +295,11 @@ final class ProjectService: ProjectServiceProtocol {
 
     func updateReminder(_ reminder: Reminder?, for subTask: SubTask) {
         print("[ProjectService] updateReminder(subTask: \(subTask.taskId)) reminderId=\(reminder?.reminderId.uuidString ?? "nil") fireTimestamp=\(String(describing: reminder?.fireTimestamp))")
-        subTask.reminder = reminder
-        save()
+        replaceReminder(subTask.reminder, with: reminder) {
+            subTask.reminder = reminder
+        }
         guard let project = subTask.milestone?.project else { return }
-        notificationScheduleService?.syncSubTask(subTask, project: project)
+        notificationScheduleService?.replaceSubTaskReminder(subTask, project: project)
     }
 
     func updateMarkerColor(_ markerColor: TaskMarkerColor?, for subTask: SubTask) {
@@ -287,8 +310,39 @@ final class ProjectService: ProjectServiceProtocol {
     func toggleSubTaskComplete(_ subTask: SubTask) {
         TaskCompletionMutation.toggle(subTask)
         save()
-        if let project = subTask.milestone?.project {
-            syncReminderTimeline(for: project)
+        guard let milestone = subTask.milestone,
+              let project = milestone.project
+        else { return }
+
+        if subTask.isCompleted {
+            notificationScheduleService?.cancelSubTask(subTask, removeDelivered: true)
+        } else {
+            notificationScheduleService?.syncSubTask(subTask, project: project)
+        }
+        notificationScheduleService?.syncMilestone(milestone, project: project)
+        syncProjectReminder(project)
+    }
+
+    func completeReminderOwner(id: UUID, kind: NotificationOwnerKind) {
+        switch kind {
+        case .milestone:
+            let descriptor = FetchDescriptor<Milestone>(
+                predicate: #Predicate { $0.milestoneId == id }
+            )
+            guard let milestone = (try? modelContext.fetch(descriptor))?.first,
+                  !milestone.isCompleted
+            else { return }
+            toggleMilestoneComplete(milestone)
+        case .subtask:
+            let descriptor = FetchDescriptor<SubTask>(
+                predicate: #Predicate { $0.taskId == id }
+            )
+            guard let subTask = (try? modelContext.fetch(descriptor))?.first,
+                  !subTask.isCompleted
+            else { return }
+            toggleSubTaskComplete(subTask)
+        case .project:
+            return
         }
     }
 
@@ -322,7 +376,7 @@ final class ProjectService: ProjectServiceProtocol {
         project.archivedAt = Date()
         project.archiveFolder = folder
         save()
-        notificationScheduleService?.removeEntries(projectId: project.projectId)
+        notificationScheduleService?.cancelProject(project, removeDelivered: true)
     }
 
     func unarchiveProject(_ project: Project) {
@@ -354,7 +408,7 @@ final class ProjectService: ProjectServiceProtocol {
         project.archiveFolder = folder
         project.isArchived = true
         save()
-        notificationScheduleService?.removeEntries(projectId: project.projectId)
+        notificationScheduleService?.cancelProject(project, removeDelivered: true)
     }
 
     func moveProjectToFolder(_ project: Project, folder: ArchiveFolder, toOffset: Int) {
@@ -386,7 +440,7 @@ final class ProjectService: ProjectServiceProtocol {
         }
 
         save()
-        notificationScheduleService?.removeEntries(projectId: project.projectId)
+        notificationScheduleService?.cancelProject(project, removeDelivered: true)
     }
 
     func moveProjectToArchiveRoot(_ project: Project, toOffset: Int) {
@@ -414,7 +468,7 @@ final class ProjectService: ProjectServiceProtocol {
         }
 
         save()
-        notificationScheduleService?.removeEntries(projectId: project.projectId)
+        notificationScheduleService?.cancelProject(project, removeDelivered: true)
     }
 
     func moveFolder(_ folder: ArchiveFolder, to parent: ArchiveFolder?) {
@@ -648,7 +702,7 @@ final class ProjectService: ProjectServiceProtocol {
 
     private func syncReminderTimeline(for project: Project) {
         guard !project.isArchived else {
-            notificationScheduleService?.removeEntries(projectId: project.projectId)
+            notificationScheduleService?.cancelProject(project, removeDelivered: true)
             return
         }
 
@@ -663,6 +717,19 @@ final class ProjectService: ProjectServiceProtocol {
 
     private func syncProjectReminder(_ project: Project) {
         notificationScheduleService?.syncProject(project)
+    }
+
+    private func replaceReminder(
+        _ existingReminder: Reminder?,
+        with replacement: Reminder?,
+        assign: () -> Void
+    ) {
+        assign()
+        if let existingReminder,
+           existingReminder !== replacement {
+            modelContext.delete(existingReminder)
+        }
+        save()
     }
 
     private func folders(in parent: ArchiveFolder?) -> [ArchiveFolder] {
@@ -754,7 +821,7 @@ final class ProjectService: ProjectServiceProtocol {
         }
 
         for project in folder.projects {
-            notificationScheduleService?.removeEntries(projectId: project.projectId)
+            notificationScheduleService?.cancelProject(project, removeDelivered: true)
             modelContext.delete(project)
         }
     }

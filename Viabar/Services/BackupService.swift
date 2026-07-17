@@ -133,6 +133,7 @@ final class BackupService {
         let projects = restoreProjects(snapshot.projects, folders: folders)
         try restoreTrashItems(snapshot.trashItems)
         try modelContext.save()
+        try MainStoreDataMigrator.removeOrphanReminders(in: modelContext)
         try trashService.cleanupExpired(
             policy: TrashRetentionSettingsStore.policy(),
             now: now

@@ -80,6 +80,7 @@ private struct SettingsDetailView: View {
     @State private var settingsErrorMessage: LocalizedStringKey?
     @State private var showsBackupBrowser = false
     @State private var trashRetentionPolicy = TrashRetentionSettingsStore.policy().rawValue
+    @AppStorage(TodayFocusVisibilitySettingsStore.key) private var isTodayFocusVisible = true
 
     private var backupService: BackupService? {
         container.backupService
@@ -225,6 +226,10 @@ private struct SettingsDetailView: View {
             }
 
             SettingsGroup("视图") {
+                SettingsRow("今日推荐") {
+                    settingsSwitch($isTodayFocusVisible)
+                }
+                SettingsDivider()
                 SettingsRow("总览") {
                     Picker("总览", selection: overviewScopeBinding) {
                         ForEach(OverviewScope.allCases) { scope in
