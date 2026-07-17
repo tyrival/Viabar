@@ -121,6 +121,13 @@ App 内完成按钮、菜单栏完成操作和通知 action 必须最终走同�
 
 移除 View 层在 `ProjectService.toggle...` 已经同步后再次直接调用通知服务的重复同步。通知服务不应由 View 同时维护第二套业务流程。
 
+## 投递与忽略状态回写
+
+- 系统在前台投递通知时，立即把通知 `userInfo` 中的 fireTimestamp 写入对应 Reminder.lastTriggeredTimestamp。
+- 用户点击“忽略”或通知正文时，先保存已处理时间，再执行 reconciliation。
+- 一次性提醒处理后不得再次作为 missed 补发；重复提醒处理后推进到下一周期。
+- 通知 action 的 completion handler 在已处理状态保存后调用，避免系统挂起 App 前丢失状态回写。
+
 ## 授权与错误处理
 
 - 启动时读取通知授权状态；仅在尚未决定时请求授权。

@@ -1783,6 +1783,47 @@ struct NotificationScheduleLifecycleTests {
         #expect(milestone.reminder?.lastTriggeredTimestamp == missedDate)
     }
 
+    @Test func recordingIgnoredDeliveryPreventsSingleReminderBackfill() async throws {
+        let (service, scheduleService, _, notifications) = try makeServices()
+        let project = service.createProject(title: "Release")
+        let milestone = service.addMilestone(to: project, title: "Review")
+        let fireDate = Date().addingTimeInterval(-60)
+        service.updateReminder(Reminder(type: "single", fireTimestamp: fireDate), for: milestone)
+
+        scheduleService.recordNotificationHandled(
+            ownerId: milestone.milestoneId,
+            ownerKind: .milestone,
+            fireDate: fireDate
+        )
+        await scheduleService.reconcile()
+
+        #expect(milestone.reminder?.lastTriggeredTimestamp == fireDate)
+        #expect(notifications.addedIdentifiers.filter { $0.hasSuffix(".missed") }.isEmpty)
+    }
+
+    @Test func recordingIgnoredRepeatingDeliveryAdvancesWithoutBackfill() async throws {
+        let (service, scheduleService, _, notifications) = try makeServices()
+        let project = service.createProject(title: "Release")
+        let milestone = service.addMilestone(to: project, title: "Review")
+        let fireDate = Date().addingTimeInterval(-60)
+        service.updateReminder(
+            Reminder(type: "repeating", fireTimestamp: fireDate, repeatIntervalDays: 1),
+            for: milestone
+        )
+
+        scheduleService.recordNotificationHandled(
+            ownerId: milestone.milestoneId,
+            ownerKind: .milestone,
+            fireDate: fireDate
+        )
+        await scheduleService.reconcile()
+
+        #expect(milestone.reminder?.lastTriggeredTimestamp == fireDate)
+        let nextFireDate = try #require(milestone.reminder?.fireTimestamp)
+        #expect(nextFireDate > Date())
+        #expect(notifications.addedIdentifiers.filter { $0.hasSuffix(".missed") }.isEmpty)
+    }
+
     @Test func completingUnrelatedTaskDoesNotRescheduleConsumedSingleReminder() async throws {
         let (service, _, _, notifications) = try makeServices()
         let project = service.createProject(title: "Release")

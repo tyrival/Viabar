@@ -5,7 +5,7 @@ import UserNotifications
 import AppKit
 #endif
 
-enum NotificationOwnerKind: String {
+enum NotificationOwnerKind: String, Sendable {
     case project
     case milestone
     case subtask
@@ -88,6 +88,22 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         Task { @MainActor in
             await reconcile()
         }
+    }
+
+    func recordNotificationHandled(
+        ownerId: UUID,
+        ownerKind: NotificationOwnerKind,
+        fireDate: Date
+    ) {
+        guard let candidate = reminderCandidates().first(where: {
+            $0.ownerId == ownerId && $0.ownerKind == ownerKind
+        }) else { return }
+
+        candidate.reminder.lastTriggeredTimestamp = max(
+            candidate.reminder.lastTriggeredTimestamp ?? .distantPast,
+            fireDate
+        )
+        save()
     }
 
     func syncMilestone(_ milestone: Milestone, project: Project) {
@@ -290,7 +306,24 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound, .list])
+        guard let metadata = Self.notificationMetadata(
+            from: notification.request.content.userInfo
+        ) else {
+            completionHandler([.banner, .sound, .list])
+            return
+        }
+
+        Task { @MainActor in
+            self.recordNotificationHandled(
+                ownerId: metadata.ownerId,
+                ownerKind: metadata.ownerKind,
+                fireDate: metadata.fireDate
+            )
+            Task { @MainActor in
+                await self.reconcile()
+            }
+            completionHandler([.banner, .sound, .list])
+        }
     }
 
     nonisolated func userNotificationCenter(
@@ -298,19 +331,50 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        if response.actionIdentifier == "COMPLETE_TASK" {
-            let userInfo = response.notification.request.content.userInfo
-            if let ownerIdString = userInfo["ownerId"] as? String,
-               let ownerId = UUID(uuidString: ownerIdString),
-               let ownerKindString = userInfo["ownerKind"] as? String,
-               let ownerKind = NotificationOwnerKind(rawValue: ownerKindString),
-               ownerKind != .project {
+        let actionIdentifier = response.actionIdentifier
+        let handledActions = [
+            "IGNORE",
+            "COMPLETE_TASK",
+            UNNotificationDefaultActionIdentifier,
+            UNNotificationDismissActionIdentifier,
+        ]
+        guard handledActions.contains(actionIdentifier),
+              let metadata = Self.notificationMetadata(
+                  from: response.notification.request.content.userInfo
+              )
+        else {
+            completionHandler()
+            return
+        }
+
+        Task { @MainActor in
+            self.recordNotificationHandled(
+                ownerId: metadata.ownerId,
+                ownerKind: metadata.ownerKind,
+                fireDate: metadata.fireDate
+            )
+            if actionIdentifier == "COMPLETE_TASK", metadata.ownerKind != .project {
+                self.completeOwner?(metadata.ownerId, metadata.ownerKind)
+            } else {
                 Task { @MainActor in
-                    self.completeOwner?(ownerId, ownerKind)
+                    await self.reconcile()
                 }
             }
+            completionHandler()
         }
-        completionHandler()
+    }
+
+    nonisolated private static func notificationMetadata(
+        from userInfo: [AnyHashable: Any]
+    ) -> (ownerId: UUID, ownerKind: NotificationOwnerKind, fireDate: Date)? {
+        guard let ownerIdString = userInfo["ownerId"] as? String,
+              let ownerId = UUID(uuidString: ownerIdString),
+              let ownerKindString = userInfo["ownerKind"] as? String,
+              let ownerKind = NotificationOwnerKind(rawValue: ownerKindString),
+              let timestamp = userInfo["fireTimestamp"] as? TimeInterval
+        else { return nil }
+
+        return (ownerId, ownerKind, Date(timeIntervalSince1970: timestamp))
     }
 
     private func syncEntry(
@@ -443,7 +507,7 @@ final class NotificationScheduleService: NSObject, UNUserNotificationCenterDeleg
                 identifier: Self.categoryIdentifier,
                 actions: [ignoreAction, completeAction],
                 intentIdentifiers: [],
-                options: []
+                options: [.customDismissAction]
             )
         ])
     }
