@@ -174,7 +174,7 @@ struct IOSPersistentOverviewView: View {
                         isSettingsPresented = true
                     }
                     Spacer()
-                    IOSPrototypeCircularIconButton(symbol: "plus.app") {
+                    IOSPrototypeCircularIconButton(symbol: "plus") {
                         isProjectCreationPresented = true
                     }
                 }
