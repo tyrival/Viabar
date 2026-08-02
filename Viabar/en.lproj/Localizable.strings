@@ -287,11 +287,47 @@
 /* ---- 菜单 ---- */
 "检查更新..." = "Check for Updates...";
 
+/* ---- AI Settings ---- */
+"AI" = "AI";
+"AI 服务" = "AI Service";
+"服务商" = "Provider";
+"自定义兼容接口" = "Custom Compatible API";
+"模型" = "Model";
+"最大输出 Token" = "Maximum Output Tokens";
+"包含模型推理和最终回答" = "Includes model reasoning and the final response";
+"自定义" = "Custom";
+"Token 数" = "Token Count";
+"手动输入模型名称" = "Enter Model Manually";
+"操作" = "Actions";
+"获取模型" = "Get Models";
+"测试连接" = "Test Connection";
+"保存" = "Save";
+"显示 API Key" = "Show API Key";
+"隐藏 API Key" = "Hide API Key";
+"API Key 已安全保存" = "API Key Saved Securely";
+"API Key 保存失败" = "Failed to Save API Key";
+"未获取到模型，可手动输入" = "No Models Returned; Enter One Manually";
+"已获取 %lld 个模型" = "%lld Models Loaded";
+"获取失败，可手动输入模型名称" = "Fetch Failed; Enter a Model Manually";
+"连接成功" = "Connection Successful";
+"连接失败，请检查地址、API Key 和模型" = "Connection Failed; Check URL, API Key, and Model";
+
 /* ---- Yearly Report ---- */
 "年度报告" = "Yearly Report";
 "选择年份" = "Select Year";
 "该年度没有已完成的任务" = "No completed tasks this year";
 "导出" = "Export";
+"AI 总结" = "AI Summary";
+"重新生成" = "Regenerate";
+"Markdown" = "Markdown";
+"AI 配置不完整，请先在设置中配置服务" = "AI setup is incomplete. Configure the service in Settings first.";
+"AI 认证失败，请检查 API Key" = "AI authentication failed. Check the API Key.";
+"AI 请求过于频繁，请稍后重试" = "Too many AI requests. Try again later.";
+"AI 总结生成超时，请重试" = "AI summary generation timed out. Try again.";
+"AI 未返回总结内容" = "The AI returned no summary.";
+"AI 总结生成失败，请稍后重试" = "Failed to generate the AI summary. Try again later.";
+"导出原始年报" = "Export Original Report";
+"导出 AI 总结" = "Export AI Summary";
 
 /* ---- Today Focus ---- */
 "今日推荐" = "Today’s Recommendations";

@@ -6,6 +6,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case general = "通用"
     case display = "显示"
     case shortcuts = "快捷键"
+    case ai = "AI"
     case data = "数据"
     case about = "关于"
 
@@ -16,6 +17,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .display: "display"
         case .shortcuts: "keyboard"
+        case .ai: "sparkles"
         case .data: "arrow.trianglehead.2.clockwise.rotate.90"
         case .about: "info.circle"
         }
@@ -140,6 +142,8 @@ private struct SettingsDetailView: View {
             displayPanel
         case .shortcuts:
             shortcutsPanel
+        case .ai:
+            AISettingsPanel()
         case .data:
             dataPanel
         case .about:
@@ -611,7 +615,7 @@ private struct MenuBarIconImage: View {
     }
 }
 
-private struct SettingsGroup<Content: View>: View {
+struct SettingsGroup<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let title: LocalizedStringKey?
     let content: Content
@@ -651,7 +655,7 @@ private struct SettingsGroup<Content: View>: View {
     }
 }
 
-private struct SettingsRow<Control: View>: View {
+struct SettingsRow<Control: View>: View {
     private let controlColumnWidth: CGFloat = 252
     let title: LocalizedStringKey
     let description: LocalizedStringKey?
@@ -692,7 +696,7 @@ private struct SettingsRow<Control: View>: View {
     }
 }
 
-private struct SettingsDivider: View {
+struct SettingsDivider: View {
     var body: some View {
         Divider()
             .padding(.leading, 14)

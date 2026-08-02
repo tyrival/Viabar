@@ -9,12 +9,26 @@ struct YearlyReportView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedYear: Int
     @State private var isExporting = false
+    @State private var exportKind: YearlyReportExportKind = .original
+    @State private var isExportChoicePresented = false
+    @State private var exportHoveredKind: YearlyReportExportKind?
+    @State private var aiSummaryMarkdown: String?
+    @State private var aiErrorKey: LocalizedStringKey?
+    @State private var isGeneratingAISummary = false
+    @State private var aiTask: Task<Void, Never>?
+    @State private var aiRequestID: UUID?
 
     private let availableYears: [Int]
+    private let aiService: any YearlyReportAIServicing
 
-    init(projects: [Project], language: EffectiveAppLanguage) {
+    init(
+        projects: [Project],
+        language: EffectiveAppLanguage,
+        aiService: any YearlyReportAIServicing = YearlyReportAIService()
+    ) {
         self.projects = projects
         self.language = language
+        self.aiService = aiService
         let currentYear = Calendar.current.component(.year, from: Date())
         let firstYear = Self.firstCompletedYear(from: projects) ?? currentYear
         self.availableYears = Array(Array(firstYear...currentYear).reversed())
@@ -52,29 +66,56 @@ struct YearlyReportView: View {
                 }
                 .labelsHidden()
                 Spacer()
+                Button {
+                    generateAISummary()
+                } label: {
+                    HStack(spacing: 6) {
+                        if isGeneratingAISummary {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: aiSummaryMarkdown == nil ? "sparkles" : "arrow.clockwise")
+                        }
+                        Text(LocalizedStringKey(aiSummaryMarkdown == nil ? "AI 总结" : "重新生成"))
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .tint(ViabarColor.primary)
+                .controlSize(.large)
+                .disabled(projectCards.isEmpty || isGeneratingAISummary)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
 
+            if let aiErrorKey {
+                Text(aiErrorKey)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 10)
+            }
+
             Divider()
 
-            if projectCards.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "tray")
-                        .font(.largeTitle)
-                        .foregroundStyle(.tertiary)
-                    Text("该年度没有已完成的任务")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(projectCards) { card in
-                            yearlyProjectCard(card)
-                        }
+            GeometryReader { proxy in
+                if let aiSummaryMarkdown {
+                    let dividerWidth: CGFloat = 1
+                    let columnWidth = max(0, (proxy.size.width - dividerWidth) / 2)
+                    HStack(spacing: 0) {
+                        originalReportContent
+                            .frame(width: columnWidth)
+
+                        Divider()
+                            .frame(width: dividerWidth)
+
+                        aiSummaryContent(aiSummaryMarkdown)
+                            .frame(width: columnWidth)
                     }
-                    .padding(16)
+                } else {
+                    originalReportContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
 
@@ -93,19 +134,34 @@ struct YearlyReportView: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button {
-                    exportFile()
+                    if aiSummaryMarkdown == nil {
+                        exportKind = .original
+                        isExporting = true
+                    } else {
+                        isExportChoicePresented = true
+                    }
                 } label: {
-                    Text("导出")
-                        .frame(width: 72)
+                    HStack(spacing: 5) {
+                        Text("导出")
+                        if aiSummaryMarkdown != nil {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                    }
+                    .frame(minWidth: 72)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(projectCards.isEmpty)
+                .popover(isPresented: $isExportChoicePresented, arrowEdge: .bottom) {
+                    exportChoicePopover
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
         }
-        .frame(width: 560, height: 520)
+        .frame(width: aiSummaryMarkdown == nil ? 720 : 1120, height: 768)
+        .animation(.easeInOut(duration: 0.2), value: aiSummaryMarkdown != nil)
         .background(
             Rectangle()
                 .fill(Color(nsColor: .windowBackgroundColor))
@@ -113,15 +169,113 @@ struct YearlyReportView: View {
         )
         .fileExporter(
             isPresented: $isExporting,
-            document: YearlyReportDocument(content: reportLines.joined(separator: "\n")),
+            document: YearlyReportDocument(content: exportContent),
             contentType: .plainText,
-            defaultFilename: defaultFilename
+            defaultFilename: exportFilename
         ) { _ in }
+        .onChange(of: selectedYear) { _, _ in
+            resetAIState()
+        }
+        .onDisappear {
+            aiTask?.cancel()
+        }
     }
 
-    private var defaultFilename: String {
+    private var originalFilename: String {
         let label = AppLocalization.string("年度报告", language: language)
         return "Viabar_\(label)_\(selectedYear).md"
+    }
+
+    private var aiSummaryFilename: String {
+        let label = AppLocalization.string("AI 总结", language: language)
+        return "Viabar_\(label)_\(selectedYear).md"
+    }
+
+    private var exportContent: String {
+        switch exportKind {
+        case .original:
+            reportLines.joined(separator: "\n")
+        case .aiSummary:
+            aiSummaryMarkdown ?? ""
+        }
+    }
+
+    private var exportFilename: String {
+        exportKind == .original ? originalFilename : aiSummaryFilename
+    }
+
+    @ViewBuilder
+    private var originalReportContent: some View {
+        if projectCards.isEmpty {
+            VStack(spacing: 8) {
+                Image(systemName: "tray")
+                    .font(.largeTitle)
+                    .foregroundStyle(.tertiary)
+                Text("该年度没有已完成的任务")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(projectCards) { card in
+                        yearlyProjectCard(card)
+                    }
+                }
+                .padding(16)
+            }
+        }
+    }
+
+    private func aiSummaryContent(_ markdown: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                MarkdownTextView(markdown: markdown)
+                    .padding(18)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var exportChoicePopover: some View {
+        VStack(spacing: 2) {
+            exportChoiceRow(kind: .original, title: "导出原始年报", icon: "doc.text")
+            exportChoiceRow(kind: .aiSummary, title: "导出 AI 总结", icon: "sparkles")
+        }
+        .padding(6)
+        .frame(width: 260)
+    }
+
+    private func exportChoiceRow(
+        kind: YearlyReportExportKind,
+        title: LocalizedStringKey,
+        icon: String
+    ) -> some View {
+        Button {
+            isExportChoicePresented = false
+            DispatchQueue.main.async {
+                exportKind = kind
+                isExporting = true
+            }
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: icon)
+                    .foregroundStyle(kind == .aiSummary ? ViabarColor.primary : Color.secondary)
+                    .frame(width: 18)
+                Text(title)
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(exportHoveredKind == kind ? Color.primary.opacity(0.07) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { exportHoveredKind = $0 ? kind : nil }
     }
 
     // MARK: - Card views
@@ -340,9 +494,85 @@ struct YearlyReportView: View {
         return Calendar.current.component(.year, from: earliest)
     }
 
-    private func exportFile() {
-        isExporting = true
+    private func generateAISummary() {
+        aiTask?.cancel()
+        aiErrorKey = nil
+        isGeneratingAISummary = true
+
+        let requestedYear = selectedYear
+        let originalMarkdown = reportLines.joined(separator: "\n")
+        let requestID = UUID()
+        aiRequestID = requestID
+
+        aiTask = Task { @MainActor in
+            defer {
+                if aiRequestID == requestID {
+                    isGeneratingAISummary = false
+                    aiTask = nil
+                }
+            }
+
+            do {
+                let settings = AIProviderSettings.shared
+                let result = try await aiService.summarize(
+                    originalMarkdown: originalMarkdown,
+                    outputLanguage: language,
+                    configuration: settings.configuration(),
+                    apiKey: settings.apiKey()
+                )
+                guard !Task.isCancelled,
+                      selectedYear == requestedYear,
+                      aiRequestID == requestID else {
+                    return
+                }
+                aiSummaryMarkdown = result
+                aiErrorKey = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard selectedYear == requestedYear, aiRequestID == requestID else {
+                    return
+                }
+                aiErrorKey = errorMessageKey(for: error)
+            }
+        }
     }
+
+    private func resetAIState() {
+        aiTask?.cancel()
+        aiTask = nil
+        aiRequestID = nil
+        isGeneratingAISummary = false
+        aiSummaryMarkdown = nil
+        aiErrorKey = nil
+        isExportChoicePresented = false
+        exportKind = .original
+    }
+
+    private func errorMessageKey(for error: Error) -> LocalizedStringKey {
+        guard let serviceError = error as? AIServiceError else {
+            return "AI 总结生成失败，请稍后重试"
+        }
+        switch serviceError {
+        case .invalidConfiguration:
+            return "AI 配置不完整，请先在设置中配置服务"
+        case .authenticationFailed:
+            return "AI 认证失败，请检查 API Key"
+        case .rateLimited:
+            return "AI 请求过于频繁，请稍后重试"
+        case .timedOut:
+            return "AI 总结生成超时，请重试"
+        case .emptyResult:
+            return "AI 未返回总结内容"
+        case .server, .invalidResponse:
+            return "AI 总结生成失败，请稍后重试"
+        }
+    }
+}
+
+private enum YearlyReportExportKind: Equatable {
+    case original
+    case aiSummary
 }
 
 // MARK: - FileDocument
