@@ -83,6 +83,8 @@ private struct SettingsDetailView: View {
     @State private var showsBackupBrowser = false
     @State private var trashRetentionPolicy = TrashRetentionSettingsStore.policy().rawValue
     @AppStorage(TodayFocusVisibilitySettingsStore.key) private var isTodayFocusVisible = true
+    @AppStorage(OverviewCardTaskCountSettingsStore.key)
+    private var storedOverviewCardTaskCount = OverviewCardTaskCount.one.rawValue
 
     private var backupService: BackupService? {
         container.backupService
@@ -238,6 +240,17 @@ private struct SettingsDetailView: View {
                     Picker("总览", selection: overviewScopeBinding) {
                         ForEach(OverviewScope.allCases) { scope in
                             Text(scope.title).tag(scope)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 150, alignment: .trailing)
+                }
+                SettingsDivider()
+                SettingsRow("总览卡片任务数量") {
+                    Picker("总览卡片任务数量", selection: overviewCardTaskCountBinding) {
+                        ForEach(OverviewCardTaskCount.allCases) { count in
+                            Text("\(count.rawValue)").tag(count)
                         }
                     }
                     .labelsHidden()
@@ -505,6 +518,13 @@ private struct SettingsDetailView: View {
         Binding(
             get: { OverviewScope(rawValue: settings.overviewScope) ?? .allProjects },
             set: { settings.overviewScope = $0.rawValue }
+        )
+    }
+
+    private var overviewCardTaskCountBinding: Binding<OverviewCardTaskCount> {
+        Binding(
+            get: { OverviewCardTaskCount.resolve(storedOverviewCardTaskCount) },
+            set: { storedOverviewCardTaskCount = $0.rawValue }
         )
     }
 

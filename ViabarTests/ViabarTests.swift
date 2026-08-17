@@ -760,6 +760,39 @@ struct AppSettingsTests {
         #expect(TodayFocusVisibilitySettingsStore.isVisible(defaults: defaults))
     }
 
+    @Test func overviewCardTaskCountDefaultsToOneAndPersistsValidSelection() throws {
+        let suiteName = "ViabarTests.OverviewCardTaskCount.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(OverviewCardTaskCountSettingsStore.value(defaults: defaults) == .one)
+        defaults.set(99, forKey: OverviewCardTaskCountSettingsStore.key)
+        #expect(OverviewCardTaskCountSettingsStore.value(defaults: defaults) == .one)
+        OverviewCardTaskCountSettingsStore.set(.three, defaults: defaults)
+        #expect(OverviewCardTaskCountSettingsStore.value(defaults: defaults) == .three)
+    }
+
+    @Test func overviewCardConfigurationSelectsUnfinishedMilestonesAndMapsFixedHeights() {
+        let project = Project(title: "Project")
+        let completed = Milestone(title: "Completed", orderIndex: 0, isCompleted: true)
+        let first = Milestone(title: "First", orderIndex: 1)
+        let second = Milestone(title: "Second", orderIndex: 2)
+        let third = Milestone(title: "Third", orderIndex: 3)
+        completed.project = project
+        first.project = project
+        second.project = project
+        third.project = project
+        project.milestones = [third, completed, second, first]
+
+        #expect(
+            OverviewCardConfiguration.milestones(for: project, count: .two).map(\.title)
+                == ["First", "Second"]
+        )
+        #expect(OverviewCardConfiguration.cardHeight(for: .one) == 187)
+        #expect(OverviewCardConfiguration.cardHeight(for: .two) == 235)
+        #expect(OverviewCardConfiguration.cardHeight(for: .three) == 283)
+    }
+
     @Test func trashRetentionSettingsStoreRepairsInvalidValues() throws {
         let suiteName = "ViabarTests.TrashRetention.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

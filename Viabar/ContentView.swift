@@ -1068,13 +1068,15 @@ struct OverviewProjectCard: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ServiceContainer.self) private var container
     @Query(sort: \AppSettings.createdAt) private var settingsRecords: [AppSettings]
+    @AppStorage(OverviewCardTaskCountSettingsStore.key)
+    private var storedTaskCount = OverviewCardTaskCount.one.rawValue
     @State private var isHovering = false
     @State private var hoveredText: HoveredText?
 
     private enum HoveredText: Equatable {
         case project
-        case milestone
-        case subtask
+        case milestone(UUID)
+        case subtask(UUID)
     }
 
     private let hoverAnimationDuration = 0.16
@@ -1105,6 +1107,18 @@ struct OverviewProjectCard: View {
 
     private var topMilestone: Milestone? {
         project.unfinishedMilestones.first
+    }
+
+    private var taskCount: OverviewCardTaskCount {
+        OverviewCardTaskCount.resolve(storedTaskCount)
+    }
+
+    private var displayedMilestones: [Milestone] {
+        OverviewCardConfiguration.milestones(for: project, count: taskCount)
+    }
+
+    private var cardHeight: CGFloat {
+        OverviewCardConfiguration.cardHeight(for: taskCount)
     }
 
     private var displayedMilestoneReminder: Reminder? {
@@ -1186,41 +1200,50 @@ struct OverviewProjectCard: View {
 
             // 不透明卡片：任务/子任务、提醒、进度环
             VStack(alignment: .leading, spacing: 0) {
-                if let milestone = topMilestone {
-                    HStack(spacing: 6) {
-                        Image(systemName: "mappin.and.ellipse")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.gray.opacity(0.55))
-                            .frame(width: 16, alignment: .center)
-                        Text(milestone.title)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(
-                                milestoneTitleColor(
-                                    milestone.markerColor,
-                                    isHovered: hoveredText == .milestone
+                ForEach(displayedMilestones) { milestone in
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "mappin.and.ellipse")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.gray.opacity(0.55))
+                                .frame(width: 16, alignment: .center)
+                            Text(milestone.title)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(
+                                    milestoneTitleColor(
+                                        milestone.markerColor,
+                                        isHovered: hoveredText == .milestone(milestone.milestoneId)
+                                    )
                                 )
-                            )
-                            .lineLimit(1)
-                    }
-                    .padding(.leading, taskRowIndent)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onHover { hoveredText = $0 ? .milestone : nil }
+                                .lineLimit(1)
+                        }
+                        .padding(.leading, taskRowIndent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .onHover {
+                            hoveredText = $0 ? .milestone(milestone.milestoneId) : nil
+                        }
 
-                    if let subtask = milestone.subtasks.first(where: { !$0.isCompleted }) {
-                        Text(subtask.title)
-                            .font(.system(size: 12))
-                            .foregroundStyle(
-                                subtaskTitleColor(
-                                    subtask.markerColor,
-                                    isHovered: hoveredText == .subtask
+                        if let subtask = milestone.subtasks
+                            .sorted(by: { $0.orderIndex < $1.orderIndex })
+                            .first(where: { !$0.isCompleted }) {
+                            Text(subtask.title)
+                                .font(.system(size: 12))
+                                .foregroundStyle(
+                                    subtaskTitleColor(
+                                        subtask.markerColor,
+                                        isHovered: hoveredText == .subtask(subtask.taskId)
+                                    )
                                 )
-                            )
-                            .lineLimit(1)
-                            .padding(.leading, taskRowIndent + 16 + 6)
-                            .padding(.top, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .onHover { hoveredText = $0 ? .subtask : nil }
+                                .lineLimit(1)
+                                .padding(.leading, taskRowIndent + 16 + 6)
+                                .padding(.top, 8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .onHover {
+                                    hoveredText = $0 ? .subtask(subtask.taskId) : nil
+                                }
+                        }
                     }
+                    .frame(height: 48, alignment: .top)
                 }
 
                 Spacer(minLength: 0)
@@ -1270,7 +1293,7 @@ struct OverviewProjectCard: View {
             .padding(.top, 11)
         }
         .padding(.top, 15)
-        .frame(height: 187)
+        .frame(height: cardHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)

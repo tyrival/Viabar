@@ -50,11 +50,11 @@
 		E20000052FCE700000000001 /* Viabar/System/TrashModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000152FCE700000000001 /* Viabar/System/TrashModelContainer.swift */; };
 		E20000062FCE700000000001 /* Viabar/Services/SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000162FCE700000000001 /* Viabar/Services/SyncService.swift */; };
 		E20000072FCE700000000001 /* Viabar/Services/NotificationScheduleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000172FCE700000000001 /* Viabar/Services/NotificationScheduleService.swift */; };
-		E30000012FE1000000000001 /* Viabar/Services/UserNotificationCenterClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30000022FE1000000000001 /* Viabar/Services/UserNotificationCenterClient.swift */; };
-		E30000032FE1000000000001 /* Viabar/System/MainStoreDataMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30000042FE1000000000001 /* Viabar/System/MainStoreDataMigrator.swift */; };
 		E20000082FCE700000000001 /* Viabar/Services/TrashService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000182FCE700000000001 /* Viabar/Services/TrashService.swift */; };
 		E20000092FCE700000000001 /* Viabar/Services/ProjectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000192FCE700000000001 /* Viabar/Services/ProjectService.swift */; };
 		E200000A2FCE700000000001 /* Viabar/Models/OverviewReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E200001A2FCE700000000001 /* Viabar/Models/OverviewReport.swift */; };
+		E30000012FE1000000000001 /* Viabar/Services/UserNotificationCenterClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30000022FE1000000000001 /* Viabar/Services/UserNotificationCenterClient.swift */; };
+		E30000032FE1000000000001 /* Viabar/System/MainStoreDataMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30000042FE1000000000001 /* Viabar/System/MainStoreDataMigrator.swift */; };
 		F10000012FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000022FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift */; };
 /* End PBXBuildFile section */
 
@@ -141,11 +141,11 @@
 		E20000152FCE700000000001 /* Viabar/System/TrashModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/TrashModelContainer.swift; sourceTree = SOURCE_ROOT; };
 		E20000162FCE700000000001 /* Viabar/Services/SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/SyncService.swift; sourceTree = SOURCE_ROOT; };
 		E20000172FCE700000000001 /* Viabar/Services/NotificationScheduleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/NotificationScheduleService.swift; sourceTree = SOURCE_ROOT; };
-		E30000022FE1000000000001 /* Viabar/Services/UserNotificationCenterClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/UserNotificationCenterClient.swift; sourceTree = SOURCE_ROOT; };
-		E30000042FE1000000000001 /* Viabar/System/MainStoreDataMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/MainStoreDataMigrator.swift; sourceTree = SOURCE_ROOT; };
 		E20000182FCE700000000001 /* Viabar/Services/TrashService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/TrashService.swift; sourceTree = SOURCE_ROOT; };
 		E20000192FCE700000000001 /* Viabar/Services/ProjectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/ProjectService.swift; sourceTree = SOURCE_ROOT; };
 		E200001A2FCE700000000001 /* Viabar/Models/OverviewReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Models/OverviewReport.swift; sourceTree = SOURCE_ROOT; };
+		E30000022FE1000000000001 /* Viabar/Services/UserNotificationCenterClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Services/UserNotificationCenterClient.swift; sourceTree = SOURCE_ROOT; };
+		E30000042FE1000000000001 /* Viabar/System/MainStoreDataMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/System/MainStoreDataMigrator.swift; sourceTree = SOURCE_ROOT; };
 		F10000022FDF000100000001 /* Viabar/Views/Component/DragSessionEndReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viabar/Views/Component/DragSessionEndReset.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 

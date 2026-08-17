@@ -32,6 +32,7 @@
 "语言" = "Language";
 "视图" = "View";
 "总览" = "Overview";
+"总览卡片任务数量" = "Tasks per Overview Card";
 "每周开始于" = "Week Starts On";
 "周日" = "Sunday";
 "周一" = "Monday";
