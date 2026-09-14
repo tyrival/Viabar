@@ -2545,38 +2545,16 @@ struct ArchivedProjectSelectableRow: View {
             onSelect()
         } label: {
             ZStack(alignment: .center) {
-                if !isSelected && !isHovered {
-                    LightGlassView()
-                        .clipShape(Capsule(style: .continuous))
-                        .frame(height: progressBarHeight)
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        colors: colorScheme == .dark
-                                            ? [
-                                                Color.white.opacity(0.22),
-                                                Color.white.opacity(0.08),
-                                                Color.white.opacity(0.02),
-                                                Color.white.opacity(0.04),
-                                            ]
-                                            : [
-                                                Color.white.opacity(0.55),
-                                                Color.white.opacity(0.18),
-                                                Color.black.opacity(0.06),
-                                                Color.black.opacity(0.10),
-                                            ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: colorScheme == .dark ? 0.8 : 0.6
-                                )
-                        )
-                }
                 if !isSelected && isHovered {
                     Capsule(style: .continuous)
-                        .fill(ActiveProjectRowMetrics.sidebarHoverColor)
+                        .strokeBorder(
+                            Color.black.opacity(colorScheme == .dark ? 0.34 : 0.12),
+                            lineWidth: 0.8
+                        )
                         .frame(height: progressBarHeight)
+                        .blur(radius: 2)
+                        .offset(y: 1)
+                        .allowsHitTesting(false)
                 }
                 if isSelected {
                     Capsule(style: .continuous)
