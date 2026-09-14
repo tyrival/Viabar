@@ -937,6 +937,7 @@ private struct ArchiveFolderFlatRow: View {
                 .foregroundStyle(.secondary)
                 .opacity(hasContents ? 1 : 0)
                 .frame(width: 16, alignment: .center)
+                .offset(x: 3)
 
             Image(systemName: isExpanded ? "folder.fill" : "folder")
                 .foregroundStyle(rowForeground)
@@ -954,6 +955,7 @@ private struct ArchiveFolderFlatRow: View {
                 Text("\(folder.projects.count)")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .padding(.trailing, 6)
             }
         }
     }
@@ -984,7 +986,7 @@ private struct ArchiveFolderFlatRow: View {
         .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
         .background {
             if isDropTargetedInto || isHovered {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                Capsule(style: .continuous)
                     .fill(backgroundFill)
                     .padding(.horizontal, ActiveProjectRowMetrics.defaultHorizontalInset)
             }
