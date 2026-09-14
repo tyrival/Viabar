@@ -2547,13 +2547,13 @@ struct ArchivedProjectSelectableRow: View {
             ZStack(alignment: .center) {
                 if !isSelected && isHovered {
                     Capsule(style: .continuous)
-                        .strokeBorder(
-                            Color.black.opacity(colorScheme == .dark ? 0.34 : 0.12),
-                            lineWidth: 0.8
+                        .fill(ActiveProjectRowMetrics.sidebarHoverColor)
+                        .shadow(
+                            color: Color.black.opacity(colorScheme == .dark ? 0.32 : 0.10),
+                            radius: 3,
+                            y: 1
                         )
                         .frame(height: progressBarHeight)
-                        .blur(radius: 2)
-                        .offset(y: 1)
                         .allowsHitTesting(false)
                 }
                 if isSelected {
