@@ -525,6 +525,9 @@ struct SidebarView: View {
                             onDelete: {
                                 showDeleteProjectConfirmation(contextProject(fallback: project))
                             },
+                            onDragStart: {
+                                beginActiveProjectDrag(project)
+                            },
                             onSelect: {
                                 selection = .project(project)
                             }
@@ -538,12 +541,6 @@ struct SidebarView: View {
                             RightClickContextReader {
                                 setContextProject(project)
                             }
-                        }
-                        .onDrag {
-                            draggingActiveProjectId = project.projectId
-                            activeProjectDisplayOrder = displayedActiveProjects.map(\.projectId)
-                            let provider = NSItemProvider(object: project.projectId.uuidString as NSString)
-                            return provider
                         }
                     }
                 }
@@ -603,6 +600,11 @@ struct SidebarView: View {
                 .onHover { isTemplateButtonHovered = $0 }
             }
         }
+    }
+
+    private func beginActiveProjectDrag(_ project: Project) {
+        draggingActiveProjectId = project.projectId
+        activeProjectDisplayOrder = displayedActiveProjects.map(\.projectId)
     }
 
     // MARK: - Archive Section
@@ -1650,6 +1652,7 @@ struct ActiveProjectRow: View {
     let onArchive: () -> Void
     let onToggleFavorite: () -> Void
     let onDelete: () -> Void
+    let onDragStart: () -> Void
     let onSelect: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -1772,90 +1775,95 @@ struct ActiveProjectRow: View {
     }
 
     var body: some View {
-        ZStack(alignment: .center) {
-            Group {
-                shadowCapsule(
-                    opacity: isSelected ? ActiveProjectRowMetrics.selectedFarShadowOpacity : 0,
-                    radius: ActiveProjectRowMetrics.selectedFarShadowRadius,
-                    yOffset: ActiveProjectRowMetrics.selectedFarShadowYOffset,
-                    inset: ActiveProjectRowMetrics.selectedShadowInset
-                )
-                shadowCapsule(
-                    opacity: isSelected ? ActiveProjectRowMetrics.selectedNearShadowOpacity : 0,
-                    radius: ActiveProjectRowMetrics.selectedNearShadowRadius,
-                    yOffset: ActiveProjectRowMetrics.selectedNearShadowYOffset,
-                    inset: ActiveProjectRowMetrics.selectedShadowInset
-                )
-                shadowCapsule(
-                    opacity: isSelected ? 0 : ActiveProjectRowMetrics.defaultShadowOpacity,
-                    radius: ActiveProjectRowMetrics.defaultShadowRadius,
-                    yOffset: ActiveProjectRowMetrics.defaultShadowYOffset
-                )
-            }
-            .animation(ActiveProjectRowMetrics.shadowAnimation, value: isSelected)
-
-            // 胶囊底色
-            if isSelected || isHovered {
-                Capsule(style: .continuous)
-                    .fill(capsuleBackgroundColor)
-                    .frame(height: progressBarHeight)
-            } else {
-                LightGlassView()
-                    .clipShape(Capsule(style: .continuous))
-                    .frame(height: progressBarHeight)
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: colorScheme == .dark
-                                        ? [
-                                            Color.white.opacity(0.22),
-                                            Color.white.opacity(0.08),
-                                            Color.white.opacity(0.02),
-                                            Color.white.opacity(0.04),
-                                        ]
-                                        : [
-                                            Color.white.opacity(0.55),
-                                            Color.white.opacity(0.18),
-                                            Color.black.opacity(0.06),
-                                            Color.black.opacity(0.10),
-                                        ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: colorScheme == .dark ? 0.8 : 0.6
-                            )
+        Button(action: onSelect) {
+            ZStack(alignment: .center) {
+                Group {
+                    shadowCapsule(
+                        opacity: isSelected ? ActiveProjectRowMetrics.selectedFarShadowOpacity : 0,
+                        radius: ActiveProjectRowMetrics.selectedFarShadowRadius,
+                        yOffset: ActiveProjectRowMetrics.selectedFarShadowYOffset,
+                        inset: ActiveProjectRowMetrics.selectedShadowInset
                     )
-            }
+                    shadowCapsule(
+                        opacity: isSelected ? ActiveProjectRowMetrics.selectedNearShadowOpacity : 0,
+                        radius: ActiveProjectRowMetrics.selectedNearShadowRadius,
+                        yOffset: ActiveProjectRowMetrics.selectedNearShadowYOffset,
+                        inset: ActiveProjectRowMetrics.selectedShadowInset
+                    )
+                    shadowCapsule(
+                        opacity: isSelected ? 0 : ActiveProjectRowMetrics.defaultShadowOpacity,
+                        radius: ActiveProjectRowMetrics.defaultShadowRadius,
+                        yOffset: ActiveProjectRowMetrics.defaultShadowYOffset
+                    )
+                }
+                .animation(ActiveProjectRowMetrics.shadowAnimation, value: isSelected)
 
-            if isSelected {
-                rowContent(
-                    contentColor: .white,
-                    iconSymbolColor: .white,
-                    iconBackgroundColor: accentColor,
-                    iconRingColor: .white,
-                    reminderColor: .white,
-                    favoriteColor: .white
-                )
-            } else {
-                rowContent(
-                    contentColor: .primary,
-                    iconSymbolColor: accentColor,
-                    iconBackgroundColor: ActiveProjectRowMetrics.progressUnselectedFillColor,
-                    iconRingColor: accentColor,
-                    reminderColor: .orange,
-                    favoriteColor: ViabarColor.warning
-                )
+                // 胶囊底色
+                if isSelected || isHovered {
+                    Capsule(style: .continuous)
+                        .fill(capsuleBackgroundColor)
+                        .frame(height: progressBarHeight)
+                } else {
+                    LightGlassView()
+                        .clipShape(Capsule(style: .continuous))
+                        .frame(height: progressBarHeight)
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: colorScheme == .dark
+                                            ? [
+                                                Color.white.opacity(0.22),
+                                                Color.white.opacity(0.08),
+                                                Color.white.opacity(0.02),
+                                                Color.white.opacity(0.04),
+                                            ]
+                                            : [
+                                                Color.white.opacity(0.55),
+                                                Color.white.opacity(0.18),
+                                                Color.black.opacity(0.06),
+                                                Color.black.opacity(0.10),
+                                            ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: colorScheme == .dark ? 0.8 : 0.6
+                                )
+                        )
+                }
+
+                if isSelected {
+                    rowContent(
+                        contentColor: .white,
+                        iconSymbolColor: .white,
+                        iconBackgroundColor: accentColor,
+                        iconRingColor: .white,
+                        reminderColor: .white,
+                        favoriteColor: .white
+                    )
+                } else {
+                    rowContent(
+                        contentColor: .primary,
+                        iconSymbolColor: accentColor,
+                        iconBackgroundColor: ActiveProjectRowMetrics.progressUnselectedFillColor,
+                        iconRingColor: accentColor,
+                        reminderColor: .orange,
+                        favoriteColor: ViabarColor.warning
+                    )
+                }
             }
+            .frame(height: rowHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, horizontalInset)
+            .padding(.vertical, isSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
+            .offset(y: isSelected ? ActiveProjectRowMetrics.selectedLift : 0)
+            .animation(ActiveProjectRowMetrics.selectionAnimation, value: isSelected)
         }
-        .frame(height: rowHeight)
-        .padding(.horizontal, horizontalInset)
-        .padding(.vertical, isSelected ? ActiveProjectRowMetrics.selectedShadowBleed : 0)
-        .offset(y: isSelected ? ActiveProjectRowMetrics.selectedLift : 0)
-        .animation(ActiveProjectRowMetrics.selectionAnimation, value: isSelected)
+        .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .onTapGesture {
-            onSelect()
+        .onDrag {
+            onDragStart()
+            return NSItemProvider(object: project.projectId.uuidString as NSString)
         }
         .background {
             SidebarRightClickMenu {

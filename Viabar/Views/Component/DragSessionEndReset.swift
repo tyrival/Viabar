@@ -2,10 +2,24 @@ import AppKit
 import SwiftUI
 
 extension View {
-    func dragSessionEndReset(isActive: Bool, onEnd: @escaping () -> Void) -> some View {
-        background {
-            DragSessionEndMonitor(isActive: isActive, onEnd: onEnd)
-                .frame(width: 0, height: 0)
+    @ViewBuilder
+    func dragSessionEndReset(
+        isActive: Bool,
+        onEnd: @escaping () -> Void
+    ) -> some View {
+        if #available(macOS 26.0, *) {
+            onDragSessionUpdated { session in
+                if case .ended = session.phase {
+                    DispatchQueue.main.async {
+                        onEnd()
+                    }
+                }
+            }
+        } else {
+            background {
+                DragSessionEndMonitor(isActive: isActive, onEnd: onEnd)
+                    .frame(width: 0, height: 0)
+            }
         }
     }
 }

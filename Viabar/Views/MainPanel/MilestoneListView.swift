@@ -564,51 +564,49 @@ private struct SafeMilestoneListView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            List {
-                ForEach(Array(taskRows.enumerated()), id: \.element.id) { index, row in
-                    taskRow(row)
-                        .overlay(alignment: .top) {
-                            taskDropSeparator(
-                                topTaskDropZone(for: row, index: index),
-                                edge: .top,
-                                showsLine: index == 0
-                            )
-                        }
-                        .overlay(alignment: .bottom) {
-                            taskDropSeparator(
-                                bottomTaskDropZone(
-                                    for: row,
-                                    nextRow: index < taskRows.count - 1 ? taskRows[index + 1] : nil
-                                ),
-                                edge: .bottom,
-                                showsLine: true
-                            )
-                        }
-                        .id(row.id)
-                        .safeListRow()
-
-                    if let milestoneID = row.milestoneID,
-                       addingSubTaskFor == milestoneID,
-                       row.isLastVisibleRowInMilestoneGroup(nextRow: index < taskRows.count - 1 ? taskRows[index + 1] : nil) {
-                        SafeSubTaskComposerView(
-                            milestoneID: milestoneID,
-                            leadingIndent: subTaskLeadingIndent,
-                            onAddSubTask: onAddSubTask,
-                            onClose: {
-                                addingSubTaskFor = nil
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(taskRows.enumerated()), id: \.element.id) { index, row in
+                        taskRow(row)
+                            .overlay(alignment: .top) {
+                                taskDropSeparator(
+                                    topTaskDropZone(for: row, index: index),
+                                    edge: .top,
+                                    showsLine: index == 0
+                                )
                             }
-                        )
-                        .safeListRow()
-                    }
-                }
+                            .overlay(alignment: .bottom) {
+                                taskDropSeparator(
+                                    bottomTaskDropZone(
+                                        for: row,
+                                        nextRow: index < taskRows.count - 1 ? taskRows[index + 1] : nil
+                                    ),
+                                    edge: .bottom,
+                                    showsLine: true
+                                )
+                            }
+                            .id(row.id)
 
-                Color.clear
-                    .frame(height: 96)
-                    .id(bottomAnchorID)
-                    .safeListRow()
+                        if let milestoneID = row.milestoneID,
+                           addingSubTaskFor == milestoneID,
+                           row.isLastVisibleRowInMilestoneGroup(nextRow: index < taskRows.count - 1 ? taskRows[index + 1] : nil) {
+                            SafeSubTaskComposerView(
+                                milestoneID: milestoneID,
+                                leadingIndent: subTaskLeadingIndent,
+                                onAddSubTask: onAddSubTask,
+                                onClose: {
+                                    addingSubTaskFor = nil
+                                }
+                            )
+                        }
+                    }
+
+                    Color.clear
+                        .frame(height: 96)
+                        .id(bottomAnchorID)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
             .onChange(of: scrollToBottomTrigger) { _, _ in
                 scrollToBottom(proxy)
             }
@@ -800,16 +798,6 @@ private struct SafeMilestoneListView: View {
 
 }
 
-private extension View {
-    func safeListRow() -> some View {
-        self
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .selectionDisabled(true)
-    }
-}
-
 private enum TaskDragItem: Equatable {
     case milestone(UUID)
     case subTask(UUID)
@@ -822,7 +810,6 @@ private enum TaskDragItem: Equatable {
             return "subtask:\(id.uuidString)"
         }
     }
-
 }
 
 private enum TaskDropTarget: Equatable {
@@ -940,11 +927,6 @@ private struct TaskSeparatorDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggingItem = nil
-            dropTarget = nil
-        }
-
         guard let draggingItem else { return false }
 
         onPerformDrop(draggingItem, target)
@@ -1109,6 +1091,65 @@ private enum TaskContextMenuEntry {
     case item(String, systemImage: String, action: () -> Void)
     case colorPicker(selected: TaskMarkerColor?, onSelect: (TaskMarkerColor?) -> Void)
     case separator
+}
+
+private struct TaskDoubleClickReader: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> HostView {
+        let view = HostView()
+        view.action = action
+        view.installMonitor()
+        return view
+    }
+
+    func updateNSView(_ nsView: HostView, context: Context) {
+        nsView.action = action
+    }
+
+    static func dismantleNSView(_ nsView: HostView, coordinator: ()) {
+        nsView.removeMonitor()
+    }
+
+    final class HostView: NSView {
+        var action: (() -> Void)?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+
+        func installMonitor() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+                guard event.clickCount == 2,
+                      let self,
+                      let window,
+                      event.window === window
+                else { return event }
+
+                let pointInView = convert(event.locationInWindow, from: nil)
+                guard bounds.contains(pointInView) else { return event }
+
+                let handler = action
+                DispatchQueue.main.async {
+                    handler?()
+                }
+                return event
+            }
+        }
+
+        func removeMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        deinit {
+            removeMonitor()
+        }
+    }
 }
 
 private struct TaskRightClickMenu: NSViewRepresentable {
@@ -1296,8 +1337,6 @@ private struct SafeMilestoneRowView: View {
 
                 milestoneTitle
             }
-            .contentShape(Rectangle())
-            .onTapGesture(count: 2) { beginTitleEdit() }
 
             ReminderStatusView(
                 reminder: $reminder,
@@ -1387,6 +1426,9 @@ private struct SafeMilestoneRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
+                .background {
+                    TaskDoubleClickReader(action: beginTitleEdit)
+                }
         }
     }
 
@@ -1503,8 +1545,6 @@ private struct SafeSubTaskRowView: View {
 
                 subTaskTitle
             }
-            .contentShape(Rectangle())
-            .onTapGesture(count: 2) { beginTitleEdit() }
 
             ReminderStatusView(
                 reminder: $reminder,
@@ -1611,6 +1651,9 @@ private struct SafeSubTaskRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
+                .background {
+                    TaskDoubleClickReader(action: beginTitleEdit)
+                }
         }
     }
 
