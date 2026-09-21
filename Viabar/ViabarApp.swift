@@ -7,6 +7,7 @@ struct ViabarApp: App {
 
     // MARK: - State
 
+    @NSApplicationDelegateAdaptor(ViabarAppDelegate.self) private var appDelegate
     @State private var serviceContainer: ServiceContainer
     @State private var runtimeController: AppRuntimeController
     @State private var isMenuBarInserted: Bool
@@ -75,9 +76,17 @@ struct ViabarApp: App {
         // projectService.cloudSyncService = syncService
 
         _serviceContainer = State(initialValue: container)
-        _runtimeController = State(initialValue: AppRuntimeController())
         _isMenuBarInserted = State(initialValue: settings.menuBarComponentEnabled)
         _menuBarIcon = State(initialValue: MenuBarIcon.resolve(settings.menuBarIcon))
+
+        // 外部 URL（viabar://）统一由 AppKit 层接管，静默写入、不弹窗不抢焦点
+        let runtime = AppRuntimeController()
+        _runtimeController = State(initialValue: runtime)
+        ExternalURLRouter.shared.configure(
+            modelContext: sharedModelContainer.mainContext,
+            projectService: projectService,
+            runtimeController: runtime
+        )
     }
 
     // MARK: - Body
@@ -111,6 +120,10 @@ struct ViabarApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1260, height: 820)
+        // 关闭 WindowGroup 的「外部事件自动开窗」：URL 事件全部交给
+        // ViabarAppDelegate → ExternalURLRouter 处理，避免外部投递时弹窗、抢焦点。
+        // navigate 指令需要的显示/激活由 AppRuntimeController.showMainPanel() 完成。
+        .handlesExternalEvents(matching: [])
         .modelContainer(sharedModelContainer)
 
         MenuBarExtra(isInserted: $isMenuBarInserted) {
