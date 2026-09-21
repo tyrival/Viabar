@@ -3,6 +3,7 @@ import Foundation
 enum ExternalAddKind: Equatable {
     case memo
     case todo
+    case milestone
 }
 
 struct ExternalAddRequest: Equatable {
@@ -29,6 +30,8 @@ enum ExternalAddURL {
             return memoRequest(from: url)
         case "todo":
             return todoRequest(from: url)
+        case "milestone":
+            return milestoneRequest(from: url)
         default:
             return nil
         }
@@ -57,6 +60,19 @@ enum ExternalAddURL {
             kind: .todo,
             projectReference: project,
             milestoneReference: milestone,
+            text: title
+        )
+    }
+
+    private static func milestoneRequest(from url: URL) -> ExternalAddRequest? {
+        guard let project = reference(named: "project", in: url),
+              let title = firstNonEmptyValue(named: ["title", "text", "content"], in: url)
+        else { return nil }
+
+        return ExternalAddRequest(
+            kind: .milestone,
+            projectReference: project,
+            milestoneReference: nil,
             text: title
         )
     }
@@ -103,6 +119,13 @@ enum ExternalAddHandler {
             return GlobalSearchNavigationRequest(
                 projectID: project.projectId,
                 destination: .memo(memo.memoId)
+            )
+
+        case .milestone:
+            let milestone = projectService.addMilestone(to: project, title: request.text)
+            return GlobalSearchNavigationRequest(
+                projectID: project.projectId,
+                destination: .milestone(milestone.milestoneId)
             )
 
         case .todo:
